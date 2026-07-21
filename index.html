@@ -3,124 +3,138 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Petfi — The social network where pets are the people.</title>
-<meta name="description" content="Petfi is the social network for your pets: profiles, posts, and Mate Match — find playdates, companions, and maybe true puppy love.">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='46' fill='%23e0527a'/%3E%3Cellipse cx='50' cy='60' rx='16' ry='13' fill='%23fff1ec'/%3E%3Ccircle cx='31' cy='40' r='8' fill='%23fff1ec'/%3E%3Ccircle cx='47' cy='31' r='8' fill='%23fff1ec'/%3E%3Ccircle cx='63' cy='31' r='8' fill='%23fff1ec'/%3E%3Ccircle cx='75' cy='42' r='8' fill='%23fff1ec'/%3E%3C/svg%3E">
+<title>Petfi — Social for Pets & Their People</title>
+<meta name="description" content="Petfi is the social world for pets and the people who love them: living pet profiles, a pack feed with real barks & meows, Mate Match, dog parks near you, a pet store, and care reminders. Free to join.">
+<meta name="theme-color" content="#ff7a59">
+<meta property="og:title" content="Petfi — Social for Pets & Their People">
+<meta property="og:description" content="Give your pet their own profile, make friends, find dog parks, shop, and never miss a feeding time. Free to join.">
+<meta property="og:type" content="website">
+<meta property="og:url" content="https://petfi.pet">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23ff7a59'/%3E%3Cellipse cx='50' cy='62' rx='15' ry='12' fill='%23fff'/%3E%3Ccircle cx='32' cy='44' r='7.5' fill='%23fff'/%3E%3Ccircle cx='47' cy='34' r='7.5' fill='%23fff'/%3E%3Ccircle cx='63' cy='34' r='7.5' fill='%23fff'/%3E%3Ccircle cx='74' cy='45' r='7.5' fill='%23fff'/%3E%3C/svg%3E">
 <style>
   :root{
-    --bg:#fdf8f4; --card:#ffffff; --cream:#fff1ec; --line:#eadfd6;
-    --rose:#e0527a; --rose-deep:#c23a62; --sun:#ffb84d; --sky:#eaf1ff;
-    --ink:#2a2320; --dim:#7c6f66;
+    --bg:#fff8f4; --card:#ffffff; --cream:#fff1ec; --line:#f0e6e0;
+    --brand:#ff7a59; --brand-dark:#e85c3a; --blue:#5b8def; --ok:#2ecc71;
+    --ink:#2d2a32; --dim:#6b6772;
   }
   *{margin:0;padding:0;box-sizing:border-box}
   html{scroll-behavior:smooth}
-  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6}
-  .wrap{max-width:1100px;margin:0 auto;padding:0 28px}
-  nav{position:sticky;top:0;z-index:50;background:rgba(253,248,244,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-  .nav-in{display:flex;align-items:center;justify-content:space-between;height:64px}
-  .logo{display:flex;align-items:center;gap:9px;font-weight:900;font-size:21px;color:var(--rose);text-decoration:none}
-  .nav-links{display:flex;gap:28px;font-size:14.5px;font-weight:600}
+  body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--ink);line-height:1.6;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:0 24px}
+  a{color:inherit}
+  nav{position:sticky;top:0;z-index:50;background:rgba(255,248,244,.9);backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+  .nav-in{display:flex;align-items:center;justify-content:space-between;height:62px}
+  .logo{display:flex;align-items:center;gap:8px;font-weight:900;font-size:21px;color:var(--brand);text-decoration:none;letter-spacing:-.5px}
+  .logo span{color:var(--ink)}
+  .nav-links{display:flex;gap:26px;font-size:14.5px;font-weight:600}
   .nav-links a{text-decoration:none;color:var(--dim)}
   .nav-links a:hover{color:var(--ink)}
-  .btn{display:inline-block;background:var(--rose);color:#fff;font-weight:800;padding:11px 22px;border-radius:26px;text-decoration:none;font-size:15px;transition:transform .12s,background .12s}
-  .btn:hover{transform:translateY(-2px);background:var(--rose-deep)}
-  .btn.big{padding:15px 32px;font-size:17px}
-  .btn.ghost{background:transparent;color:var(--rose);border:2px solid var(--rose)}
-  .btn.ghost:hover{background:#fdeef3}
-  .hero{padding:84px 0 70px;display:grid;grid-template-columns:1.05fr .95fr;gap:56px;align-items:center}
-  .kicker{display:inline-block;background:var(--cream);color:var(--rose-deep);font-size:12.5px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;padding:6px 14px;border-radius:20px;margin-bottom:20px;border:1px solid #f6d9cd}
-  h1{font-size:54px;line-height:1.07;font-weight:900;letter-spacing:-.02em}
-  h1 em{font-style:normal;color:var(--rose)}
-  .sub{font-size:19px;color:var(--dim);margin:22px 0 30px;max-width:30em}
-  .cta-row{display:flex;gap:14px;align-items:center}
+  .btn{display:inline-block;background:var(--brand);color:#fff;font-weight:800;padding:11px 22px;border-radius:999px;text-decoration:none;font-size:15px;transition:transform .12s,background .12s;box-shadow:0 6px 18px rgba(255,122,89,.35)}
+  .btn:hover{transform:translateY(-2px);background:var(--brand-dark)}
+  .btn.big{padding:15px 30px;font-size:17px}
+  .btn.ghost{background:transparent;color:var(--brand);border:2px solid var(--brand);box-shadow:none}
+  .btn.ghost:hover{background:var(--cream)}
+  .hero{padding:76px 0 66px;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+  .kicker{display:inline-block;background:var(--cream);color:var(--brand-dark);font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:20px;border:1px solid #f6d9cd}
+  h1{font-size:53px;line-height:1.07;font-weight:900;letter-spacing:-.02em}
+  h1 em{font-style:normal;color:var(--brand)}
+  .sub{font-size:19px;color:var(--dim);margin:22px 0 30px;max-width:31em}
+  .cta-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
   .fineprint{font-size:12.5px;color:#a89a90;margin-top:14px}
-  /* profile mockup */
-  .ph{background:var(--card);border:1px solid var(--line);border-radius:26px;box-shadow:0 30px 60px rgba(90,50,40,.14);overflow:hidden}
-  .cover{height:110px;background:linear-gradient(120deg,#ffd9c8,#ffc2d4 55%,#ffe9b8)}
-  .ph-body{padding:0 24px 22px}
-  .pfp{width:84px;height:84px;border-radius:50%;background:var(--cream);border:4px solid #fff;display:flex;align-items:center;justify-content:center;font-size:44px;margin-top:-42px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
-  .ph-name{font-size:21px;font-weight:900;margin-top:10px}
-  .ph-name span{color:var(--dim);font-weight:600;font-size:14px}
-  .ph-bio{font-size:14px;color:var(--dim);margin-top:4px}
-  .ph-stats{display:flex;gap:22px;margin:14px 0;font-size:13.5px;color:var(--dim)}
-  .ph-stats b{color:var(--ink);font-size:16px;display:block}
-  .post{border:1px solid var(--line);border-radius:16px;padding:14px;font-size:14px}
-  .post .who{font-weight:800;font-size:13px;margin-bottom:6px}
-  .post .pic{height:88px;border-radius:10px;background:linear-gradient(120deg,#ffe3d4,#ffd2e0);display:flex;align-items:center;justify-content:center;font-size:40px;margin:8px 0}
-  .post .acts{display:flex;gap:16px;color:var(--dim);font-size:13px;font-weight:700}
-  section{padding:74px 0}
-  .sec-k{color:var(--rose);font-weight:800;font-size:13.5px;letter-spacing:.1em;text-transform:uppercase}
-  h2{font-size:38px;font-weight:900;letter-spacing:-.01em;margin:10px 0 14px}
-  .lead{color:var(--dim);font-size:17px;max-width:44em}
-  .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:40px}
-  .feat{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:28px 24px;transition:transform .15s,box-shadow .15s}
+  /* phone mockup */
+  .phone{background:var(--card);border:1px solid var(--line);border-radius:30px;box-shadow:0 30px 60px rgba(90,50,40,.15);overflow:hidden;max-width:340px;margin:0 auto}
+  .cover{height:96px;background:linear-gradient(120deg,#ffd9c8,#ffc2d4 55%,#ffe9b8)}
+  .ph-body{padding:0 20px 20px}
+  .pfp{width:78px;height:78px;border-radius:50%;background:var(--cream);border:4px solid #fff;display:flex;align-items:center;justify-content:center;font-size:40px;margin-top:-40px;box-shadow:0 4px 14px rgba(0,0,0,.08)}
+  .ph-name{font-size:20px;font-weight:900;margin-top:10px}
+  .ph-name span{color:var(--dim);font-weight:600;font-size:13.5px;display:block}
+  .ph-stats{display:flex;gap:20px;margin:14px 0;font-size:12.5px;color:var(--dim)}
+  .ph-stats b{color:var(--ink);font-size:15px;display:block}
+  .post{border:1px solid var(--line);border-radius:16px;padding:13px;font-size:13.5px}
+  .post .who{font-weight:800;font-size:12.5px;margin-bottom:6px}
+  .post .pic{height:82px;border-radius:10px;background:linear-gradient(120deg,#fff3d6,#ffd2e0);display:flex;align-items:center;justify-content:center;font-size:38px;margin:8px 0}
+  .post .acts{display:flex;gap:14px;color:var(--dim);font-size:12.5px;font-weight:700}
+  .post .acts .b{color:var(--brand)}
+  section{padding:70px 0}
+  .sec-k{color:var(--brand);font-weight:800;font-size:13px;letter-spacing:.1em;text-transform:uppercase}
+  h2{font-size:37px;font-weight:900;letter-spacing:-.01em;margin:10px 0 14px}
+  .lead{color:var(--dim);font-size:17px;max-width:46em}
+  .feats{display:grid;grid-template-columns:repeat(3,1fr);gap:18px;margin-top:38px}
+  .feat{background:var(--card);border:1px solid var(--line);border-radius:20px;padding:26px 22px;transition:transform .15s,box-shadow .15s}
   .feat:hover{transform:translateY(-4px);box-shadow:0 16px 34px rgba(90,50,40,.10)}
-  .feat .ic{width:52px;height:52px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--cream)}
-  .feat h3{font-size:18.5px;margin:14px 0 6px}
+  .feat .ic{width:50px;height:50px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:25px;background:var(--cream)}
+  .feat h3{font-size:18px;margin:14px 0 6px}
   .feat p{font-size:14.5px;color:var(--dim)}
-  /* mate match band */
-  .mm{background:linear-gradient(120deg,#fff0f5,#fff7ec);border:1px solid #f6dfd2;border-radius:28px;padding:56px 48px;display:grid;grid-template-columns:1.1fr .9fr;gap:40px;align-items:center}
+  .mm{background:linear-gradient(120deg,#fff1ec,#fff7ec);border:1px solid #f6dfd2;border-radius:28px;padding:52px 44px;display:grid;grid-template-columns:1.1fr .9fr;gap:38px;align-items:center}
   .mm h2{margin-top:6px}
   .mm .lead{font-size:16px}
   .mm-list{margin-top:18px;list-style:none}
   .mm-list li{display:flex;gap:12px;align-items:flex-start;margin-bottom:12px;font-size:15px}
   .mm-list .em{flex-shrink:0}
   .match-card{background:#fff;border:1px solid var(--line);border-radius:22px;padding:22px;text-align:center;box-shadow:0 18px 40px rgba(90,50,40,.12)}
-  .match-pair{display:flex;justify-content:center;align-items:center;gap:14px;font-size:52px}
-  .heart{font-size:30px;animation:beat 1.2s infinite}
+  .match-pair{display:flex;justify-content:center;align-items:center;gap:14px;font-size:50px}
+  .heart{font-size:28px;animation:beat 1.2s infinite}
   @keyframes beat{0%,100%{transform:scale(1)}50%{transform:scale(1.25)}}
   .match-names{font-weight:800;margin-top:10px}
   .match-sub{font-size:13px;color:var(--dim)}
-  .match-btn{margin-top:14px;display:inline-block;background:var(--rose);color:#fff;font-weight:800;font-size:14px;padding:9px 22px;border-radius:20px}
-  .band{background:var(--rose);border-radius:28px;padding:60px 48px;text-align:center;margin:20px 0 40px;color:#fff}
+  .match-btn{margin-top:14px;display:inline-block;background:var(--brand);color:#fff;font-weight:800;font-size:14px;padding:9px 22px;border-radius:999px}
+  .pledge{background:linear-gradient(120deg,#ffe9f0,#ffd9e6);border:1px solid #ffbfd2;border-radius:28px;padding:48px 44px;text-align:center;color:#a03a5a;margin-top:8px}
+  .pledge h2{color:#a03a5a}
+  .pledge p{max-width:38em;margin:8px auto 0;font-size:16px}
+  .band{background:var(--brand);border-radius:28px;padding:58px 44px;text-align:center;margin:16px 0 8px;color:#fff}
   .band h2{color:#fff;margin-bottom:10px}
-  .band p{color:#ffe3ec;margin-bottom:28px}
-  .band .btn{background:#fff;color:var(--rose-deep)}
-  footer{border-top:1px solid var(--line);padding:38px 0 46px;font-size:13.5px;color:#a89a90}
+  .band p{color:#ffe3d8;margin-bottom:26px}
+  .band .btn{background:#fff;color:var(--brand-dark);box-shadow:none}
+  .band .btn:hover{background:#fff1ec}
+  footer{border-top:1px solid var(--line);padding:36px 0 46px;font-size:13.5px;color:#a89a90}
   .f-in{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
-  .f-in a{color:var(--rose);text-decoration:none;font-weight:700}
+  .f-links{display:flex;gap:18px;flex-wrap:wrap}
+  .f-links a{color:var(--brand);text-decoration:none;font-weight:700}
   @media(max-width:900px){
     .hero,.mm{grid-template-columns:1fr}
+    .hero{padding:52px 0 44px}
     h1{font-size:40px}
+    h2{font-size:31px}
     .feats{grid-template-columns:1fr 1fr}
     .nav-links{display:none}
+    .phone{margin-top:8px}
+    .mm{padding:40px 26px}
   }
-  @media(max-width:560px){.feats{grid-template-columns:1fr}}
+  @media(max-width:560px){.feats{grid-template-columns:1fr}.band,.pledge{padding:40px 24px}}
 </style>
 </head>
 <body>
 
 <nav><div class="wrap nav-in">
-  <a class="logo" href="#">🐾 Petfi</a>
+  <a class="logo" href="#">🐾 Pet<span>fi</span></a>
   <div class="nav-links">
-    <a href="#features">Features</a><a href="#matematch">Mate Match</a><a href="#safety">Safety</a>
+    <a href="#features">Features</a><a href="#matematch">Mate Match</a><a href="#nearby">Nearby</a><a href="#safety">Safety</a>
   </div>
-  <a class="btn" href="mailto:support@petfi.pet?subject=Petfi%20early%20access">Join the beta</a>
+  <a class="btn" href="app/">Open Petfi</a>
 </div></nav>
 
 <header class="wrap hero">
   <div>
-    <span class="kicker">🐶 Private beta — new packs welcome</span>
-    <h1>The social network where <em>pets</em> are the people.</h1>
-    <p class="sub">Give your best friend their own profile. Share their adventures, follow the neighborhood pack, and — when they’re ready — find them a perfect match on Mate&nbsp;Match.</p>
+    <span class="kicker">🐾 Now in beta — join free</span>
+    <h1>The social world for <em>pets</em> and their people.</h1>
+    <p class="sub">Give your best friend their own profile with a living, breed-matched icon. Share their adventures, bark &amp; meow at pals, find dog parks nearby, and — when they're ready — find them a match on Mate&nbsp;Match.</p>
     <div class="cta-row">
-      <a class="btn big" href="mailto:support@petfi.pet?subject=Petfi%20early%20access&body=My%20pet%27s%20name%20and%20breed%3A">🐾 Request an invite</a>
-      <a class="btn big ghost" href="#features">Take the tour</a>
+      <a class="btn big" href="app/">🐾 Open Petfi</a>
+      <a class="btn big ghost" href="#features">See what's inside</a>
     </div>
-    <p class="fineprint">Free for every pet. Their humans just tag along.</p>
+    <p class="fineprint">Free for every pet · Works right in your browser · Add it to your home screen like a real app.</p>
   </div>
-  <div class="ph">
+  <div class="phone">
     <div class="cover"></div>
     <div class="ph-body">
       <div class="pfp">🐕</div>
-      <div class="ph-name">Biscuit <span>· Golden Retriever · Fresno, CA</span></div>
-      <div class="ph-bio">Professional tennis-ball collector. Amateur pool swimmer. Will sit for cheese.</div>
-      <div class="ph-stats"><span><b>214</b> pack friends</span><span><b>87</b> posts</span><span><b>12</b> awards</span></div>
+      <div class="ph-name">Biscuit <span>Golden Retriever · 2 yrs · 🔥 6-day streak</span></div>
+      <div class="ph-stats"><span><b>214</b> friends</span><span><b>87</b> posts</span><span><b>🏳️ 1</b> park held</span></div>
       <div class="post">
         <div class="who">🐕 Biscuit · 2h</div>
-        Caught the ball mid-air today. The legend grows.
+        Caught the ball mid-air today. The legend grows. 🎾
         <div class="pic">🎾</div>
-        <div class="acts"><span>❤️ 48 licks</span><span>💬 9 barks</span><span>↗ share</span></div>
+        <div class="acts"><span class="b">🐶 48 barks</span><span>💬 9</span><span>↗ share</span></div>
       </div>
     </div>
   </div>
@@ -129,55 +143,72 @@
 <section id="features"><div class="wrap">
   <span class="sec-k">Everything a good pet deserves</span>
   <h2>A whole app built around them</h2>
-  <p class="lead">Petfi isn’t your feed with pet photos in it — it’s <b>their</b> feed. Every profile, post, and friendship belongs to the pet.</p>
+  <p class="lead">Petfi isn't your feed with pet photos in it — it's <b>their</b> feed. Every profile, post, and friendship belongs to the pet.</p>
   <div class="feats">
-    <div class="feat"><div class="ic">🪪</div><h3>Pet profiles</h3><p>Name, breed, birthday, favorite crimes — a real profile page for every dog, cat, bird, or lizard in the family.</p></div>
-    <div class="feat"><div class="ic">📸</div><h3>The pack feed</h3><p>Post their daily adventures and follow the neighborhood pack. Likes are licks. Comments are barks.</p></div>
-    <div class="feat"><div class="ic">🏆</div><h3>Awards &amp; badges</h3><p>Goodest Boy of the Week is a real title with real bragging rights. Collect badges for milestones.</p></div>
-    <div class="feat"><div class="ic">💘</div><h3>Mate Match</h3><p>Swipe on behalf of your pet to find playdates, companions — or true puppy love. Both owners must approve.</p></div>
-    <div class="feat"><div class="ic">🗺️</div><h3>Local packs</h3><p>Find pets nearby for park meetups and walk buddies. Your block has more dogs than you think.</p></div>
-    <div class="feat"><div class="ic">☁️</div><h3>Safe in the cloud</h3><p>Sign in from any phone or computer — profiles, posts, and matches follow you everywhere.</p></div>
+    <div class="feat"><div class="ic">🪪</div><h3>Living pet profiles</h3><p>Pick your species and breed and your pet gets a hand-drawn animated icon to match — dog, cat, bird, rabbit, hamster, reptile, fish or snake. Dress it up with collars &amp; shades.</p></div>
+    <div class="feat"><div class="ic">📣</div><h3>The pack feed</h3><p>Post their daily adventures and react with <b>real recorded barks &amp; meows</b>. Every species has its own voice — tap to hear it.</p></div>
+    <div class="feat"><div class="ic">💘</div><h3>Mate Match</h3><p>Find your pet a playdate or a breeding match — or find yourself a fellow pet person. Bark first; if they bark back, it's a match.</p></div>
+    <div class="feat"><div class="ic">📍</div><h3>Dog parks &amp; Mark Your Territory</h3><p>Find real parks, vets and groomers near you — then GPS-claim a park so your pet "holds" it until another pup takes the crown.</p></div>
+    <div class="feat"><div class="ic">🛒</div><h3>The Pet Store</h3><p>Shop hand-picked pet gear, or sell your own to the community. Everything a happy pet needs, in one tidy place.</p></div>
+    <div class="feat"><div class="ic">⏰</div><h3>Care reminders</h3><p>Private feeding, litter &amp; medication reminders plus a vet calendar that nudges you before every appointment.</p></div>
   </div>
 </div></section>
 
-<section id="matematch"><div class="wrap mm">
+<section id="matematch" style="padding-top:20px"><div class="wrap mm">
   <div>
     <span class="sec-k">💘 Mate Match</span>
     <h2>Matchmaking, with wagging tails</h2>
-    <p class="lead">Whether you’re looking for a playdate, a companion, or a future litter, Mate Match pairs pets the thoughtful way.</p>
+    <p class="lead">Whether you want a playdate, a companion, or a future litter, Mate Match pairs pets — and pet people — the thoughtful way.</p>
     <ul class="mm-list">
-      <li><span class="em">🐾</span><span><b>Two paths:</b> browse as your pet — or browse pets for your pet. Playdates or true romance; you set the intent.</span></li>
-      <li><span class="em">🔔</span><span><b>Bark back:</b> matches only happen when both sides bark back. No surprise suitors at the dog park.</span></li>
-      <li><span class="em">🧑‍🤝‍🧑</span><span><b>Humans stay in charge:</b> owners chat first, meet safely, and decide what’s right for their pet.</span></li>
+      <li><span class="em">🐾</span><span><b>Two paths:</b> find a mate for your pet, or a pet-loving person for you. You set the intent.</span></li>
+      <li><span class="em">🔔</span><span><b>Bark to say hi:</b> matches only happen when both sides bark back — no surprise suitors sliding into your messages.</span></li>
+      <li><span class="em">🧬</span><span><b>Honest breeding info:</b> every listing shows age, health and pedigree up front, so owners can talk responsibly first.</span></li>
     </ul>
   </div>
   <div class="match-card">
     <div class="match-pair">🐕<span class="heart">💘</span>🐩</div>
     <div class="match-names">Biscuit &amp; Fifi barked back!</div>
-    <div class="match-sub">Both owners approved · 2.1 miles apart</div>
+    <div class="match-sub">It's a match · 2.1 miles apart</div>
     <span class="match-btn">Say hello 👋</span>
   </div>
 </div></section>
 
+<section id="nearby" style="padding-top:24px"><div class="wrap">
+  <span class="sec-k">📍 Out in the world</span>
+  <h2>Your neighborhood has more pets than you think</h2>
+  <p class="lead">Petfi maps real dog parks, pet stores, groomers and vets around you — no ads, no sponsored junk. And <b>Mark Your Territory</b> turns the local dog park into a friendly game: stand at a park, plant your flag, and your pet holds it until someone claims it next.</p>
+</div></section>
+
+<section style="padding-top:8px"><div class="wrap"><div class="pledge">
+  <span class="sec-k" style="color:#c23a62">💖 The Petfi pledge</span>
+  <h2>10% goes to shelter pets</h2>
+  <p>Ten percent of every ad and subscription on Petfi goes straight to animal shelters and rescues — helping cover adoption fees, food and medical care for the pets still waiting on their family. You can donate directly in the app, too.</p>
+</div></div></section>
+
 <section id="safety"><div class="wrap">
   <span class="sec-k">Safety first</span>
-  <h2>Built for happy, healthy pets</h2>
+  <h2>Built for happy, healthy pets — and people</h2>
   <div class="feats">
-    <div class="feat"><div class="ic">✅</div><h3>Owner-approved everything</h3><p>Pets can’t message, match, or meet without their human’s say-so. Every step needs a grown-up.</p></div>
-    <div class="feat"><div class="ic">🔒</div><h3>Your data stays yours</h3><p>Location is approximate, profiles show only what you choose, and we never sell your info.</p></div>
-    <div class="feat"><div class="ic">❤️‍🩹</div><h3>Responsible matching</h3><p>Mate Match encourages health checks and responsible breeding conversations between owners first.</p></div>
+    <div class="feat"><div class="ic">✅</div><h3>Verified owners</h3><p>Sellers and breeders verify their identity for a trust badge, so buyers and matches know they're dealing with a real person.</p></div>
+    <div class="feat"><div class="ic">🔒</div><h3>Your data stays yours</h3><p>Location is approximate, your ZIP is never shown to others, and we never sell your info. Block or report anyone in a tap.</p></div>
+    <div class="feat"><div class="ic">🐾</div><h3>Animal welfare rules</h3><p>No homemade consumables, no unhealthy sales, zero tolerance for abuse. Community guidelines everyone agrees to.</p></div>
   </div>
 </div></section>
 
 <div class="wrap"><div class="band">
-  <h2>Your pet’s profile is waiting</h2>
-  <p>Join the beta and claim their name before the neighbor’s cat takes it.</p>
-  <a class="btn big" href="mailto:support@petfi.pet?subject=Petfi%20early%20access&body=My%20pet%27s%20name%20and%20breed%3A">🐾 Request early access</a>
+  <h2>Your pet's profile is waiting</h2>
+  <p>Join free and claim their name before the neighbor's cat takes it.</p>
+  <a class="btn big" href="app/">🐾 Open Petfi</a>
 </div></div>
 
 <footer><div class="wrap f-in">
   <span>© 2026 Spindola Software · Petfi™</span>
-  <span>Questions? <a href="mailto:support@petfi.pet">support@petfi.pet</a></span>
+  <span class="f-links">
+    <a href="app/">Open app</a>
+    <a href="app/">Terms</a>
+    <a href="app/">Privacy</a>
+    <a href="mailto:support@petfi.pet">Contact</a>
+  </span>
 </div></footer>
 
 </body>

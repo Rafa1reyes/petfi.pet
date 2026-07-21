@@ -1,0 +1,11 @@
+Petfi reaction sounds
+
+Source: BigSoundBank.com — all released under CC0 (public domain, no attribution required, commercial use OK).
+
+bark1.mp3  = "Barking of a Spitz" (id 0682)
+bark2.mp3  = "Barking dog #3 / sled dog" (id 2955)
+meow1.mp3  = "Little meow of a cat" (id 0494)
+meow2.mp3  = "Meow cat #3" (id 1891)
+meow3.mp3  = "Meow cat #12" (id 1900)
+
+Played trimmed (leading silence cut) with slight random pitch variation. App falls back to synthesized sounds if these fail to load.

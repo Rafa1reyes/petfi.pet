@@ -1,0 +1,13 @@
+{
+  "name": "Petfi — Social for Pets & Their People",
+  "short_name": "Petfi",
+  "description": "Make pet friends, find parks & vets nearby, shop the pet store, and never miss a feeding time.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#fff8f4",
+  "theme_color": "#ff7a59",
+  "icons": [
+    { "src": "petfi-icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
