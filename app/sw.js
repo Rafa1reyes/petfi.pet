@@ -3,7 +3,7 @@
 // newest version — no stale-app trap), falling back to cache when offline.
 // Third-party calls (Supabase, OpenStreetMap, Amazon, the Supabase CDN)
 // are left entirely to the browser.
-const CACHE = 'petfi-v1';
+const CACHE = 'petfi-v2';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './petfi-icon.svg',
   './sounds/bark1.mp3', './sounds/bark2.mp3',
