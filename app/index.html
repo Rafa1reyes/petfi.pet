@@ -483,6 +483,20 @@
     body.dark .mm-banner, body.dark .mm-media { border-color: #5a3d33; background: #3a2a24; }
     body.dark .mm-btn.alt { background: var(--card); color: var(--ink); }
     body.dark .mm-seg > div.on, body.dark .mm-tile.on { color: #ffb4a0; }
+    /* ---- Mark Your Territory: the pee moment ---- */
+    .pee-scene { position: relative; height: 170px; margin: 0.2rem auto 0.4rem; width: 220px; }
+    .pee-pet { position: absolute; left: 50%; top: 10px; width: 96px; height: 96px; margin-left: -48px; border-radius: 50%; overflow: hidden; border: 3px solid var(--brand); background: var(--card); transform-origin: 50% 100%; animation: peeLift 1.6s var(--ease-spring) 1 both; }
+    @keyframes peeLift { 0% { transform: rotate(0deg); } 25% { transform: rotate(-14deg) translateX(-6px); } 80% { transform: rotate(-14deg) translateX(-6px); } 100% { transform: rotate(0deg); } }
+    .pee-drops { position: absolute; left: 50%; top: 82px; width: 0; height: 0; }
+    .pee-drops span { position: absolute; font-size: 1.1rem; opacity: 0; animation: peeDrop 1.1s ease-out 1 both; }
+    .pee-drops span:nth-child(1) { animation-delay: 0.35s; --dx: 34px; --dy: 40px; }
+    .pee-drops span:nth-child(2) { animation-delay: 0.45s; --dx: 48px; --dy: 30px; }
+    .pee-drops span:nth-child(3) { animation-delay: 0.55s; --dx: 40px; --dy: 52px; }
+    .pee-drops span:nth-child(4) { animation-delay: 0.65s; --dx: 56px; --dy: 46px; }
+    .pee-drops span:nth-child(5) { animation-delay: 0.75s; --dx: 30px; --dy: 58px; }
+    .pee-drops span:nth-child(6) { animation-delay: 0.85s; --dx: 50px; --dy: 60px; }
+    @keyframes peeDrop { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1.1); } }
+    .pee-grass { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 1.5rem; letter-spacing: 0.2rem; }
     /* ---- Two feeds ---- */
     .feed-note { background: var(--card); border: 1px dashed var(--line); border-radius: 14px; padding: 0.6rem 0.85rem; font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.9rem; line-height: 1.4; }
     .feed-note.local { border-color: #ffd7ca; background: var(--brand-soft); color: #7a3a28; }
@@ -2470,7 +2484,8 @@
     }
     async function fetchDogParks(lat, lon) {
       try {
-        const q = '[out:json][timeout:20];(nwr["leisure"="dog_park"](around:6000,' + lat + ',' + lon + '););out center 40;';
+        // Any park counts — dog parks AND regular parks, just like a real dog sees it
+        const q = '[out:json][timeout:20];(nwr["leisure"="dog_park"](around:6000,' + lat + ',' + lon + ');nwr["leisure"="park"](around:6000,' + lat + ',' + lon + '););out center 80;';
         const data = await (await fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           body: 'data=' + encodeURIComponent(q),
@@ -2481,17 +2496,19 @@
           const la = el.lat != null ? el.lat : (el.center && el.center.lat);
           const lo = el.lon != null ? el.lon : (el.center && el.center.lon);
           if (la == null) return;
-          parks.push({ name: t.name, lat: la, lon: lo, mi: haversineMi(lat, lon, la, lo), parkId: makeParkId(t.name, la, lo) });
+          parks.push({ name: t.name, lat: la, lon: lo, mi: haversineMi(lat, lon, la, lo), parkId: makeParkId(t.name, la, lo), dog: t.leisure === 'dog_park' });
         });
         parks.sort((a, b) => a.mi - b.mi);
-        return parks.slice(0, 12);
-      } catch (e) { return []; }
+        // Same park mapped twice (area + point) shows once
+        const seen = {};
+        return parks.filter(p => { const k = p.name.toLowerCase() + '|' + p.lat.toFixed(3) + ',' + p.lon.toFixed(3); if (seen[k]) return false; seen[k] = 1; return true; }).slice(0, 15);
+      } catch (e) { return null; } // null = the map service didn't answer (distinct from "no parks here")
     }
 
     async function openTerritory() {
-      openSheet('🐾 Mark Your Territory',
-        '<p class="sub" style="font-size:0.86rem;">At a dog park right now? Plant your flag — it\'s <b>GPS-verified</b>, so you can only claim a park you\'re actually standing in. Be the newest pet to claim one and you <b>hold</b> it on your profile. 🏳️</p>' +
-        '<div id="terr-body"><div class="note">📍 Finding dog parks near you…</div></div>');
+      openSheet('💦 Mark Your Territory',
+        '<p class="sub" style="font-size:0.9rem;">Do what dogs do. At a park right now? <b>Pee on it</b> (figuratively) — it\'s <b>GPS-verified</b>, so you can only mark a park you\'re actually standing in. Whoever marked it last owns it, until the next dog comes along. No points, no leaderboard — just bragging rights. 🐕</p>' +
+        '<div id="terr-body"><div class="note">📍 Sniffing out parks near you…</div></div>');
       const mySeq = sheetSeq;
       // Resolve location: GPS first (needed to actually claim), ZIP as a
       // browse-only fallback so the list still populates.
@@ -2508,16 +2525,21 @@
           '<div class="note">📍 Petfi needs your location to find nearby parks. Turn on location access (or set your ZIP on the Nearby tab) and reopen this.</div>';
         return;
       }
+      let parks = null;
       await Promise.all([
-        (async () => { TERRITORY_PARKS = await fetchDogParks(territoryGeo.lat, territoryGeo.lon); })(),
+        (async () => { parks = await fetchDogParks(territoryGeo.lat, territoryGeo.lon); })(),
         loadTerritory(true),
       ]);
       if (sheetSeq !== mySeq) return;
-      // Nothing mapped nearby? Give a demo spot at the user's exact location
-      // so the flow is always explorable (real parks work in the wild).
-      if (!TERRITORY_PARKS.length && territoryGeo.source === 'gps') {
-        TERRITORY_PARKS = [{ name: 'My Spot (demo park)', lat: territoryGeo.lat, lon: territoryGeo.lon, mi: 0, parkId: makeParkId('My Spot demo', territoryGeo.lat, territoryGeo.lon), demo: true }];
+      if (parks === null) {
+        // The map service (OpenStreetMap/Overpass) is busy — no demo spots, no
+        // peeing anywhere you like; just try again in a moment.
+        const box = document.getElementById('terr-body');
+        if (box) box.innerHTML = '<div class="note">🗺️ The park map is busy right now. Give it a moment and try again.</div>' +
+          '<button class="btn secondary" onclick="closeSheet();openTerritory()">↻ Try again</button>';
+        return;
       }
+      TERRITORY_PARKS = parks;
       renderTerritoryBody(gpsError);
     }
     function renderTerritoryBody(gpsError) {
@@ -2525,32 +2547,32 @@
       const holders = territoryHolders();
       let h = '';
       if (territoryGeo && territoryGeo.source === 'zip') {
-        h += '<div class="note">📍 Showing parks near your ZIP. <b>Marking needs live GPS</b> — turn on location access to plant your flag.</div>';
+        h += '<div class="note">📍 Showing parks near your ZIP. <b>Marking needs live GPS</b> — turn on location access and go stand in one.</div>';
       }
       if (!TERRITORY_PARKS.length) {
-        h += '<div class="note">No dog parks mapped within ~4 miles. Try again from a park, or add it to OpenStreetMap 🗺️</div>';
+        h += '<div class="note">No parks mapped within ~4 miles. Try again from a park, or add it to OpenStreetMap 🗺️</div>';
         box.innerHTML = h; return;
       }
       h += TERRITORY_PARKS.map((p, i) => {
         const held = holders[p.parkId];
-        const holderLine = held
-          ? '👑 <b>' + claimName(held) + '</b> · ' + timeAgo(held.createdAt || held.at)
-          : '🏳️ Unclaimed — be the first!';
         const iHold = held && cloudUser && held.ownerId === cloudUser.id;
+        const holderLine = held
+          ? (iHold ? '👑 <b>Yours</b> · marked ' + timeAgo(held.createdAt || held.at) : '💦 <b>' + claimName(held) + '</b> marked it ' + timeAgo(held.createdAt || held.at) + ' — pee over it')
+          : '🌱 Fresh grass — nobody\'s marked it yet';
         return '<div class="row">' +
-          '<div class="ricon" style="background:#e7f6e9;">' + (held ? claimAvatar(held, 46) : '🌳') + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div>' +
+          '<div class="ricon" style="background:#e7f6e9;">' + (held ? claimAvatar(held, 46) : (p.dog ? '🐕' : '🌳')) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(p.name) + (p.dog ? ' <small style="color:var(--muted);font-weight:600;">dog park</small>' : '') + '</div>' +
             '<div class="rmeta">' + distLabel(p.mi) + ' away · ' + holderLine + '</div></div>' +
-          '<div class="raction"><button class="pill-btn ' + (iHold ? 'done' : '') + '" onclick="markTerritory(\'' + jsStr(p.parkId) + '\')">' + (iHold ? '👑 Yours' : '🐾 Mark') + '</button></div>' +
+          '<div class="raction"><button class="pill-btn ' + (iHold ? 'done' : '') + '" style="min-height:40px;" onclick="markTerritory(\'' + jsStr(p.parkId) + '\')">' + (iHold ? '👑 Yours' : '💦 Pee here') + '</button></div>' +
         '</div>';
       }).join('');
-      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">🔒 Location is used only to verify you\'re at the park and is never shared or stored.</p>';
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">🔒 Location is used only to verify you\'re at the park and is never shared or stored. Real dogs: please still use the grass responsibly.</p>';
       box.innerHTML = h;
     }
     async function markTerritory(pid) {
       const park = TERRITORY_PARKS.find(p => p.parkId === pid); if (!park) return;
       if (!cloudUser) { toast('Log in to mark territory 🐾'); return; }
-      toast('📍 Checking you\'re really there…');
+      toast('📍 Sniffing… checking you\'re really there');
       let pos;
       try { pos = await getGPS(); }
       catch (e) {
@@ -2567,7 +2589,7 @@
         openSheet('🐾 Not there yet!',
           '<div style="text-align:center;padding:0.6rem 0;"><div style="font-size:2.6rem;">📍🐕</div></div>' +
           '<div class="note">You have to be <b>at ' + esc(park.name) + '</b> to mark it — you\'re about <b>' + distLabel(d) + '</b> away. ' +
-          'Head over, then tap Mark again. (No claiming from the couch! 🛋️)</div>' +
+          'Leash up, walk over, then tap <b>💦 Pee here</b> again. (No peeing from the couch! 🛋️)</div>' +
           '<button class="btn secondary" onclick="closeSheet();openTerritory()">Back to parks</button>');
         return;
       }
@@ -2577,13 +2599,20 @@
         species: id.species, breed: id.breed, look: id.look, at: new Date().toISOString() };
       const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content: claim }).select('id, created_at').single();
       if (error) { toast('⚠️ Could not mark it — try again'); return; }
+      const prev = territoryHolders()[pid];
       TERRITORY.unshift(Object.assign({ claimId: data.id, ownerId: cloudUser.id, createdAt: data.created_at }, claim));
-      confetti();
-      openSheet('🏳️ Territory marked!',
-        '<div style="text-align:center;padding:0.8rem 0;">' +
-          '<div style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0.3rem auto;border:3px solid var(--brand);background:var(--card);">' + claimAvatar(claim, 96) + '</div>' +
-          '<h2 style="margin-top:0.5rem;">' + claimName(claim) + '</h2>' +
-          '<p class="sub">now holds <b>' + esc(park.name) + '</b> 👑<br>It shows on your profile until another pet claims it.</p>' +
+      const tookOver = prev && prev.ownerId !== cloudUser.id;
+      // The moment: leg up, splash, the pet's own voice, a buzz, confetti
+      reactSound(speciesVoice(claim.species)); haptic([20, 40, 20, 40, 60]); setTimeout(confetti, 350);
+      openSheet('💦 Territory marked!',
+        '<div class="pee-scene">' +
+          '<div class="pee-pet">' + claimAvatar(claim, 96) + '</div>' +
+          '<div class="pee-drops"><span>💧</span><span>💧</span><span>💧</span><span>💧</span><span>💧</span><span>💧</span></div>' +
+          '<div class="pee-grass">🌳🌱🌿🌱🌳</div>' +
+        '</div>' +
+        '<div style="text-align:center;">' +
+          '<h2 style="margin-top:0.2rem;">' + claimName(claim) + '</h2>' +
+          '<p class="sub" style="font-size:0.95rem;">' + (tookOver ? 'just peed over <b>' + claimName(prev) + '</b> at ' : 'now owns ') + '<b>' + esc(park.name) + '</b> 👑<br>It\'s yours until the next dog comes along.</p>' +
         '</div>' +
         '<button class="btn" onclick="closeSheet();openTerritory()">See the park</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Done</button>');
@@ -2631,9 +2660,9 @@
 
       // Mark Your Territory — GPS-verified dog-park claims (own self-contained flow)
       h += '<div class="get-verified" style="background:linear-gradient(135deg,#e7f6e9,#d6f0da);border-color:#bfe6c6;cursor:pointer;margin-top:0.6rem;" onclick="openTerritory()">' +
-        '<h4>🐾 Mark Your Territory</h4>' +
-        '<p style="color:#2e7d44;">At a dog park? Plant your flag — GPS-verified. Be the newest pet to claim it and you <b>hold</b> it on your profile. 🏳️</p>' +
-        '<button class="pill-btn" style="background:#2e9c50;" onclick="event.stopPropagation();openTerritory()">Open</button></div>';
+        '<h4>💦 Mark Your Territory</h4>' +
+        '<p style="color:#2e7d44;">At a park? Do what dogs do — pee on it (GPS-verified, so you have to actually be there). Whoever marked it last owns it until the next dog comes along. No points, just bragging rights. 🐕</p>' +
+        '<button class="pill-btn" style="background:#2e9c50;" onclick="event.stopPropagation();openTerritory()">💦 Find a park</button></div>';
 
       h += '<div class="sec"><h3>📍 Places near you</h3></div>';
       h += '<div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">' +
@@ -3962,7 +3991,7 @@
         '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP and age are stored in your private account data and are not shown to other members.</li>' +
         '<li><b>Content:</b> your posts, comments, messages, listings, groups and favorites.</li>' +
         '<li><b>Care data:</b> reminders and calendar entries — these are <b>private to you</b> and never shown to other users.</li>' +
-        '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a dog park. We record which park you claimed, not your position.</li></ul>' +
+        '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position.</li></ul>' +
         '<h3>How it\'s used</h3>' +
         '<ul><li>To run the app: show your profile to others (if visible), deliver messages, display listings.</li>' +
         '<li>Your ZIP is used to show nearby places and, if you opt into Mate Match for people, to estimate distance to other opted-in members.</li>' +
