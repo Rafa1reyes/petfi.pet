@@ -1709,7 +1709,7 @@
       openSheet('🎉 Welcome to Petfi, ' + esc((state.displayName || '').split(' ')[0] || 'friend') + '!',
         '<p class="sub" style="font-size:0.88rem;">Here\'s your world in 20 seconds — everything you see is real, from real members:</p>' +
         row('💘', 'Mate Match', 'The heart of Petfi — find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
-        row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly) — plus 👥 Groups and 🔒 My care') +
+        row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly) — plus 🔒 My care') +
         row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
@@ -1718,12 +1718,13 @@
 
     function openTab(name) {
       // Groups live under Home now (Mate Match took the nav slot)
-      if (name === 'groups') { state.homeTab = 'groups'; name = 'home'; }
+      if (name === 'groups') state.homeTab = 'feed'; // Groups is a side room off Nearby, not a chip
       if (name === 'mate' && state.mateUnseen) { state.mateUnseen = 0; setMateNavBadge(0); }
       state.tab = name;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       const c = document.getElementById('tab-content');
-      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, store: renderStore, profile: renderProfile }[name];
+      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile }[name];
+      if (name === 'groups') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active');
       c.innerHTML = r ? r() : '';
       saveState();
       cloudTabRefresh(name); // quietly pull fresh cloud data for this tab
@@ -2121,15 +2122,13 @@
     function renderHome() {
       let h = '';
       // Sub-tabs: the two public feeds, groups, and your private care page
-      const sub = state.homeTab === 'care' ? 'care' : state.homeTab === 'groups' ? 'groups' : 'feed';
+      const sub = state.homeTab === 'care' ? 'care' : 'feed';
       const scope = feedScope(), me = myGeo();
       h += '<div class="chips" style="margin-bottom:0.9rem;">' +
         '<div class="chip ' + (sub === 'feed' && scope === 'local' ? 'active' : '') + '" onclick="setFeedScope(\'local\')">🏡 Local</div>' +
         '<div class="chip ' + (sub === 'feed' && scope === 'national' ? 'active' : '') + '" onclick="setFeedScope(\'national\')">🌎 Everyone</div>' +
-        '<div class="chip ' + (sub === 'groups' ? 'active' : '') + '" onclick="setHomeTab(\'groups\')">👥 Groups</div>' +
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
-      if (sub === 'groups') return h + renderGroups();
 
       const first = esc((state.displayName || 'friend').split(' ')[0]);
       h += '<div class="composer" onclick="openCompose()">' +
@@ -2622,6 +2621,12 @@
         h += near.length
           ? near.map(m => mateRow(m, MATES_VIEW.indexOf(m), '📍 ' + mateWhere(m, mateDistance(m)))).join('')
           : '<div class="note">No breeding listings near you yet. <span class="link" onclick="startMateListing()">List your animal</span> and be the first.</div>';
+      }
+
+      // Groups live here as a side room — breed clubs, walk crews, local packs
+      if (cloudUser) {
+        const ng = CLOUD_GROUPS.length;
+        h += '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'groups\')"><div class="i">👥</div><div><b>Groups</b><small>' + (ng ? ng + ' group' + (ng === 1 ? '' : 's') + ' — breed clubs, walk crews, local packs' : 'Start a breed club or a local walk crew') + '</small></div><span class="chev">›</span></div>';
       }
 
       // Mark Your Territory — GPS-verified dog-park claims (own self-contained flow)
@@ -3476,7 +3481,8 @@
     let GROUPS_VIEW = [];
     function renderGroups() {
       GROUPS_VIEW = CLOUD_GROUPS.concat(LOCAL_GROUPS);
-      let h = '<div class="sec"><h3>👥 Groups</h3><span class="link" onclick="openCreateGroup()">+ Create</span></div>';
+      let h = '<div class="link" style="font-size:0.9rem;font-weight:700;color:var(--brand);cursor:pointer;margin:0.1rem 0 0.4rem;" onclick="openTab(\'nearby\')">‹ Back to Nearby</div>' +
+        '<div class="sec" style="margin-top:0.4rem;"><h3>👥 Groups</h3><span class="link" onclick="openCreateGroup()">+ Create</span></div>';
       if (!cloudUser) {
         h += '<div class="note">Log in to see and join groups.</div>';
       } else if (!GROUPS_VIEW.length) {
@@ -3629,6 +3635,7 @@
         '<div class="link-row" onclick="openHelp()"><span class="li">❓</span><div>Help &amp; FAQ</div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openFeedback()"><span class="li">💌</span><div>Send feedback<small>Ideas, bugs, anything</small></div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openReport(\'general\',\'a problem\')"><span class="li">🚩</span><div>Report a problem</div><span class="chev">›</span></div>' +
+        '<div class="link-row" onclick="openTab(\'groups\')"><span class="li">👥</span><div>Groups<small>Breed clubs, walk crews, local packs</small></div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openBlockedList()"><span class="li">🚫</span><div>Blocked users' + ((state.blocked || []).length ? '<small>' + state.blocked.length + ' blocked</small>' : '') + '</div><span class="chev">›</span></div>' +
         (isAdmin() ? '<div class="link-row" onclick="openModeration()"><span class="li">🛡️</span><div>Moderation<small>Open reports — remove posts or suspend accounts</small></div><span class="chev">›</span></div>' : '') +
         '<div class="link-row" onclick="openAbout()"><span class="li">🐾</span><div>About Petfi<small>Version ' + APP_VERSION + ' · Terms &amp; Privacy</small></div><span class="chev">›</span></div>' +
@@ -6697,7 +6704,7 @@
         grp.meta = groupMeta(grp);
         return grp;
       });
-      if (appActive() && state.tab === 'home' && state.homeTab === 'groups') rerenderTab(renderHome);
+      if (appActive() && state.tab === 'groups') rerenderTab(renderGroups);
     }
     async function loadListings(force) {
       if (!cloud) return;
@@ -6799,7 +6806,8 @@
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
       if (!cloud || !cloudUser) return;
-      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); if (state.homeTab === 'groups') loadGroups(); }
+      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); }
+      else if (name === 'groups') loadGroups();
       else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
       else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); }
       else if (name === 'store') loadListings();
