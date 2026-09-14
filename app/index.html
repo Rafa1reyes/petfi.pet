@@ -429,6 +429,71 @@
     .fav-item .ft { flex: 1; font-weight: 600; font-size: 0.87rem; }
     .fav-item .fl { color: var(--brand); font-size: 0.72rem; font-weight: 700; }
     .badge-verified { display: inline-flex; align-items: center; gap: 0.3rem; background: #eaf1ff; color: var(--blue); border-radius: 999px; padding: 0.25rem 0.7rem; font-size: 0.78rem; font-weight: 700; }
+    /* ---- Mate Match: big type, big buttons — built to be easy for everyone ---- */
+    .mm-hero { background: linear-gradient(135deg, #fff1ec 0%, #ffe3f0 100%); border: 2px solid #ffd7ca; border-radius: 22px; padding: 1.3rem 1.2rem 1.2rem; margin-bottom: 1.1rem; }
+    .mm-kicker { font-weight: 800; color: var(--brand-dark); font-size: 0.85rem; letter-spacing: 0.04em; text-transform: uppercase; }
+    .mm-hero h2 { font-size: 1.4rem; line-height: 1.2; margin: 0.35rem 0 0.45rem; }
+    .mm-hero p { color: var(--muted); font-size: 0.98rem; margin-bottom: 1rem; }
+    .mm-cta { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .mm-btn { display: flex; align-items: center; gap: 0.6rem; min-height: 68px; padding: 0.8rem 0.9rem; border-radius: 18px; border: none; cursor: pointer; text-align: left; font-family: inherit; background: var(--brand); color: #fff; box-shadow: var(--shadow-brand); transition: transform 0.15s; }
+    .mm-btn:active { transform: scale(0.97); }
+    .mm-btn .i { font-size: 1.6rem; line-height: 1; }
+    .mm-btn b { display: block; font-size: 1.02rem; line-height: 1.15; }
+    .mm-btn small { display: block; font-size: 0.75rem; opacity: 0.9; margin-top: 2px; }
+    .mm-btn.alt { background: var(--card); color: var(--ink); border: 2px solid var(--line); box-shadow: var(--shadow-sm); }
+    .mm-banner { display: flex; align-items: center; gap: 0.7rem; background: var(--card); border: 2px solid #ffd7ca; border-radius: 16px; padding: 0.75rem 0.9rem; margin: 0 0 0.9rem; cursor: pointer; }
+    .mm-banner .i { font-size: 1.6rem; }
+    .mm-banner b { display: block; font-size: 0.95rem; }
+    .mm-banner small { color: var(--muted); font-size: 0.78rem; }
+    .mm-banner .chev { margin-left: auto; color: var(--muted); font-size: 1.3rem; }
+    .mm-card { background: var(--card); border: 2px solid var(--line); border-radius: 20px; overflow: hidden; margin-bottom: 1rem; box-shadow: var(--shadow-sm); cursor: pointer; }
+    .mm-media { position: relative; background: linear-gradient(135deg, #fff6f2, #ffe9f0); height: 170px; display: flex; align-items: center; justify-content: center; }
+    .mm-media img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .mm-emo { font-size: 5rem; line-height: 1; }
+    .mm-badge { position: absolute; left: 0.8rem; bottom: 0.7rem; border-radius: 999px; padding: 0.3rem 0.75rem; font-size: 0.8rem; font-weight: 800; color: #fff; background: var(--mint); box-shadow: 0 2px 8px rgba(0,0,0,0.15); }
+    .mm-badge.seek { background: var(--blue); }
+    .mm-badge.inline { position: static; display: inline-block; }
+    .mm-body { padding: 0.9rem 1rem 1rem; }
+    .mm-title { font-weight: 800; font-size: 1.15rem; }
+    .mm-title small { color: var(--muted); font-weight: 600; font-size: 0.8rem; }
+    .mm-meta { font-size: 0.98rem; color: var(--ink); margin-top: 0.15rem; }
+    .mm-where { color: var(--muted); font-size: 0.9rem; margin-top: 0.25rem; }
+    .mm-view { margin-top: 0.8rem; padding: 0.85rem; font-size: 1rem; }
+    .mm-gallery { display: flex; gap: 0.5rem; overflow-x: auto; margin: 0 -1.3rem 0.6rem; padding: 0 1.3rem; scrollbar-width: none; }
+    .mm-gallery img { height: 210px; min-width: 80%; border-radius: 16px; object-fit: cover; flex-shrink: 0; }
+    .mm-form label { font-size: 1.02rem; }
+    .mm-form input, .mm-form select { font-size: 1.05rem; padding: 0.95rem 1rem; }
+    .mm-step { display: flex; align-items: center; gap: 0.55rem; font-weight: 800; font-size: 1.08rem; margin: 1.4rem 0 0.4rem; }
+    .mm-step:first-child { margin-top: 0.4rem; }
+    .mm-step .n { width: 28px; height: 28px; border-radius: 50%; background: var(--brand); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.9rem; flex-shrink: 0; }
+    .mm-step small { color: var(--muted); font-weight: 500; font-size: 0.85rem; }
+    .mm-tiles { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.55rem; }
+    .mm-tile { background: var(--card); border: 2px solid var(--line); border-radius: 14px; padding: 0.7rem 0.3rem; text-align: center; font-weight: 700; font-size: 0.86rem; cursor: pointer; transition: border 0.15s, background 0.15s; }
+    .mm-tile .e { display: block; font-size: 1.7rem; line-height: 1.1; margin-bottom: 0.2rem; }
+    .mm-tile.on { border-color: var(--brand); background: var(--brand-soft); }
+    .mm-seg { display: flex; gap: 0.5rem; }
+    .mm-seg > div { flex: 1; text-align: center; padding: 0.85rem 0.5rem; border: 2px solid var(--line); border-radius: 14px; font-weight: 700; font-size: 0.98rem; cursor: pointer; background: var(--card); }
+    .mm-seg > div.on { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-dark); }
+    .mm-seg.big { flex-direction: column; }
+    .mm-seg.big > div { text-align: left; font-weight: 600; padding: 0.95rem 1rem; }
+    .mm-two { display: grid; grid-template-columns: 1fr 1fr; gap: 0.7rem; }
+    .mm-publish { font-size: 1.1rem; padding: 1.05rem; }
+    .mm-chips .chip { font-size: 0.9rem; padding: 0.55rem 1rem; min-height: 42px; display: inline-flex; align-items: center; }
+    body.dark .mm-hero { background: linear-gradient(135deg, #3a2a24, #3a2230); border-color: #5a3d33; }
+    body.dark .mm-banner, body.dark .mm-media { border-color: #5a3d33; background: #3a2a24; }
+    body.dark .mm-btn.alt { background: var(--card); color: var(--ink); }
+    body.dark .mm-seg > div.on, body.dark .mm-tile.on { color: #ffb4a0; }
+    /* ---- The Petfi Pledge ---- */
+    .pledge-strip { display: flex; align-items: center; gap: 0.7rem; background: linear-gradient(120deg, #ffe9f0, #ffdfe9); border: 1px solid #ffbfd2; border-radius: 16px; padding: 0.7rem 0.9rem; margin: 0 0 0.9rem; cursor: pointer; color: #7a2a44; }
+    .pledge-strip .i { font-size: 1.5rem; }
+    .pledge-strip b { display: block; font-size: 0.92rem; }
+    .pledge-strip small { display: block; font-size: 0.76rem; opacity: 0.9; line-height: 1.35; }
+    .pledge-hero { text-align: center; background: linear-gradient(120deg, #ffe9f0, #ffd9e6); border: 1px solid #ffbfd2; border-radius: 20px; padding: 1.2rem 1rem 1rem; margin-bottom: 0.9rem; color: #7a2a44; }
+    .pledge-hero .big { font-size: 2.2rem; font-weight: 900; line-height: 1; }
+    .pledge-hero h3 { font-size: 1.1rem; margin: 0.4rem 0 0.3rem; color: #7a2a44; }
+    .pledge-hero p { font-size: 0.9rem; opacity: 0.9; }
+    body.dark .pledge-strip, body.dark .pledge-hero { background: #3a2230; border-color: #5a3345; color: #ffd0de; }
+    body.dark .pledge-hero h3 { color: #ffd0de; }
     .get-verified { background: linear-gradient(135deg, #eaf1ff, #dbe7ff); border: 2px solid #c5d8ff; border-radius: 16px; padding: 1rem; margin: 0.6rem 0 0.4rem; }
     .get-verified h4 { font-size: 0.98rem; display: flex; align-items: center; gap: 0.3rem; }
     .get-verified p { color: #3a5aa0; font-size: 0.82rem; margin: 0.3rem 0 0.7rem; }
@@ -748,6 +813,15 @@
         <div class="pick" data-species="Snake" data-emoji="🐍" onclick="pickSpecies(this)"><span class="e">🐍</span>Snake</div>
         <div class="pick" data-species="Other" data-emoji="🐾" onclick="pickSpecies(this)"><span class="e">🐾</span>Other</div>
       </div>
+      <p class="sub" style="margin-top:1rem;font-size:0.85rem;font-weight:600;">Farm &amp; ranch</p>
+      <div class="grid" id="farm-grid">
+        <div class="pick" data-species="Cattle" data-emoji="🐄" onclick="pickSpecies(this)"><span class="e">🐄</span>Cattle</div>
+        <div class="pick" data-species="Goat" data-emoji="🐐" onclick="pickSpecies(this)"><span class="e">🐐</span>Goat</div>
+        <div class="pick" data-species="Sheep" data-emoji="🐑" onclick="pickSpecies(this)"><span class="e">🐑</span>Sheep</div>
+        <div class="pick" data-species="Horse" data-emoji="🐴" onclick="pickSpecies(this)"><span class="e">🐴</span>Horse</div>
+        <div class="pick" data-species="Pig" data-emoji="🐖" onclick="pickSpecies(this)"><span class="e">🐖</span>Pig</div>
+        <div class="pick" data-species="Chicken" data-emoji="🐔" onclick="pickSpecies(this)"><span class="e">🐔</span>Chicken</div>
+      </div>
       <label>Breed (optional)</label>
       <input type="text" id="pet-breed" placeholder="e.g. Golden Retriever" />
       <button class="btn" onclick="revealAvatar()">See my icon!</button>
@@ -824,6 +898,7 @@
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
+        <div class="pick" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">⭐</span>Reviews</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
@@ -861,9 +936,9 @@
       <div id="tab-content"></div>
       <nav class="bottom-nav">
         <button class="nav-btn" data-tab="home"    onclick="openTab('home')"><span class="ic">🏠</span>Home</button>
+        <button class="nav-btn" data-tab="mate"    onclick="openTab('mate')"><span class="ic">💘</span>Mate Match<span class="nbadge" id="mate-nbadge" style="display:none;"></span></button>
         <button class="nav-btn" data-tab="nearby"  onclick="openTab('nearby')"><span class="ic">📍</span>Nearby</button>
         <button class="nav-btn" data-tab="store"   onclick="openTab('store')"><span class="ic">🛒</span>Store</button>
-        <button class="nav-btn" data-tab="groups"  onclick="openTab('groups')"><span class="ic">👥</span>Groups</button>
         <button class="nav-btn" data-tab="profile" onclick="openTab('profile')"><span class="ic">👤</span>Me</button>
       </nav>
     </section>
@@ -1357,11 +1432,27 @@
     }
 
     // Main entry: every species is drawn as SVG matched to its breed/coloring.
+    // Every species Petfi knows — pets AND farm animals. Farm species have no
+    // drawn avatar (yet), so they show their emoji instead.
+    const SPECIES_EMO = { dog: '🐶', cat: '🐱', bird: '🐦', rabbit: '🐰', hamster: '🐹', reptile: '🦎', fish: '🐟', snake: '🐍', other: '🐾',
+      cattle: '🐄', goat: '🐐', sheep: '🐑', horse: '🐴', pig: '🐖', chicken: '🐔', duck: '🦆', turkey: '🦃', alpaca: '🦙' };
+    const PET_SPECIES = [['dog', 'Dog'], ['cat', 'Cat'], ['bird', 'Bird'], ['rabbit', 'Rabbit'], ['hamster', 'Hamster'], ['reptile', 'Reptile'], ['fish', 'Fish'], ['snake', 'Snake'], ['other', 'Other']];
+    const FARM_SPECIES = [['cattle', 'Cattle'], ['goat', 'Goat'], ['sheep', 'Sheep'], ['horse', 'Horse'], ['pig', 'Pig'], ['chicken', 'Chicken'], ['duck', 'Duck'], ['turkey', 'Turkey'], ['alpaca', 'Alpaca / Llama']];
+    function isLivestock(sp) { sp = String(sp || '').toLowerCase(); return FARM_SPECIES.some(s => s[0] === sp); }
+    function speciesEmo(sp) { return SPECIES_EMO[String(sp || '').toLowerCase()] || '🐾'; }
+    // Always one of OUR labels — never echoes a string that came from someone else's row
+    function speciesLabel(sp) { sp = String(sp || '').toLowerCase(); const f = PET_SPECIES.concat(FARM_SPECIES).find(s => s[0] === sp); return f ? f[1] : 'Animal'; }
+    // <select> options grouped Pets / Farm & ranch. Values are the species keys.
+    function speciesOptions(selected) {
+      const sel = String(selected || '').toLowerCase();
+      const opt = s => '<option value="' + s[0] + '"' + (s[0] === sel ? ' selected' : '') + '>' + SPECIES_EMO[s[0]] + ' ' + s[1] + '</option>';
+      return '<optgroup label="Pets">' + PET_SPECIES.map(opt).join('') + '</optgroup><optgroup label="Farm &amp; ranch">' + FARM_SPECIES.map(opt).join('') + '</optgroup>';
+    }
     // look = { v: variant, a: accessories } — both optional.
     function petAvatar(species, breed, px, look) {
       species = (species || '').toLowerCase();
       const art = SPECIES_ART[species];
-      if (!art) return '<span style="font-size:' + Math.round(px * 0.8) + 'px; line-height:1;">🐾</span>';
+      if (!art) return '<span style="font-size:' + Math.round(px * 0.8) + 'px; line-height:1;">' + speciesEmo(species) + '</span>';
       let params = matchBreed(species, breed);
       if (look && look.v) params = applyVariant(params, look.v);
       let svg = art.draw(params, px);
@@ -1399,7 +1490,7 @@
     }
 
     function pickSpecies(el) {
-      document.querySelectorAll('#species-grid .pick').forEach(p => p.classList.remove('selected'));
+      document.querySelectorAll('#species-grid .pick, #farm-grid .pick').forEach(p => p.classList.remove('selected'));
       el.classList.add('selected');
       state.species = el.dataset.species;
       state.emoji = el.dataset.emoji;
@@ -1610,19 +1701,22 @@
         '<div class="row"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle">' + title + '</div><div class="rmeta">' + sub + '</div></div></div>';
       openSheet('🎉 Welcome to Petfi, ' + esc((state.displayName || '').split(' ')[0] || 'friend') + '!',
         '<p class="sub" style="font-size:0.88rem;">Here\'s your world in 20 seconds — everything you see is real, from real members:</p>' +
-        row('🏠', 'Home', 'The feed — plus 🔒 My care: private reminders & a pet calendar') +
-        row('📍', 'Nearby', 'Petfi members, plus real dog parks, stores & vets around your ZIP') +
+        row('💘', 'Mate Match', 'The heart of Petfi — find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
+        row('🏠', 'Home', 'The feed, 👥 Groups, and 🔒 My care: private reminders & a pet calendar') +
+        row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
-        row('👥', 'Groups', 'Find your people (and their pets)') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
         '<button class="btn" onclick="closeSheet()">Let\'s go 🐾</button>');
     }
 
     function openTab(name) {
+      // Groups live under Home now (Mate Match took the nav slot)
+      if (name === 'groups') { state.homeTab = 'groups'; name = 'home'; }
+      if (name === 'mate' && state.mateUnseen) { state.mateUnseen = 0; setMateNavBadge(0); }
       state.tab = name;
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       const c = document.getElementById('tab-content');
-      const r = { home: renderHome, nearby: renderNearby, store: renderStore, groups: renderGroups, profile: renderProfile }[name];
+      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, store: renderStore, profile: renderProfile }[name];
       c.innerHTML = r ? r() : '';
       saveState();
       cloudTabRefresh(name); // quietly pull fresh cloud data for this tab
@@ -1647,10 +1741,15 @@
       if (s === 'fish') return 'blub';
       if (s === 'reptile' || s === 'snake') return 'hiss';
       if (s === 'hamster' || s === 'rabbit') return 'squeak';
+      if (s === 'cattle') return 'moo';
+      if (s === 'goat' || s === 'sheep' || s === 'alpaca') return 'baa';
+      if (s === 'chicken' || s === 'duck' || s === 'turkey') return 'cluck';
+      if (s === 'horse') return 'neigh';
+      if (s === 'pig') return 'oink';
       return 'bark';
     }
-    const VOICE_WORD = { bark: 'Woof! 🐶', meow: 'Meow! 🐱', tweet: 'Tweet! 🐦', blub: 'Blub! 🐟', hiss: 'Hiss! 🦎', squeak: 'Squeak! 🐹' };
-    const VOICE_NOUN = { bark: 'a bark 🐶', meow: 'a meow 🐱', tweet: 'a tweet 🐦', blub: 'a blub 🐟', hiss: 'a hiss 🦎', squeak: 'a squeak 🐹' };
+    const VOICE_WORD = { bark: 'Woof! 🐶', meow: 'Meow! 🐱', tweet: 'Tweet! 🐦', blub: 'Blub! 🐟', hiss: 'Hiss! 🦎', squeak: 'Squeak! 🐹', moo: 'Moo! 🐄', baa: 'Baa! 🐐', cluck: 'Cluck! 🐔', neigh: 'Neigh! 🐴', oink: 'Oink! 🐖' };
+    const VOICE_NOUN = { bark: 'a bark 🐶', meow: 'a meow 🐱', tweet: 'a tweet 🐦', blub: 'a blub 🐟', hiss: 'a hiss 🦎', squeak: 'a squeak 🐹', moo: 'a moo 🐄', baa: 'a baa 🐐', cluck: 'a cluck 🐔', neigh: 'a neigh 🐴', oink: 'an oink 🐖' };
     function voiceName(species) { return speciesVoice(species); }
     function soundOf(species) { return VOICE_NOUN[speciesVoice(species)]; }
 
@@ -1859,7 +1958,28 @@
         o.start(t); o.stop(t + 0.14);
       });
     }
-    const VOICE_PLAYERS = { bark: playBark, meow: playMeow, tweet: playTweet, blub: playBlub, hiss: playHiss, squeak: playSqueak };
+    // Farm voices — one small synth shared by all of them
+    function farmCall(type, gain, segs) {
+      const ctx = ac(); if (!ctx) return;
+      segs.forEach(s => {
+        const o = ctx.createOscillator(), g = ctx.createGain();
+        o.type = type;
+        const t = ctx.currentTime + s.at;
+        o.frequency.setValueAtTime(s.f[0], t);
+        s.f.slice(1).forEach((f, i) => o.frequency.linearRampToValueAtTime(f, t + s.d * (i + 1) / (s.f.length - 1)));
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(gain, t + Math.min(0.04, s.d / 3));
+        g.gain.exponentialRampToValueAtTime(0.0001, t + s.d);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t); o.stop(t + s.d + 0.02);
+      });
+    }
+    function playMoo()   { farmCall('sawtooth', 0.22, [{ at: 0, d: 0.55, f: [150, 120, 95] }]); }
+    function playBaa()   { farmCall('square',   0.12, [{ at: 0, d: 0.42, f: [320, 380, 300, 360, 280] }]); }
+    function playCluck() { farmCall('triangle', 0.22, [{ at: 0, d: 0.07, f: [900, 600] }, { at: 0.11, d: 0.07, f: [950, 620] }, { at: 0.22, d: 0.16, f: [1100, 500] }]); }
+    function playNeigh() { farmCall('sawtooth', 0.12, [{ at: 0, d: 0.5, f: [700, 1100, 900, 650, 400] }]); }
+    function playOink()  { farmCall('square',   0.14, [{ at: 0, d: 0.14, f: [260, 180] }, { at: 0.2, d: 0.14, f: [280, 170] }]); }
+    const VOICE_PLAYERS = { bark: playBark, meow: playMeow, tweet: playTweet, blub: playBlub, hiss: playHiss, squeak: playSqueak, moo: playMoo, baa: playBaa, cluck: playCluck, neigh: playNeigh, oink: playOink };
     function playVoice(kind) {
       window._lastVoice = kind;
       // Real recordings for dogs & cats; snappy synth for the rest (and as
@@ -1920,17 +2040,21 @@
 
     function renderHome() {
       let h = '';
-      // Sub-tabs: public feed vs. your private care page
-      const care = state.homeTab === 'care';
+      // Sub-tabs: public feed, groups, and your private care page
+      const sub = state.homeTab === 'care' ? 'care' : state.homeTab === 'groups' ? 'groups' : 'feed';
       h += '<div class="chips" style="margin-bottom:0.9rem;">' +
-        '<div class="chip ' + (!care ? 'active' : '') + '" onclick="setHomeTab(\'feed\')">🐾 Feed</div>' +
-        '<div class="chip ' + (care ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
-      if (care) return h + renderCare();
+        '<div class="chip ' + (sub === 'feed' ? 'active' : '') + '" onclick="setHomeTab(\'feed\')">🐾 Feed</div>' +
+        '<div class="chip ' + (sub === 'groups' ? 'active' : '') + '" onclick="setHomeTab(\'groups\')">👥 Groups</div>' +
+        '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
+      if (sub === 'care') return h + renderCare();
+      if (sub === 'groups') return h + renderGroups();
 
       h += '<div class="composer" onclick="openCompose()">' +
              '<div class="ca">' + myAvatar(36) + '</div>' +
              '<div class="fake-input">What\'s new with you, ' + esc((state.displayName || 'friend').split(' ')[0]) + '?</div>' +
              '<span style="font-size:1.2rem;">📷</span></div>';
+      // Petfi's reason for existing, one tap from the feed
+      h += '<div class="mm-banner" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Looking for a breeding partner?</b><small>Dogs, cats, goats, cattle, chickens — find one near you</small></div><span class="chev">›</span></div>';
 
       h += streakCard();
       h += promptCard();
@@ -1977,7 +2101,7 @@
           : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.6rem;">' +
               urls.map(u => '<img src="' + esc(u) + '" loading="lazy" style="width:100%;height:120px;object-fit:cover;border-radius:12px;display:block;">').join('') + '</div>';
       }
-      const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak' };
+      const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
         '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span></div>').join('');
@@ -2390,6 +2514,15 @@
             '</div></div>').join('') + '</div>';
       }
 
+      // Breeding partners near you — Petfi's heart, one tap away
+      if (cloudUser) {
+        const near = visibleMates().filter(m => !m.mine).slice(0, 3);
+        h += '<div class="sec"><h3>💘 Breeding partners near you</h3><span class="link" onclick="openTab(\'mate\')">See all ›</span></div>';
+        h += near.length
+          ? near.map(m => mateRow(m, MATES_VIEW.indexOf(m), '📍 ' + mateWhere(m, mateDistance(m)))).join('')
+          : '<div class="note">No breeding listings near you yet. <span class="link" onclick="startMateListing()">List your animal</span> and be the first.</div>';
+      }
+
       // Mark Your Territory — GPS-verified dog-park claims (own self-contained flow)
       h += '<div class="get-verified" style="background:linear-gradient(135deg,#e7f6e9,#d6f0da);border-color:#bfe6c6;cursor:pointer;margin-top:0.6rem;" onclick="openTerritory()">' +
         '<h4>🐾 Mark Your Territory</h4>' +
@@ -2712,9 +2845,9 @@
     // Petfi can't take money yet, so it doesn't pretend to: this finds real
     // shelters near you and sends you straight to them.
     function openDonate() {
-      openSheet('💖 Help shelter pets',
-        '<p class="sub" style="font-size:0.88rem;margin-bottom:0.8rem;">Shelters spend real money on every rescue — adoption fees, food, medical care, bedding. Give directly to one near you; every dollar goes to them, not through Petfi.</p>' +
-        '<div class="note">💞 Our pledge: once Spotlight ads and subscriptions are paid features, <b>10% of every purchase</b> goes to shelters and rescues.</div>' +
+      openSheet('💖 The Petfi Pledge',
+        pledgeCard() +
+        '<p class="sub" style="font-size:0.9rem;margin:0.9rem 0 0.6rem;"><b>Want to give directly?</b> Real shelters near you are listed below — every dollar goes straight to them.</p>' +
         '<div id="donate-list"><div class="note">⏳ Finding real shelters near you…</div></div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
       loadDonateShelters();
@@ -3086,6 +3219,7 @@
         '<div class="fake-input">Search anything pet — food, groomers, vets…</div></div>';
       const members = LISTINGS.concat(LOCAL_LISTINGS);
       h += '<div class="sec"><h3>🛒 Pet Store</h3><span class="link" onclick="openSell()">+ Sell something</span></div>';
+      h += pledgeCard(true);
       h += '<div class="chips" style="margin-bottom:0.5rem;">' + STORE_CATS.map(c =>
         '<div class="chip ' + (state.storeCat === c ? 'active' : '') + '" onclick="setStoreCat(\'' + c + '\')">' + (c === 'Members' ? '🐾 Members' : c) + '</div>').join('') + '</div>';
       if (state.storeCat !== 'Members') {
@@ -3162,7 +3296,7 @@
       openSheet('🔗 About affiliate links',
         '<div class="legal">' +
         '<p>Some products in the Pet Store are <b>affiliate links</b>. When you tap “Shop” and buy on the retailer’s site (like Amazon or Chewy), Petfi may earn a small commission.</p>' +
-        '<p><b>It costs you nothing extra</b> — the price is the same as going there directly. Commissions help keep Petfi running (and fund our 10% shelter pledge 💖).</p>' +
+        '<p><b>It costs you nothing extra</b> — the price is the same as going there directly. And <b>half of all Petfi profit</b> goes to adoption fees, emergency vet bills and cremation costs for pet families in need 💖.</p>' +
         '<p>Prices shown are approximate — the live price on the retailer’s site is always what you pay. Shipping, returns and support for those orders are handled by the retailer.</p>' +
         '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
@@ -3370,7 +3504,7 @@
 
       // Reminders & calendar live in the private "My Care" tab on Home
       h += '<button class="btn secondary" style="margin-top:0.4rem;" onclick="refreshCare()">🔒 My reminders &amp; pet calendar →</button>';
-      h += '<button class="btn secondary" onclick="openDonate()">💖 Donate to animal shelters</button>';
+      h += '<button class="btn secondary" onclick="openDonate()">💖 The Petfi Pledge &amp; donate</button>';
 
       // Settings
       h += '<div class="sec"><h3>⚙️ Settings</h3></div>';
@@ -3493,7 +3627,7 @@
         setTimeout(() => s.remove(), 950);
       }
     }
-    const REACT_EMO = { bark: '🐶', meow: '😺', hiss: '🐍', tweet: '🐦', blub: '🐟', squeak: '🐹', like: '❤️' };
+    const REACT_EMO = { bark: '🐶', meow: '😺', hiss: '🐍', tweet: '🐦', blub: '🐟', squeak: '🐹', moo: '🐄', baa: '🐐', cluck: '🐔', neigh: '🐴', oink: '🐖', like: '❤️' };
 
     // ======================= DAILY STREAK & PROMPT =======================
     // A gentle reason to come back every day (Duolingo-style), and a fresh
@@ -3664,7 +3798,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.1.0';
+    const APP_VERSION = '1.2.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'July 12, 2026';
 
@@ -3687,6 +3821,7 @@
         '<h3>4. Marketplace & breeding</h3>' +
         '<ul><li>Petfi is a <b>venue</b> — sales, purchases and breeding arrangements happen directly between users. Petfi is not a party to those transactions and doesn\'t guarantee them.</li>' +
         '<li>Listings must be honest: real photos, true prices, and (for breeding) accurate age, health and pedigree information.</li>' +
+        '<li>Farm and livestock breeding listings (cattle, goats, sheep, horses, pigs, poultry and others) are welcome. You are responsible for any state agriculture, health-certificate, brand-inspection and transport rules that apply to your animals.</li>' +
         '<li>Selling requires an Owner account. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
         '<li><b>Payments:</b> Petfi does not process payments. Buyers and sellers arrange payment, pickup and shipping directly. Petfi currently charges no fee on member listings. Never pay a seller you haven\'t spoken with, and prefer in-person exchange for live animals.</li>' +
         '<li><b>No homemade consumables:</b> food, treats and anything a pet ingests must be sealed, commercially licensed products — the same regulations real pet stores follow.</li>' +
@@ -3695,7 +3830,7 @@
         '<h3>5. Animal welfare</h3>' +
         '<p>Content showing or encouraging animal abuse or neglect is banned and gets an immediate, permanent ban. Knowingly selling sick animals without disclosure is banned.</p>' +
         '<h3>6. Fees, affiliate links & donations</h3>' +
-        '<p>Identity verification and Spotlight ads will become paid features; prices will always be shown before you pay, and during early access they are free. Petfi pledges 10% of ad and subscription revenue to animal shelters. Petfi does not collect donations itself — the Donate page links you directly to real shelters.</p>' +
+        '<p>Identity verification and Spotlight ads will become paid features; prices will always be shown before you pay, and during early access they are free. Petfi pledges <b>50% of its profit</b> (store commissions, ads and subscriptions) to the Petfi Pledge fund: adoption fees for shelter pets, emergency veterinary bills, and cremation costs for families facing a sudden loss. Petfi does not collect donations itself yet — the Donate page links you directly to real shelters.</p>' +
         '<p><b>Affiliate links:</b> some products in the Pet Store link to outside retailers (such as Amazon and Chewy). If you buy through those links, Petfi may earn a commission at no extra cost to you. Prices shown in Petfi are approximate; the retailer\'s live price, shipping, returns and support govern those purchases. As an Amazon Associate, Petfi earns from qualifying purchases.</p>' +
         '<h3>7. What you can\'t do</h3>' +
         '<ul><li>Harass, threaten, or impersonate anyone.</li><li>Spam, scam, or mislead.</li><li>Post sexual, violent, or hateful content.</li><li>Scrape data or interfere with the service.</li></ul>' +
@@ -3758,7 +3893,8 @@
         '<details><summary>🪪 Is there a verified badge?</summary><p>Not yet. ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody wears a badge until it\'s real. Owners can join the waitlist from their profile.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
-        '<details><summary>💘 What is Mate Match?</summary><p>Two things! <b>For your pet:</b> browse breeding matches or list your pet (age, compensation &amp; health info required; your name stays private unless you opt in). <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
+        '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
+        '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and subscriptions — goes back to animals: <b>adoption fees</b> so shelter pets find homes faster and more of them make it out, <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through the Petfi store costs you nothing extra and funds this. The Donate page also lists real shelters near you to give to directly.</p></details>' +
         '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores, groomers and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
         '<details><summary>⏰ How do reminders work?</summary><p>Home tab → <b>🔒 My care</b> chip → add reminders (feeding, litter box…) or calendar entries (vet visits). Enable browser notifications and Petfi alerts you when something\'s due. This page is 100% private to you.</p></details>' +
         '<details><summary>🔊 What are barks & meows?</summary><p>A quick way to say hi! Tap 🔊 on any pet — they hear a real bark or meow. Anyone can bark at anyone; messages can be limited to friends in Settings.</p></details>' +
@@ -3778,7 +3914,7 @@
           '<p class="sub" style="margin-top:0.3rem;">The social world for pets<br>and the people who love them.</p>' +
           '<p class="sub" style="font-size:0.8rem;">Version ' + APP_VERSION + '</p>' +
         '</div>' +
-        '<div class="note" style="text-align:center;">💖 We pledge <b>10% of every ad &amp; subscription</b> to animal shelters and rescues.</div>' +
+        '<div class="note" style="text-align:center;">💖 <b>Half of all Petfi profit</b> goes to adoption fees, emergency vet bills &amp; cremation costs for pets in need.</div>' +
         '<div class="settings-card" style="margin-top:0.8rem;">' +
           '<div class="link-row" onclick="closeSheet();openTerms()"><span class="li">📜</span>Terms of Service<span class="chev">›</span></div>' +
           '<div class="link-row" onclick="closeSheet();openPrivacy()"><span class="li">🔒</span>Privacy Policy<span class="chev">›</span></div>' +
@@ -3992,12 +4128,8 @@
     function renderCare() {
       let h = '<div class="note" style="margin-top:0;">🔒 This page is <b>private</b> — only you can ever see what\'s on it.</div>';
 
-      // Mate Match lives here — it's personal, not for the public feed
-      h += '<div class="get-verified" style="background:linear-gradient(135deg,#f6ecff,#ecdcff);border-color:#d9c2f5;cursor:pointer;margin-top:0.8rem;" onclick="openMateMatch()">' +
-        '<h4>💘 Mate Match</h4>' +
-        '<p style="color:#6a3aa0;">Find a mate — for <b>you</b> or <b>your pet</b>. Bark at someone you like; if they bark back, it\'s a match!</p>' +
-        '<button class="pill-btn" style="background:#8a5ac2;" onclick="event.stopPropagation();openMateMatch()">Open Mate Match</button></div>';
-      if (state.accountType === 'owner' && (state.interests || []).includes('Find a mate')) h += mateBlock();
+      // Your breeding listings (the full Mate Match lives in its own tab)
+      if (state.accountType === 'owner') h += mateBlock();
 
       // Reminders
       h += '<div class="sec"><h3>⏰ My reminders</h3><span class="link" onclick="openAddReminder()">+ Add</span></div>';
@@ -4353,8 +4485,8 @@
     function openAddPet() {
       openSheet('Add a pet',
         '<label>Pet name</label><input id="pet2-name" placeholder="e.g. Biscuit">' +
-        '<label>Species</label><select id="pet2-species"><option>Dog</option><option>Cat</option><option>Bird</option><option>Rabbit</option><option>Hamster</option><option>Reptile</option><option>Fish</option><option>Snake</option><option>Other</option></select>' +
-        '<label>Breed (optional)</label><input id="pet2-breed" placeholder="e.g. Rottweiler">' +
+        '<label>Species</label><select id="pet2-species">' + speciesOptions('dog') + '</select>' +
+        '<label>Breed (optional)</label><input id="pet2-breed" placeholder="e.g. Rottweiler, Boer, Angus">' +
         '<button class="btn" onclick="savePet()">Add pet 🐾</button>');
     }
     function savePet() {
@@ -4414,7 +4546,7 @@
           Object.keys(AD_PRICES).map(k => '<option value="' + k + '">' + AD_PRICES[k].label + '</option>').join('') + '</select>' +
         '<label>Duration</label><select id="ad-dur" onchange="updateAdPrice()"><option value="day">1 day</option><option value="week">1 week</option></select>' +
         '<div class="note" style="text-align:center;" id="ad-price"><b>Free during early access</b><br><small>Will be $2.99 once payments launch</small></div>' +
-        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 When ads are paid, <b>10%</b> of every one goes to animal shelters &amp; rescues</div>' +
+        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 When ads are paid, <b>half of Petfi\'s profit</b> from every one goes to adoption fees, emergency vet bills &amp; cremation costs</div>' +
         '<button class="btn" onclick="launchAd()">Launch ad 📣</button>');
     }
     function updateAdPrice() {
@@ -4574,39 +4706,233 @@
     // Listings are real and cloud-backed; LOCAL_MATES is the no-connection fallback.
     const LOCAL_MATES = [];
     let MATES_VIEW = [];
+    // The Petfi Pledge — half of everything Petfi earns goes back to animals
+    const PLEDGE_SHARE = 0.5;
+    function pledgeCard(compact) {
+      if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit goes back to pets.</b><small>Adoption fees · emergency vet bills · cremation costs — every purchase here helps. Tap to learn more.</small></div></div>';
+      const row = (emo, t, s) => '<div class="row" style="margin-bottom:0.5rem;"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + t + '</div><div class="rmeta" style="font-size:0.85rem;">' + s + '</div></div></div>';
+      return '<div class="pledge-hero"><div class="big">💖 50%</div><h3>Half of everything Petfi earns goes back to animals</h3><p>Every purchase through the Petfi store, every ad and subscription helps pay for:</p></div>' +
+        row('🏠', 'Adoption fees', 'So shelter pets find their family faster — and more of them make it out the front door.') +
+        row('🚑', 'Emergency vet bills', 'When a sudden emergency hits and a family can\'t cover it alone.') +
+        row('🕊️', 'Cremation &amp; goodbye costs', 'After a sudden loss, no family should face that bill on top of the grief.');
+    }
     function mateBlock() {
-      MATES_VIEW = CLOUD_MATES.concat(LOCAL_MATES);
-      return '<div class="sec"><h3>💘 Breeding listings</h3><span class="link" onclick="listMyPet()">+ List my pet</span></div>' +
-        (MATES_VIEW.length
-          ? '<div class="nearby">' + MATES_VIEW.map((m, i) =>
-            '<div class="user-card" style="cursor:pointer;" onclick="openMateDetail(' + i + ')">' +
-              (m.mine ? '<div class="status-bubble">Yours</div>' : '') +
-              '<div class="u-avatar">' + petAvatar(m.species, m.breed, 62) + '</div>' +
-              '<div class="u-name">' + esc(m.name) + '</div>' +
-              '<div class="u-meta">' + esc(m.breed) + ' · ' + esc(m.age) + '</div>' +
-              '<div class="u-actions"><button class="btn-friend">💘 Details</button></div>' +
-            '</div>').join('') + '</div>'
-          : '<div class="note">No breeding listings yet. List your pet and other owners can reach you here.</div>');
+      visibleMates();
+      const mine = MATES_VIEW.filter(m => m.mine);
+      return '<div class="sec"><h3>💘 My breeding listings</h3><span class="link" onclick="openTab(\'mate\')">Open Mate Match ›</span></div>' +
+        (mine.length
+          ? mine.map(m => { const n = matchesFor(m).length; return mateRow(m, MATES_VIEW.indexOf(m), n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby' : ''); }).join('')
+          : '<div class="note">You haven\'t listed an animal for breeding yet. <span class="link" onclick="startMateListing()">List one now</span> — it takes about a minute.</div>');
+    }
+
+    // ---- Listing helpers ----
+    function listingIntent(m) { return m && m.intent === 'seeking' ? 'seeking' : 'offering'; }
+    function sexLabel(s) { return s === 'male' ? 'Male ♂' : s === 'female' ? 'Female ♀' : s === 'group' ? 'Pair / herd' : ''; }
+    function mateSummary(m) {
+      const sp = speciesLabel(m.species), breed = String(m.breed || '').trim();
+      let what = breed || sp;
+      if (breed && isLivestock(m.species) && breed.toLowerCase().indexOf(sp.toLowerCase()) < 0) what = breed + ' ' + sp.toLowerCase();
+      return [what, sexLabel(m.sex), m.age ? String(m.age) : '', m.count > 1 ? m.count + ' head' : ''].filter(Boolean).join(' · ');
+    }
+    function myGeo() { return (state.zip && GEO_CACHE[state.zip]) || null; }
+    function ensureMyGeo() {
+      if (!state.zip || GEO_CACHE[state.zip]) return;
+      geocodeZip(state.zip).then(g => { if (g && appActive() && state.tab === 'mate') rerenderTab(renderMate); });
+    }
+    function mateDistance(m) {
+      const me = myGeo(); if (!me || !m || !m.loc) return null;
+      return Math.round(haversineMi(me.lat, me.lon, m.loc.lat, m.loc.lon));
+    }
+    function mateWhere(m, d) {
+      const area = m.loc && m.loc.area ? m.loc.area : '';
+      if (d != null) return (d < 1 ? 'Under a mile away' : '~' + d + ' mi away') + (area ? ' · ' + area : '');
+      if (area) return area;
+      return m.loc ? 'Distance unknown — add your ZIP in Nearby' : 'Location not shared';
+    }
+    // Sort: nearest first (unknown distance last), then newest
+    function visibleMates() {
+      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId)).concat(LOCAL_MATES);
+      all.forEach(m => { m._d = mateDistance(m); });
+      all.sort((a, b) => {
+        if (a._d != null && b._d != null && a._d !== b._d) return a._d - b._d;
+        if ((a._d == null) !== (b._d == null)) return a._d == null ? 1 : -1;
+        return (b.cloudId || 0) - (a.cloudId || 0);
+      });
+      MATES_VIEW = all;
+      return all;
+    }
+    // Two listings pair up when they're the same species, the sexes don't
+    // clash, and (for purebreds) the breeds overlap.
+    function sexCompatible(a, b) {
+      if (!a.sex || !b.sex || a.sex === 'group' || b.sex === 'group') return true;
+      return a.sex !== b.sex;
+    }
+    function breedTokens(s) { return String(s || '').toLowerCase().split(/[^a-z]+/).filter(t => t.length > 2 && ['the', 'and', 'mix', 'mixed', 'purebred', 'registered'].indexOf(t) < 0); }
+    function breedCompatible(a, b) {
+      const ta = breedTokens(a.breed), tb = breedTokens(b.breed);
+      if (!ta.length || !tb.length) return true;
+      if (/mix|cross|commercial|grade/i.test(String(a.breed) + ' ' + String(b.breed))) return true;
+      return ta.some(t => tb.indexOf(t) >= 0);
+    }
+    function complementary(a, b) {
+      if (!a || !b || a === b) return false;
+      if (String(a.species || '').toLowerCase() !== String(b.species || '').toLowerCase()) return false;
+      if (a.ownerId && b.ownerId && a.ownerId === b.ownerId) return false;
+      return sexCompatible(a, b) && breedCompatible(a, b);
+    }
+    function pairMiles(a, b) { return (a.loc && b.loc) ? haversineMi(a.loc.lat, a.loc.lon, b.loc.lat, b.loc.lon) : null; }
+    const MATCH_RADIUS_MI = 150;
+    function matchesFor(m) {
+      const pool = MATES_VIEW.length ? MATES_VIEW : visibleMates();
+      return pool.filter(x => { if (!complementary(m, x)) return false; const mi = pairMiles(m, x); return mi == null || mi <= MATCH_RADIUS_MI; });
+    }
+    // A listing that appeared since your last look and pairs with one of yours → say so
+    function noteNewMatches() {
+      if (!cloudUser) return;
+      visibleMates();
+      const mine = MATES_VIEW.filter(m => m.mine && m.cloudId);
+      const maxId = CLOUD_MATES.reduce((a, m) => Math.max(a, m.cloudId || 0), 0);
+      const seen = state.mateSeenMax || 0;
+      if (mine.length && seen) {
+        const fresh = {};
+        mine.forEach(m => matchesFor(m).forEach(x => { if (x.cloudId > seen && !x.mine) fresh[x.cloudId] = x; }));
+        const ids = Object.keys(fresh), n = ids.length;
+        if (n) {
+          toast('🎯 ' + (n === 1 ? 'A new ' + speciesLabel(fresh[ids[0]].species).toLowerCase() + ' listing near you matches yours!' : n + ' new listings near you match yours!'));
+          uiSound('match');
+          if (state.tab !== 'mate') { state.mateUnseen = (state.mateUnseen || 0) + n; setMateNavBadge(state.mateUnseen); }
+        }
+      }
+      if (maxId !== seen) { state.mateSeenMax = maxId; saveState(); }
+    }
+    function setMateNavBadge(n) {
+      const b = document.getElementById('mate-nbadge'); if (!b) return;
+      b.textContent = n > 9 ? '9+' : String(n || '');
+      b.style.display = n ? 'flex' : 'none';
+    }
+
+    // ======================= MATE MATCH TAB — the heart of Petfi =======================
+    // Petfi exists because Rafael had a great dog and no way to find a female
+    // nearby to breed him with. This tab is that, for pets AND farm animals:
+    // list your animal, see who's near you looking for the same thing,
+    // message them. Big type, big buttons, few taps.
+    let mateFilter = { group: 'all', species: '', forId: null };
+    function renderMate() {
+      visibleMates();
+      const mine = cloudUser ? MATES_VIEW.filter(m => m.mine) : [];
+      let h = '<div class="mm-hero"><div class="mm-kicker">💘 Mate Match</div>' +
+        '<h2>Find a breeding partner for your animal</h2>' +
+        '<p>Dogs, cats, goats, cattle, horses, chickens — list yours, or find one near you. Every listing is a real member you can message.</p>' +
+        '<div class="mm-cta">' +
+          '<button class="mm-btn" onclick="startMateListing()"><span class="i">➕</span><span><b>List my animal</b><small>About a minute</small></span></button>' +
+          '<button class="mm-btn alt" onclick="scrollToBrowse()"><span class="i">🔍</span><span><b>Find a match</b><small>' + (MATES_VIEW.length ? MATES_VIEW.length + ' listing' + (MATES_VIEW.length === 1 ? '' : 's') : 'Browse listings') + '</small></span></button>' +
+        '</div></div>';
+      if (!cloudUser) return h + '<div class="note">Log in to see and post breeding listings.</div>';
+      if (mine.length) {
+        h += '<div class="sec" style="margin-top:0.4rem;"><h3>🐾 My listings</h3></div>';
+        mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — you\'ll be told the moment one appears'); });
+      }
+      const me = myGeo();
+      h += '<div class="sec" id="mm-browse"><h3>🔍 Listings near you</h3>' +
+        (state.zip ? '<span class="link" onclick="openTab(\'nearby\')">📍 ' + esc(me && me.area ? me.area : 'ZIP ' + state.zip) + '</span>' : '<span class="link" onclick="openTab(\'nearby\')">Set my ZIP ›</span>') + '</div>';
+      h += mateFilterChips();
+      const list = filteredMates();
+      if (!CLOUD_MATES.length && !lastMatesFetch) h += skeletons(2, false);
+      else if (!list.length) h += '<div class="empty-state"><div class="es-emo">' + (mateFilter.species ? speciesEmo(mateFilter.species) : '💘') + '</div><h3>No listings here yet</h3><p>Be the first — list your animal and anyone nearby looking for the same thing will find you.</p><button class="pill-btn" style="font-size:0.95rem;padding:0.7rem 1.2rem;" onclick="startMateListing()">➕ List my animal</button></div>';
+      else list.forEach(m => { h += mateCard(m, MATES_VIEW.indexOf(m)); });
+      // The people path is still here — just not in the way
+      const nm = myMatches().length;
+      h += '<div class="get-verified" style="background:linear-gradient(135deg,#f6ecff,#ecdcff);border-color:#d9c2f5;cursor:pointer;margin-top:1.2rem;" onclick="humanMateFlow()">' +
+        '<h4>🧑💘 Mate Match for people</h4><p style="color:#6a3aa0;">Meet pet people near you. Say hi with a bark — if they bark back, it\'s a match. 18+.</p>' +
+        (nm ? '<button class="pill-btn" style="background:#8a5ac2;" onclick="event.stopPropagation();openMyMatches()">💬 My matches (' + nm + ')</button>'
+            : '<button class="pill-btn" style="background:#8a5ac2;" onclick="event.stopPropagation();humanMateFlow()">Open</button>') + '</div>';
+      h += '<p class="sub" style="font-size:0.78rem;margin-top:0.9rem;">Petfi connects owners. Breeding arrangements, health checks and any fees are between you — follow your local animal laws.</p>';
+      return h;
+    }
+    function scrollToBrowse() { const el = document.getElementById('mm-browse'); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+    function mateFilterChips() {
+      const counts = {};
+      MATES_VIEW.forEach(m => { const k = String(m.species || 'other').toLowerCase(); counts[k] = (counts[k] || 0) + 1; });
+      const species = Object.keys(counts).filter(k => SPECIES_EMO[k]).sort((a, b) => counts[b] - counts[a]).slice(0, 8);
+      const chip = (on, label, click) => '<div class="chip' + (on ? ' active' : '') + '" onclick="' + click + '">' + label + '</div>';
+      let h = '<div class="chips mm-chips">';
+      if (mateFilter.forId) {
+        const m = MATES_VIEW.find(x => x.cloudId === mateFilter.forId);
+        return h + chip(true, '🎯 Matches for ' + esc(m ? m.name : 'your listing') + ' ✕', 'setMateFilter(\'all\',\'\')') + '</div>';
+      }
+      h += chip(mateFilter.group === 'all' && !mateFilter.species, 'All', 'setMateFilter(\'all\',\'\')');
+      h += chip(mateFilter.group === 'pets' && !mateFilter.species, '🐾 Pets', 'setMateFilter(\'pets\',\'\')');
+      h += chip(mateFilter.group === 'farm' && !mateFilter.species, '🐄 Farm', 'setMateFilter(\'farm\',\'\')');
+      species.forEach(k => { h += chip(mateFilter.species === k, speciesEmo(k) + ' ' + speciesLabel(k), 'setMateFilter(\'all\',\'' + k + '\')'); });
+      return h + '</div>';
+    }
+    function setMateFilter(group, species) {
+      mateFilter = { group: group || 'all', species: species || '', forId: null };
+      rerenderTab(renderMate);
+      setTimeout(scrollToBrowse, 30);
+    }
+    function filteredMates() {
+      if (mateFilter.forId) { const m = MATES_VIEW.find(x => x.cloudId === mateFilter.forId); return m ? matchesFor(m) : []; }
+      return MATES_VIEW.filter(m => {
+        const k = String(m.species || 'other').toLowerCase();
+        if (mateFilter.species) return k === mateFilter.species;
+        if (mateFilter.group === 'pets') return !isLivestock(k);
+        if (mateFilter.group === 'farm') return isLivestock(k);
+        return true;
+      });
+    }
+    function showMatchesFor(cloudId) {
+      if (!cloudId) return;
+      mateFilter = { group: 'all', species: '', forId: cloudId };
+      closeSheet(); openTab('mate'); setTimeout(scrollToBrowse, 80);
+    }
+    function mateBadge(m, inline) {
+      const s = listingIntent(m) === 'seeking';
+      return '<span class="mm-badge ' + (s ? 'seek' : 'offer') + (inline ? ' inline' : '') + '">' + (s ? '🔍 Looking for a mate' : '✅ Available to breed') + '</span>';
+    }
+    function mateCard(m, i) {
+      const ph = safePhotos(m.photos), d = mateDistance(m);
+      return '<div class="mm-card" onclick="openMateDetail(' + i + ')">' +
+        '<div class="mm-media">' + (ph.length ? '<img src="' + esc(ph[0]) + '" loading="lazy" alt="">' : '<div class="mm-emo">' + speciesEmo(m.species) + '</div>') + mateBadge(m) + '</div>' +
+        '<div class="mm-body">' +
+          '<div class="mm-title">' + esc(m.name) + (m.mine ? ' <small>(yours)</small>' : '') + '</div>' +
+          '<div class="mm-meta">' + esc(mateSummary(m)) + '</div>' +
+          '<div class="mm-where">📍 ' + esc(mateWhere(m, d)) + '</div>' +
+          '<button class="btn mm-view" onclick="event.stopPropagation();openMateDetail(' + i + ')">View details ›</button>' +
+        '</div></div>';
+    }
+    function mateRow(m, i, extra) {
+      const ph = safePhotos(m.photos);
+      return '<div class="row" style="cursor:pointer;" onclick="openMateDetail(' + i + ')">' +
+        '<div class="ricon">' + (ph.length ? '<img src="' + esc(ph[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(m.species)) + '</div>' +
+        '<div class="rmain"><div class="rtitle" style="font-size:1rem;">' + esc(m.name) + (m.mine ? ' <small style="color:var(--muted);font-weight:600;">(yours)</small>' : '') + '</div>' +
+        '<div class="rmeta" style="font-size:0.85rem;">' + esc(mateSummary(m)) + (extra ? '<br>' + esc(extra) : '') + '</div></div>' +
+        '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>';
     }
     function openMateDetail(i) {
       const m = MATES_VIEW[i]; if (!m) return;
       const mine = !!(cloudUser && m.ownerId === cloudUser.id);
-      openSheet('💘 ' + esc(m.name),
-        '<div style="text-align:center;">' +
-          '<div style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0.4rem auto;border:3px solid var(--brand);background:var(--card);">' + petAvatar(m.species, m.breed, 96) + '</div>' +
-          '<div class="prof-meta">' + esc(m.breed) + ' · ' + esc(m.age) + '</div>' +
-        '</div>' +
-        '<div class="row" style="margin-top:0.8rem;"><div class="ricon">🧬</div><div class="rmain"><div class="rtitle">Breed &amp; purity</div><div class="rmeta">' + esc(m.purity) + '</div></div></div>' +
-        '<div class="row"><div class="ricon">💰</div><div class="rmain"><div class="rtitle">Compensation</div><div class="rmeta">' + esc(m.comp) + '</div></div></div>' +
-        '<div class="row"><div class="ricon">❤️</div><div class="rmain"><div class="rtitle">Serious health issues</div><div class="rmeta">' + esc(m.health) + '</div></div></div>' +
-        '<p class="sub" style="font-size:0.78rem;margin-top:0.4rem;">Listed by ' +
-          (m.business ? '<b>' + esc(m.business) + '</b>' : esc(m.owner || authorName(m.ownerId, 'a member')) + ' <span style="color:var(--muted);">(Private breeder)</span>') + '</p>' +
+      const ph = safePhotos(m.photos), d = mateDistance(m), matches = matchesFor(m);
+      const fact = (emo, t, v) => '<div class="row"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + t + '</div><div class="rmeta" style="font-size:0.88rem;">' + esc(v) + '</div></div></div>';
+      openSheet(speciesEmo(m.species) + ' ' + esc(m.name),
+        (ph.length
+          ? '<div class="mm-gallery">' + ph.map(u => '<img src="' + esc(u) + '" alt="">').join('') + '</div>'
+          : '<div style="text-align:center;"><div style="width:110px;height:110px;border-radius:50%;overflow:hidden;margin:0.2rem auto 0.4rem;border:3px solid var(--brand);background:var(--card);display:flex;align-items:center;justify-content:center;">' + petAvatar(m.species, m.breed, 100) + '</div></div>') +
+        '<div style="text-align:center;margin:0.3rem 0 0.9rem;">' + mateBadge(m, true) + '<div style="margin-top:0.45rem;font-size:1.05rem;font-weight:600;">' + esc(mateSummary(m)) + '</div></div>' +
+        fact('📍', 'Where', mateWhere(m, d)) +
+        fact('📄', 'Papers', m.purity || 'Not stated') +
+        fact('💰', 'Terms', m.comp || 'Ask the owner') +
+        fact('❤️', 'Health', m.health || 'None reported') +
+        (matches.length ? '<div class="note" style="cursor:pointer;background:var(--brand-soft);border-color:#ffd7ca;" onclick="showMatchesFor(' + (Number(m.cloudId) || 0) + ')">🎯 <b>' + matches.length + '</b> listing' + (matches.length === 1 ? '' : 's') + ' nearby pair' + (matches.length === 1 ? 's' : '') + ' with this one — <b>tap to see</b></div>' : '') +
+        '<p class="sub" style="font-size:0.85rem;margin-top:0.5rem;">Listed by ' +
+          (m.business ? '<b>' + esc(m.business) + '</b>' : esc(m.owner || authorName(m.ownerId, 'a member')) + ' <span style="color:var(--muted);">(Private breeder)</span>') +
+          (m.createdAt ? ' · ' + esc(timeAgo(m.createdAt)) : '') + '</p>' +
         (mine
           ? '<button class="btn secondary" onclick="deleteMateListing(' + (Number(m.cloudId) || 0) + ')">🗑 Remove my listing</button>'
-          : '<button class="btn secondary" onclick="saveMatePick(' + i + ')">⭐ Save to my picks</button>' +
-            (m.ownerId
-              ? '<button class="btn" onclick="openCloudDM(\'' + jsStr(m.ownerId) + '\')">💬 Contact owner</button>'
-              : '<div class="note">This listing only exists on this device.</div>')));
+          : (m.ownerId
+              ? '<button class="btn mm-publish" onclick="openCloudDM(\'' + jsStr(m.ownerId) + '\')">💬 Message the owner</button>'
+              : '<div class="note">This listing only exists on this device.</div>') +
+            '<button class="btn secondary" onclick="saveMatePick(' + i + ')">⭐ Save to my picks</button>'));
     }
     // Your picks are PRIVATE unless "Show my breeding activity" is on —
     // then they appear on your public profile card.
@@ -4622,59 +4948,155 @@
       if (!id) return;
       const i = CLOUD_MATES.findIndex(m => m.cloudId === id);
       if (i >= 0) CLOUD_MATES.splice(i, 1);
-      closeSheet(); if (state.tab === 'home') openTab('home');
+      closeSheet(); if (state.tab === 'mate' || state.tab === 'home') openTab(state.tab);
       cloud.from('mate_listings').delete().eq('id', id)
         .then(({ error }) => { toast(error ? '⚠️ Could not remove it' : 'Listing removed 🗑'); });
     }
+
+    // ---- Listing an animal: one numbered form, big tiles, nothing clever ----
+    let brForm = { species: 'dog', sex: '', intent: 'offering' };
+    let brPhotos = [];
+    function startMateListing() {
+      if (!requireSeller('list an animal for breeding')) return;
+      const pets = state.pets || [];
+      if (pets.length) {
+        openSheet('Which animal?',
+          '<p class="sub" style="font-size:0.95rem;">Pick one of yours and we\'ll fill in what we already know.</p>' +
+          pets.map((p, i) =>
+            '<div class="row" style="cursor:pointer;" onclick="closeSheet();openBreedingForm(state.pets[' + i + '])">' +
+              '<div class="ricon">' + petAvatar(p.species, p.breed, 46) + '</div>' +
+              '<div class="rmain"><div class="rtitle" style="font-size:1rem;">' + esc(p.name) + '</div><div class="rmeta" style="font-size:0.85rem;">' + esc(p.breed || speciesLabel(p.species)) + '</div></div>' +
+              '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>').join('') +
+          '<button class="btn secondary" style="font-size:1rem;" onclick="closeSheet();openBreedingForm()">➕ A different animal</button>');
+        return;
+      }
+      openBreedingForm(null);
+    }
+    function listMyPet() { startMateListing(); }          // older buttons still work
+    function petMateFlow() { closeSheet(); openTab('mate'); }
     function openBreedingForm(prefill) {
-      if (!requireSeller('list a pet for breeding')) return;
-      openSheet('💘 List your pet for breeding',
-        '<p class="sub" style="font-size:0.82rem;">Age, compensation, breed &amp; health info are required so matches are safe and transparent.</p>' +
-        '<label>Pet name</label><input id="br-name" placeholder="e.g. Tank">' +
-        '<label>Species</label><select id="br-species"><option>Dog</option><option>Cat</option><option>Bird</option><option>Rabbit</option><option>Hamster</option><option>Reptile</option><option>Fish</option><option>Snake</option><option>Other</option></select>' +
-        '<label>Breed</label><input id="br-breed" placeholder="e.g. Rottweiler">' +
-        '<label>Age</label><input id="br-age" placeholder="e.g. 3 yrs">' +
-        '<label>Purity</label><select id="br-purity"><option>Purebred · pedigree papers 📄</option><option>Purebred · no papers</option><option>Mixed breed</option></select>' +
-        '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">📄 Have pedigree papers? Mention it here and share them with interested owners in chat.</p>' +
-        '<label>Compensation</label><input id="br-comp" placeholder="e.g. $500 stud fee, or first pick of litter">' +
-        '<label>Serious health issues</label><input id="br-health" placeholder="None">' +
-        '<label>Breeding business or organization <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
-        '<input id="br-biz" placeholder="e.g. Sunrise Goldens">' +
-        '<div class="note">🔒 The listing itself shows no name. When someone taps it for details, they\'ll see your <b>business name</b> — or just your <b>first name</b> marked "(Private breeder)" if you leave it blank.</div>' +
-        '<button class="btn" onclick="saveBreedingListing()">List for breeding 💘</button>');
-      // Coming from "My pets"? Everything we already know is filled in —
-      // they only add what's missing (age, compensation, health).
+      if (!requireSeller('list an animal for breeding')) return;
+      brPhotos = [];
+      const sp0 = prefill && prefill.species ? String(prefill.species).toLowerCase() : 'dog';
+      brForm = { species: SPECIES_EMO[sp0] ? sp0 : 'other', sex: '', intent: 'offering' };
+      const tile = s => '<div class="mm-tile' + (brForm.species === s[0] ? ' on' : '') + '" onclick="brPick(\'species\',\'' + s[0] + '\',this)"><span class="e">' + SPECIES_EMO[s[0]] + '</span>' + s[1] + '</div>';
+      openSheet('💘 List my animal',
+        '<div class="mm-form">' +
+        '<div class="mm-step"><span class="n">1</span>What kind of animal?</div>' +
+        '<div class="mm-tiles">' + PET_SPECIES.concat(FARM_SPECIES).map(tile).join('') + '</div>' +
+        '<div class="mm-step"><span class="n">2</span>About your animal</div>' +
+        '<label>Name <small style="color:var(--muted);font-weight:400;">(or herd / kennel name)</small></label><input type="text" id="br-name" placeholder="e.g. Tank">' +
+        '<label>Breed</label><input type="text" id="br-breed" placeholder="e.g. Rottweiler · Boer · Angus">' +
+        '<label>Male or female?</label><div class="mm-seg">' +
+          '<div onclick="brPick(\'sex\',\'male\',this)">♂ Male</div><div onclick="brPick(\'sex\',\'female\',this)">♀ Female</div><div onclick="brPick(\'sex\',\'group\',this)">Pair / herd</div></div>' +
+        '<div class="mm-two"><div><label>Age</label><input type="text" id="br-age" placeholder="e.g. 3 yrs"></div><div><label>How many</label><input type="number" id="br-count" min="1" value="1"></div></div>' +
+        '<div class="mm-step"><span class="n">3</span>What are you after?</div>' +
+        '<div class="mm-seg big">' +
+          '<div class="on" onclick="brPick(\'intent\',\'offering\',this)">✅ My animal is <b>available</b> to breed</div>' +
+          '<div onclick="brPick(\'intent\',\'seeking\',this)">🔍 I\'m <b>looking for</b> a mate for my animal</div></div>' +
+        '<label>Terms — fee or trade</label><input type="text" id="br-comp" placeholder="e.g. $500 stud fee · pick of the litter · trade">' +
+        '<label>Papers &amp; registration</label><select id="br-purity"><option>Registered · papers 📄</option><option>Purebred · no papers</option><option>Mixed / commercial</option></select>' +
+        '<label>Health — anything a partner should know</label><input type="text" id="br-health" placeholder="None">' +
+        '<div class="mm-step"><span class="n">4</span>Photos <small>(optional, up to 3)</small></div>' +
+        '<button class="pill-btn ghost" style="font-size:0.98rem;padding:0.75rem 1.2rem;" onclick="document.getElementById(\'br-photos\').click()">📷 Add photos</button>' +
+        '<input type="file" id="br-photos" accept="image/*" multiple style="display:none;" onchange="brPhotosPicked(this)">' +
+        '<div id="br-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
+        '<div class="mm-step"><span class="n">5</span>Where are you?</div>' +
+        '<label>ZIP code</label><input type="text" id="br-zip" inputmode="numeric" maxlength="5" placeholder="5-digit ZIP" value="' + esc(state.zip || '') + '">' +
+        '<p class="sub" style="font-size:0.85rem;margin:0.35rem 0 0;">Others see only your <b>town and distance</b> — never your ZIP or address.</p>' +
+        '<label>Farm, kennel or business name <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="text" id="br-biz" placeholder="e.g. Reyes Family Farm">' +
+        '<div class="note" style="font-size:0.9rem;">Your listing shows your business name — or just your first name marked “Private breeder”. Interested owners message you inside Petfi.</div>' +
+        '<button class="btn mm-publish" id="br-btn" onclick="saveBreedingListing()">Publish my listing 💘</button>' +
+        '</div>');
       if (prefill) {
         document.getElementById('br-name').value = prefill.name || '';
         document.getElementById('br-breed').value = prefill.breed || '';
-        const sel = document.getElementById('br-species');
-        const want = String(prefill.species || '').toLowerCase();
-        Array.from(sel.options).forEach(o => { if (o.value.toLowerCase() === want) sel.value = o.value; });
       }
     }
+    function brPick(k, v, el) {
+      brForm[k] = v;
+      Array.from(el.parentNode.children).forEach(c => c.classList.toggle('on', c === el));
+      haptic(8);
+    }
+    function brPhotosPicked(input) {
+      const files = Array.from(input.files).slice(0, 3 - brPhotos.length);
+      if (input.files.length > files.length) toast('Up to 3 photos per listing');
+      files.forEach(f => {
+        const img = new Image(), url = URL.createObjectURL(f);
+        img.onload = () => {
+          const scale = Math.min(1, 900 / img.width);
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          brPhotos.push(c.toDataURL('image/jpeg', 0.84));
+          renderBrPreviews();
+        };
+        img.src = url;
+      });
+      input.value = '';
+    }
+    function renderBrPreviews() {
+      const d = document.getElementById('br-photo-previews'); if (!d) return;
+      d.innerHTML = brPhotos.map((p, i) =>
+        '<div style="position:relative;"><img src="' + p + '" style="width:84px;height:84px;object-fit:cover;border-radius:12px;border:2px solid var(--line);display:block;">' +
+        '<span onclick="brPhotos.splice(' + i + ',1);renderBrPreviews()" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:22px;height:22px;font-size:0.8rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>').join('');
+    }
     async function saveBreedingListing() {
-      const name = val('br-name'), breed = val('br-breed'), age = val('br-age'), comp = val('br-comp');
-      if (!name || !breed || !age || !comp) { toast('Name, breed, age & compensation are required'); return; }
-      // Identity policy: the card shows no name; the DETAIL sheet shows the
-      // business name, or first name + "(Private breeder)" without one.
+      const name = val('br-name'), breed = val('br-breed'), age = val('br-age'), comp = val('br-comp'), zip = val('br-zip');
+      const missing = [];
+      if (!name) missing.push('a name'); if (!breed) missing.push('the breed'); if (!brForm.sex) missing.push('male or female'); if (!age) missing.push('the age'); if (!comp) missing.push('your terms');
+      if (missing.length) { toast('Please add ' + missing.join(', ')); return; }
+      if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP code should be 5 digits'); return; }
+      const btn = document.getElementById('br-btn');
+      if (btn && btn.disabled) return;
+      if (btn) { btn.disabled = true; btn.textContent = 'Publishing…'; }
       const firstName = (state.displayName || 'Owner').split(' ')[0];
       const listing = {
-        name, species: (val('br-species') || 'Dog').toLowerCase(), breed, age,
-        mi: 'Near you', purity: val('br-purity') || 'Purebred',
-        comp, health: val('br-health') || 'None reported',
-        owner: firstName, business: val('br-biz') || '', status: 'NEW',
+        name, species: brForm.species, breed, sex: brForm.sex, intent: brForm.intent, age,
+        count: Math.max(1, parseInt(val('br-count'), 10) || 1),
+        purity: val('br-purity') || 'Registered · papers 📄', comp, health: val('br-health') || 'None reported',
+        owner: firstName, business: val('br-biz') || '', status: 'NEW', mi: 'Near you',
       };
+      if (zip) {
+        const g = await geocodeZip(zip);
+        // Rounded to ~1 km — town-level, never an address
+        if (g) listing.loc = { lat: +g.lat.toFixed(2), lon: +g.lon.toFixed(2), area: g.area || '' };
+        if (!state.zip) state.zip = zip;
+      }
+      state.interests = state.interests || [];
       if (state.interests.indexOf('Find a mate') < 0) state.interests.push('Find a mate');
       saveState();
-      closeSheet(); refreshCare();
-      if (cloud && cloudUser) {
-        listing.ownerId = cloudUser.id; listing.mine = true;
+      if (!(cloud && cloudUser)) { LOCAL_MATES.unshift(listing); closeSheet(); openTab('mate'); toast('Listed on this device 💘 (no connection)'); return; }
+      try {
+        if (brPhotos.length) {
+          const urls = [];
+          for (let i = 0; i < brPhotos.length; i++) {
+            if (btn) btn.textContent = '📷 Uploading photo ' + (i + 1) + ' of ' + brPhotos.length + '…';
+            const blob = await (await fetch(brPhotos[i])).blob();
+            const path = cloudUser.id + '/mate-' + Date.now() + '-' + i + '.jpg';
+            const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+            if (up.error) throw up.error;
+            urls.push(cloud.storage.from('photos').getPublicUrl(path).data.publicUrl);
+          }
+          listing.photos = urls;
+        }
         const { data, error } = await cloud.from('mate_listings').insert({ owner_id: cloudUser.id, content: listing }).select('id').single();
-        if (error) { toast('⚠️ Couldn\'t publish the listing — check your connection and try again'); }
-        else { listing.cloudId = data.id; CLOUD_MATES.unshift(listing); toast('Listed for every Petfi member 💘'); }
-        if (state.tab === 'home') refreshCare();
-      } else {
-        LOCAL_MATES.unshift(listing); toast('Listed on this device 💘 (no connection)');
+        if (error) throw error;
+        listing.cloudId = data.id; listing.ownerId = cloudUser.id; listing.mine = true; listing.createdAt = new Date().toISOString();
+        CLOUD_MATES.unshift(listing); brPhotos = [];
+        state.mateSeenMax = Math.max(state.mateSeenMax || 0, data.id); saveState();
+        closeSheet(); openTab('mate'); uiSound('post'); haptic([10, 30, 10]);
+        const n = matchesFor(listing);
+        toast(n.length ? '🎯 Published! ' + n.length + ' possible match' + (n.length === 1 ? '' : 'es') + ' nearby' : 'Published for every Petfi member 💘');
+        if (n.length) setTimeout(confetti, 250);
+        // Tell the owners of matching listings right now
+        const told = {};
+        n.slice(0, 12).forEach(x => { if (x.ownerId && !told[x.ownerId]) { told[x.ownerId] = 1; livePing(x.ownerId, { type: 'mate_listing', species: listing.species, id: data.id }); } });
+      } catch (e) {
+        console.warn('mate listing:', e.message);
+        if (btn) { btn.disabled = false; btn.textContent = 'Publish my listing 💘'; }
+        toast('⚠️ Couldn\'t publish — check your connection and try again');
       }
     }
 
@@ -4689,53 +5111,10 @@
       { key: 'state', label: 'State-wide (approx)', mi: 300 },
       { key: 'app',   label: 'App-wide',            mi: Infinity },
     ];
-    const PET_EMOJI = { dog:'🐶', cat:'🐱', bird:'🐦', rabbit:'🐰', hamster:'🐹', reptile:'🦎', fish:'🐟', snake:'🐍', other:'🐾' };
+    const PET_EMOJI = SPECIES_EMO;
     let CLOUD_HUMANS = [];
-
-    function openMateMatch() {
-      openSheet('💘 Mate Match',
-        '<p class="sub" style="font-size:0.88rem;">Whether it\'s puppy love or the real thing — Mate Match finds <b>a breeding match for your pet</b>, or <b>a pet-loving person for you</b>.</p>' +
-        '<div class="choice" onclick="petMateFlow()"><div class="big">🐕💘</div><h3>A mate for my pet</h3><p>Browse breeding listings from other owners, or list your pet with age, pedigree &amp; health info.</p></div>' +
-        '<div class="choice owner" onclick="humanMateFlow()"><div class="big">🧑💘</div><h3>A mate for me</h3><p>Meet pet people near you. Say hi with a bark — if they bark back, it\'s a match and you can message. 18+.</p></div>' +
-        (function () {
-          const n = myMatches().length;
-          return n ? '<button class="btn secondary" onclick="openMyMatches()">💬 My matches (' + n + ')</button>' : '';
-        })());
-    }
-
-    // ---- Path 1: a mate for my pet ----
-    async function petMateFlow() {
-      openSheet('🐕💘 Breeding listings', '<div class="note">⏳ Loading listings…</div>');
-      const mySeq = sheetSeq;
-      await loadMatesAndAds(true);
-      if (sheetSeq !== mySeq) return;
-      MATES_VIEW = CLOUD_MATES.concat(LOCAL_MATES);
-      openSheet('🐕💘 Breeding listings',
-        '<p class="sub" style="font-size:0.85rem;">Every listing shows age, compensation, purity &amp; health — tap one for details.</p>' +
-        (MATES_VIEW.length
-          ? MATES_VIEW.slice(0, 20).map((m, i) =>
-            '<div class="row" style="cursor:pointer;" onclick="openMateDetail(' + i + ')">' +
-              '<div class="ricon">' + petAvatar(m.species, m.breed, 46) + '</div>' +
-              '<div class="rmain"><div class="rtitle">' + esc(m.name) + (m.mine ? ' <small>(yours)</small>' : '') + '</div>' +
-              '<div class="rmeta">' + esc(m.breed) + ' · ' + esc(m.age) + '</div></div>' +
-              '<div class="raction"><span class="fl">Details ›</span></div></div>').join('')
-          : '<div class="empty-state"><div class="es-emo">🐕💘</div><h3>No listings yet</h3><p>Be the first — list your pet and other owners can find you here.</p></div>') +
-        '<button class="btn" onclick="listMyPet()">💘 List my pet</button>');
-    }
-    function listMyPet() {
-      closeSheet();
-      const pets = state.pets || [];
-      if (pets.length > 1) {
-        openSheet('Which pet?', pets.map((p, i) =>
-          '<div class="row" style="cursor:pointer;" onclick="closeSheet();openBreedingForm(state.pets[' + i + '])">' +
-            '<div class="ricon">' + petAvatar(p.species, p.breed, 46) + '</div>' +
-            '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(p.breed || p.species) + '</div></div>' +
-            '<div class="raction"><span class="fl">Pick ›</span></div></div>').join('') +
-          '<button class="btn secondary" onclick="closeSheet();openBreedingForm()">Someone else</button>');
-        return;
-      }
-      openBreedingForm(pets[0] || null);
-    }
+    // The old front-door sheet — everything now lives in the Mate Match tab
+    function openMateMatch() { closeSheet(); openTab('mate'); }
 
     // ---- Path 2: a mate for ME ----
     function humanMateFlow() {
@@ -4844,15 +5223,37 @@
       if (c.mi != null && c.mi > rad) return false;
       return true;
     }
+    // ZIP → { lat, lon, area:"Town, ST" }. Zippopotam knows every US ZIP and
+    // names the town; OpenStreetMap is the fallback. Cached per ZIP, in memory
+    // and in this browser, so we geocode each ZIP once.
+    let GEO_STORE = {};
+    try { GEO_STORE = JSON.parse(localStorage.getItem('petfi_geo') || '{}') || {}; } catch (e) { GEO_STORE = {}; }
     async function geocodeZip(zip) {
-      if (!zip || !/^\d{5}$/.test(zip)) return null;
+      zip = String(zip || '');
+      if (!/^\d{5}$/.test(zip)) return null;
       if (GEO_CACHE[zip]) return GEO_CACHE[zip];
+      if (GEO_STORE[zip] && isFinite(GEO_STORE[zip].lat)) { GEO_CACHE[zip] = GEO_STORE[zip]; return GEO_CACHE[zip]; }
+      let hit = null;
       try {
-        const geo = await (await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=USA&format=json&limit=1')).json();
-        if (!geo.length) return null;
-        GEO_CACHE[zip] = { lat: +geo[0].lat, lon: +geo[0].lon };
-        return GEO_CACHE[zip];
-      } catch (e) { return null; }
+        const r = await fetch('https://api.zippopotam.us/us/' + zip);
+        if (r.ok) {
+          const j = await r.json(); const p = j.places && j.places[0];
+          if (p) hit = { lat: +p.latitude, lon: +p.longitude, area: p['place name'] + ', ' + (p['state abbreviation'] || p.state || '') };
+        }
+      } catch (e) {}
+      if (!hit) {
+        try {
+          const geo = await (await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=USA&format=json&limit=1')).json();
+          if (geo.length) {
+            const parts = String(geo[0].display_name || '').split(', ').filter(x => x !== zip && x !== 'United States' && !/County$/.test(x));
+            hit = { lat: +geo[0].lat, lon: +geo[0].lon, area: parts.length >= 2 ? parts[parts.length - 2] + ', ' + parts[parts.length - 1] : (parts[0] || '') };
+          }
+        } catch (e) {}
+      }
+      if (!hit || !isFinite(hit.lat)) return null;
+      GEO_CACHE[zip] = hit; GEO_STORE[zip] = hit;
+      try { localStorage.setItem('petfi_geo', JSON.stringify(GEO_STORE)); } catch (e) {}
+      return hit;
     }
     async function showHumanMatches() {
       openSheet('💘 Mate Match — for you',
@@ -5605,7 +6006,7 @@
         if (statsChanged) saveState();
       }
       // If the feed is on screen, refresh it — unless the user is mid-typing
-      if (appActive() && state.tab === 'home' && state.homeTab !== 'care') rerenderTab(renderHome);
+      if (appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
     }
     // Background refreshes must never rip a half-typed comment or an open
     // thread out from under the user.
@@ -6014,13 +6415,24 @@
       if (!force && Date.now() - lastMatesFetch < 60000) return;
       lastMatesFetch = Date.now();
       const [m, a] = await Promise.all([
-        cloud.from('mate_listings').select('id, owner_id, content, created_at').order('created_at', { ascending: false }).limit(30),
+        cloud.from('mate_listings').select('id, owner_id, content, created_at').order('created_at', { ascending: false }).limit(80),
         cloud.from('ads').select('id, owner_id, content, expires_at').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(10),
       ]);
-      // Trusted columns are applied LAST so row content can't override ids/owners
-      if (m.data) CLOUD_MATES = m.data.map(r => Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, mine: !!(cloudUser && r.owner_id === cloudUser.id) }));
+      // Trusted columns are applied LAST so row content can't override ids/owners;
+      // photos only from our bucket, location only as plain numbers.
+      if (m.data) CLOUD_MATES = m.data.map(r => {
+        const c = Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, createdAt: r.created_at, mine: !!(cloudUser && r.owner_id === cloudUser.id) });
+        c.photos = safePhotos(c.photos);
+        c.loc = (c.loc && isFinite(+c.loc.lat) && isFinite(+c.loc.lon)) ? { lat: +c.loc.lat, lon: +c.loc.lon, area: String(c.loc.area || '').slice(0, 60) } : null;
+        c.count = Math.max(1, parseInt(c.count, 10) || 1);
+        return c;
+      });
       if (a.data) CLOUD_ADS = a.data.map(r => Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, expiresAt: r.expires_at, mine: !!(cloudUser && r.owner_id === cloudUser.id) }));
       await ensureProfiles(CLOUD_MATES.map(x => x.ownerId).concat(CLOUD_ADS.map(x => x.ownerId)));
+      ensureMyGeo();
+      noteNewMatches();
+      if (appActive() && state.tab === 'mate') rerenderTab(renderMate);
+      else if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
     }
 
     async function loadGroups(force) {
@@ -6048,7 +6460,7 @@
         grp.meta = groupMeta(grp);
         return grp;
       });
-      if (appActive() && state.tab === 'groups') rerenderTab(renderGroups);
+      if (appActive() && state.tab === 'home' && state.homeTab === 'groups') rerenderTab(renderHome);
     }
     async function loadListings(force) {
       if (!cloud) return;
@@ -6136,15 +6548,22 @@
           });
         } else if (p.type === 'like' || p.type === 'comment') {
           lastPostsFetch = 0; loadCloudPosts(true);
+        } else if (p.type === 'mate_listing') {
+          // Someone just listed an animal that pairs with one of yours
+          loadMatesAndAds(true).then(() => {
+            toast('🎯 New ' + speciesLabel(p.species).toLowerCase() + ' breeding listing near you matches yours!');
+            uiSound('match'); ringBell();
+            if (state.tab !== 'mate') { state.mateUnseen = (state.mateUnseen || 0) + 1; saveState(); setMateNavBadge(state.mateUnseen); }
+          });
         }
       }, 250);
     }
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
       if (!cloud || !cloudUser) return;
-      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); }
-      else if (name === 'nearby') { loadPeople(); loadTerritory(); }
-      else if (name === 'groups') loadGroups();
+      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); if (state.homeTab === 'groups') loadGroups(); }
+      else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
+      else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); }
       else if (name === 'store') loadListings();
       else if (name === 'profile') loadTerritory();
     }
