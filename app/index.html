@@ -2418,6 +2418,7 @@
     // claim for a park; a pet "holds" a park while its claim is the newest.
     const CLAIM_RADIUS_MI = 0.16; // ~260m — generous for GPS drift & big parks
     let TERRITORY = [];           // claim rows from the cloud (newest first)
+    let TERRITORY_SPOTS = [];     // member-added spots (petfiType territory_spot), everywhere
     let TERRITORY_PARKS = [];     // dog parks near the resolved location
     let territoryGeo = null;      // { lat, lon, accuracy, source:'gps'|'zip' }
     let lastTerritoryFetch = 0;
@@ -2430,12 +2431,21 @@
       if (!cloud) return;
       if (!force && Date.now() - lastTerritoryFetch < 20000) return;
       lastTerritoryFetch = Date.now();
-      const { data } = await cloud.from('posts').select('id, author_id, content, created_at')
-        .eq('content->>petfiType', 'territory_claim')
-        .order('created_at', { ascending: false }).limit(200);
-      if (!data) return;
+      const [c, s] = await Promise.all([
+        cloud.from('posts').select('id, author_id, content, created_at').eq('content->>petfiType', 'territory_claim').order('created_at', { ascending: false }).limit(200),
+        cloud.from('posts').select('id, author_id, content, created_at').eq('content->>petfiType', 'territory_spot').order('created_at', { ascending: false }).limit(500),
+      ]);
+      if (!c.data) return;
       // Trusted columns are applied LAST so row content can't override them
-      TERRITORY = data.map(r => Object.assign({}, r.content, { claimId: r.id, ownerId: r.author_id, createdAt: r.created_at }));
+      TERRITORY = c.data.map(r => Object.assign({}, r.content, { claimId: r.id, ownerId: r.author_id, createdAt: r.created_at }));
+      // Spots members added themselves (a trail, a beach, a field the map didn't know)
+      TERRITORY_SPOTS = (s.data || []).map(r => {
+        const x = r.content || {};
+        const lat = +x.lat, lon = +x.lon;
+        if (!isFinite(lat) || !isFinite(lon)) return null;
+        const name = String(x.name || '').slice(0, 40);
+        return { name, lat, lon, kind: String(x.kind || 'park'), parkId: makeParkId(name, lat, lon), user: true, addedBy: r.author_id, spotId: r.id };
+      }).filter(Boolean);
       // Refresh the profile so "Currently holding" reflects the latest claims
       if (appActive() && state.tab === 'profile') document.getElementById('tab-content').innerHTML = renderProfile();
     }
@@ -2531,26 +2541,40 @@
         loadTerritory(true),
       ]);
       if (sheetSeq !== mySeq) return;
-      if (parks === null) {
-        // The map service (OpenStreetMap/Overpass) is busy — no demo spots, no
-        // peeing anywhere you like; just try again in a moment.
-        const box = document.getElementById('terr-body');
-        if (box) box.innerHTML = '<div class="note">🗺️ The park map is busy right now. Give it a moment and try again.</div>' +
-          '<button class="btn secondary" onclick="closeSheet();openTerritory()">↻ Try again</button>';
-        return;
-      }
-      TERRITORY_PARKS = parks;
-      renderTerritoryBody(gpsError);
+      // The map (OpenStreetMap) covers the whole world; member-added spots
+      // fill the gaps — a trail, a beach, a field, or a day the map is busy.
+      TERRITORY_PARKS = mergeSpots(parks || [], territoryGeo);
+      renderTerritoryBody(gpsError, parks === null);
     }
-    function renderTerritoryBody(gpsError) {
+    // OSM parks + member spots within ~4 miles, nearest first, no doubles
+    function mergeSpots(parks, geo) {
+      const out = parks.slice();
+      TERRITORY_SPOTS.forEach(s => {
+        const mi = haversineMi(geo.lat, geo.lon, s.lat, s.lon);
+        if (mi > 4) return;
+        const dup = out.some(p => haversineMi(p.lat, p.lon, s.lat, s.lon) < 0.06 && p.name.toLowerCase().replace(/[^a-z]/g, '') === s.name.toLowerCase().replace(/[^a-z]/g, ''));
+        if (!dup) out.push(Object.assign({ mi }, s));
+      });
+      out.sort((a, b) => a.mi - b.mi);
+      return out.slice(0, 20);
+    }
+    function renderTerritoryBody(gpsError, mapBusy) {
       const box = document.getElementById('terr-body'); if (!box) return;
       const holders = territoryHolders();
+      const gps = territoryGeo && territoryGeo.source === 'gps';
       let h = '';
       if (territoryGeo && territoryGeo.source === 'zip') {
         h += '<div class="note">📍 Showing parks near your ZIP. <b>Marking needs live GPS</b> — turn on location access and go stand in one.</div>';
       }
+      if (mapBusy) {
+        h += '<div class="note">🗺️ The park map is busy right now — showing spots members added. <span class="link" onclick="closeSheet();openTerritory()">↻ Try again</span></div>';
+      }
+      const addBtn = gps
+        ? '<button class="btn secondary" style="margin-top:0.6rem;" onclick="openAddSpot()">➕ Add the spot I\'m standing on</button>' +
+          '<p class="sub" style="font-size:0.78rem;margin-top:0.35rem;">Petfi knows the parks on the map. A trail, a beach, a field, a park that\'s missing? Add it once and it\'s on the map for every Petfi member near it.</p>'
+        : '';
       if (!TERRITORY_PARKS.length) {
-        h += '<div class="note">No parks mapped within ~4 miles. Try again from a park, or add it to OpenStreetMap 🗺️</div>';
+        h += '<div class="note">' + (mapBusy ? 'No member-added spots near you yet.' : 'No parks mapped within ~4 miles.') + (gps ? ' Standing somewhere pee-worthy? Add it below.' : ' Turn on location to add one.') + '</div>' + addBtn;
         box.innerHTML = h; return;
       }
       h += TERRITORY_PARKS.map((p, i) => {
@@ -2560,14 +2584,54 @@
           ? (iHold ? '👑 <b>Yours</b> · marked ' + timeAgo(held.createdAt || held.at) : '💦 <b>' + claimName(held) + '</b> marked it ' + timeAgo(held.createdAt || held.at) + ' — pee over it')
           : '🌱 Fresh grass — nobody\'s marked it yet';
         return '<div class="row">' +
-          '<div class="ricon" style="background:#e7f6e9;">' + (held ? claimAvatar(held, 46) : (p.dog ? '🐕' : '🌳')) + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(p.name) + (p.dog ? ' <small style="color:var(--muted);font-weight:600;">dog park</small>' : '') + '</div>' +
+          '<div class="ricon" style="background:#e7f6e9;">' + (held ? claimAvatar(held, 46) : (p.dog ? '🐕' : p.user ? (SPOT_KINDS[p.kind] || '📍') : '🌳')) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(p.name) + (p.dog ? ' <small style="color:var(--muted);font-weight:600;">dog park</small>' : p.user ? ' <small style="color:var(--muted);font-weight:600;">added by a member</small>' : '') + '</div>' +
             '<div class="rmeta">' + distLabel(p.mi) + ' away · ' + holderLine + '</div></div>' +
           '<div class="raction"><button class="pill-btn ' + (iHold ? 'done' : '') + '" style="min-height:40px;" onclick="markTerritory(\'' + jsStr(p.parkId) + '\')">' + (iHold ? '👑 Yours' : '💦 Pee here') + '</button></div>' +
         '</div>';
       }).join('');
+      h += addBtn;
       h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">🔒 Location is used only to verify you\'re at the park and is never shared or stored. Real dogs: please still use the grass responsibly.</p>';
       box.innerHTML = h;
+    }
+    // ---- Members add the spots the map doesn't know. GPS pins it where they
+    // stand, and the first pee happens on the spot. Public for everyone nearby.
+    const SPOT_KINDS = { park: '🌳', dogpark: '🐕', trail: '🥾', beach: '🏖️', field: '🌾', ranch: '🐄', other: '📍' };
+    function openAddSpot() {
+      if (!cloudUser) { toast('Log in to add a spot 🐾'); return; }
+      openSheet('➕ Add this spot',
+        '<p class="sub" style="font-size:0.9rem;">Petfi pins it <b>exactly where you\'re standing</b> (GPS), so stand in it first. It goes on the map for every member near here.</p>' +
+        '<label>What\'s it called?</label><input type="text" id="spot-name" maxlength="40" placeholder="e.g. Riverside Trail, Miller\'s back field">' +
+        '<label>What kind of place?</label><select id="spot-kind">' + Object.keys(SPOT_KINDS).map(k => '<option value="' + k + '">' + SPOT_KINDS[k] + ' ' + ({ park: 'Park', dogpark: 'Dog park', trail: 'Trail', beach: 'Beach', field: 'Field / pasture', ranch: 'Farm / ranch', other: 'Somewhere else' })[k] + '</option>').join('') + '</select>' +
+        '<div class="note" style="font-size:0.85rem;">Public places only — no home addresses, and keep the name family-friendly. Members see the name and the pin, never who added it.</div>' +
+        '<button class="btn" id="spot-btn" onclick="saveSpot()">💦 Add it and pee on it</button>' +
+        '<button class="btn secondary" onclick="closeSheet();openTerritory()">Cancel</button>');
+    }
+    async function saveSpot() {
+      const name = val('spot-name').replace(/\s+/g, ' ');
+      if (name.length < 3) { toast('Give the spot a name (3+ letters)'); return; }
+      const bad = pgOffender(name);
+      if (bad) { toast('Keep the name family-friendly — it\'s public'); return; }
+      const btn = document.getElementById('spot-btn'); if (btn && btn.disabled) return;
+      if (btn) { btn.disabled = true; btn.textContent = '📍 Pinning where you stand…'; }
+      let pos;
+      try { pos = await getGPS(); }
+      catch (e) { if (btn) { btn.disabled = false; btn.textContent = '💦 Add it and pee on it'; } toast('📍 Petfi needs live GPS to pin the spot'); return; }
+      if (pos.accuracy && pos.accuracy > 250) { if (btn) { btn.disabled = false; btn.textContent = '💦 Add it and pee on it'; } toast('📍 GPS is fuzzy (~' + Math.round(pos.accuracy) + ' m) — step outside and try again'); return; }
+      const lat = +pos.lat.toFixed(5), lon = +pos.lon.toFixed(5);
+      // Already on the list (a park or a member spot within ~100 m with the same name)? Use that one.
+      const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
+      const existing = TERRITORY_PARKS.find(p => haversineMi(p.lat, p.lon, lat, lon) < 0.06 && norm(p.name) === norm(name));
+      if (existing) { closeSheet(); await openTerritory(); toast('That spot is already here — peeing on it'); markTerritory(existing.parkId); return; }
+      const kind = SPOT_KINDS[val('spot-kind')] ? val('spot-kind') : 'other';
+      const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content: { petfiType: 'territory_spot', name, kind, lat, lon } }).select('id').single();
+      if (error) { if (btn) { btn.disabled = false; btn.textContent = '💦 Add it and pee on it'; } toast('⚠️ Couldn\'t save the spot — try again'); return; }
+      const spot = { name, lat, lon, kind, parkId: makeParkId(name, lat, lon), user: true, addedBy: cloudUser.id, spotId: data.id, mi: 0 };
+      TERRITORY_SPOTS.unshift(spot);
+      TERRITORY_PARKS.unshift(spot);
+      uiSound('post'); haptic([10, 30, 10]);
+      toast('📍 ' + name + ' is on the map');
+      markTerritory(spot.parkId); // and the first pee is yours
     }
     async function markTerritory(pid) {
       const park = TERRITORY_PARKS.find(p => p.parkId === pid); if (!park) return;
@@ -2661,7 +2725,7 @@
       // Mark Your Territory — GPS-verified dog-park claims (own self-contained flow)
       h += '<div class="get-verified" style="background:linear-gradient(135deg,#e7f6e9,#d6f0da);border-color:#bfe6c6;cursor:pointer;margin-top:0.6rem;" onclick="openTerritory()">' +
         '<h4>💦 Mark Your Territory</h4>' +
-        '<p style="color:#2e7d44;">At a park? Do what dogs do — pee on it (GPS-verified, so you have to actually be there). Whoever marked it last owns it until the next dog comes along. No points, just bragging rights. 🐕</p>' +
+        '<p style="color:#2e7d44;">At a park, trail or beach? Do what dogs do — pee on it (GPS-verified, so you have to actually be there). Whoever marked it last owns it until the next dog comes along. Spot missing? Add it and it\'s on the map for everyone. No points, just bragging rights. 🐕</p>' +
         '<button class="pill-btn" style="background:#2e9c50;" onclick="event.stopPropagation();openTerritory()">💦 Find a park</button></div>';
 
       h += '<div class="sec"><h3>📍 Places near you</h3></div>';
