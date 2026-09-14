@@ -497,6 +497,13 @@
     .pee-drops span:nth-child(6) { animation-delay: 0.85s; --dx: 50px; --dy: 60px; }
     @keyframes peeDrop { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1.1); } }
     .pee-grass { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 1.5rem; letter-spacing: 0.2rem; }
+    /* ---- Store filter bar ---- */
+    .store-filters { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 0.55rem 0.8rem 0.35rem; margin-bottom: 0.9rem; }
+    .sf-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
+    .sf-row .chips { margin: 0; padding: 0; flex: 1; min-width: 0; }
+    .sf-label { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; width: 38px; flex-shrink: 0; }
+    .sf-sort { flex: 0 1 auto; width: auto; padding: 0.45rem 0.7rem; font-size: 0.85rem; font-weight: 700; border-radius: 999px; border: 2px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; }
+    body.dark .store-filters { background: var(--card); }
     /* ---- Two feeds ---- */
     .feed-note { background: var(--card); border: 1px dashed var(--line); border-radius: 14px; padding: 0.6rem 0.85rem; font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.9rem; line-height: 1.4; }
     .feed-note.local { border-color: #ffd7ca; background: var(--brand-soft); color: #7a3a28; }
@@ -1628,7 +1635,9 @@
         .replace(/[\r\n]+/g, ' ');
     }
     function val(id) { const e = document.getElementById(id); return e ? e.value.trim() : ''; }
-    function vbadge() { return '<span class="verified">✔︎</span>'; }
+    function vbadge() { return '<span class="verified" title="Verified by Petfi">✔︎</span>'; }
+    // The badge is granted by Petfi on the server (profiles.verified); the app only displays it
+    function isVerifiedUser(id) { if (cloudUser && id === cloudUser.id) return !!state.verified; const p = id && PROFILE_BY_ID[id]; return !!(p && p.verified); }
 
     // ---- Favorites start empty — nothing fake on a real profile ----
     const DEFAULT_FAVS = [];
@@ -1642,13 +1651,15 @@
     const FAV_LABELS = { park:'Dog park', store:'Pet store', vet:'Vet', food:'Food', treat:'Treats', product:'Product', service:'Service' };
 
     // ---- Avatar for the logged-in user ----
+    // Owners pick their own person icon (hair, skin tone, farmer, cowboy…)
+    function ownerEmoji() { return state.ownerEmoji || '🧑'; }
     function myAvatar(px) {
-      if (state.accountType === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">🧑</div>';
+      if (state.accountType === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + ownerEmoji() + '</div>';
       return petAvatar(state.species, state.breed, px, myLook());
     }
     function entityAvatar(e, px) {
       if (e.type === 'owner' || e.type === 'business' || e.type === 'kennel') {
-        return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">🧑</div>';
+        return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + safeEmoji(e.emoji) + '</div>';
       }
       return petAvatar(e.species, e.breed, px, { v: e.variant, a: e.accessories });
     }
@@ -2231,7 +2242,7 @@
       return '<div class="post' + (fresh ? ' post-new' : '') + '">' +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
-          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' + del +
+          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' + del +
         '</div>' +
         (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + photo +
         '<div class="post-actions">' +
@@ -2699,7 +2710,7 @@
           '<div class="user-card">' +
             (u.status ? '<div class="status-bubble">' + esc(u.status) + '</div>' : '') +
             '<div class="u-avatar" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + personAvatar(u, 62) + '</div>' +
-            '<div class="u-name" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + esc(u.username) + '</div>' +
+            '<div class="u-name" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + '</div>' +
             '<div class="u-meta">' + esc(personMeta(u)) + '</div>' +
             '<div class="u-actions">' +
               '<button class="btn-friend" onclick="openPersonSheet(' + i + ')">👤 View</button>' +
@@ -2760,7 +2771,7 @@
       return m;
     }
     function personAvatar(u, px) {
-      if (u.kind === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">🧑</div>';
+      if (u.kind === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">' + safeEmoji((pubExtras(u).look || {}).e) + '</div>';
       return petAvatar(u.species, u.breed, px, pubExtras(u).look);
     }
     function personMeta(u) {
@@ -3370,8 +3381,261 @@
       ["B0D22HPH2W","Rabbit & Guinea Pig Timothy Chew Sticks, 52 pcs","$9.99",4.5,513,"810qb-C2xZL","Small Pets,Treats",""],
       ["B0D6DKK21P","Loving Pets Dolce Bamboo Eco-Friendly Pet Bowl","$6.79",4.6,445,"71-np9dvjTL","Cat,Feeding",""],
       ["B0GT2CK9ZB","Vittles Vault Airtight Pet Food Storage Container + Scoop","$57.70",4.3,633,"7115uE0n-VL","Dog,Feeding",""],
+      ["B0D3M7QDHV","Cute Bird Costume, Parrot Cloak Cosplay Photo Prop, Bird Clothes for Budgerigar","$5.99",4,67,"71s7DM-TIEL","Bird,Grooming",""],
+      ["B08RXV363J","Bird Parakeet Toys - Swing Hanging Standing Chewing Hammock Climbing Ladder Bird Cage","$11.99",4.7,6620,"61VcGEs8lKL","Bird,Habitat","Bird Cages"],
+      ["B0002AQ5ZC","Prevue Pet Products Large Bird Cage Cover - Black, Size Large","$24.99",4.5,5459,"61OgnFcigaL","Bird,Habitat","Bird Cages"],
+      ["B07D4C91LQ","Niteangel Parrot Cage Perch, Wooden Platform for Birds (2 Packs)","$9.99",4.6,4919,"71pBlrKLOUL","Bird,Habitat","Bird Cages"],
+      ["B00BEXTWP6","Vitakraft Cage Liners for Birds, 7 Count","$8.99",4.6,3591,"71-+oTmEYYL","Bird,Habitat","Bird Cages"],
+      ["B09F2C26JP","Daoeny Large Bird Cage Cover, Bird Cage Seed Catcher, Adjustable Soft Airy Nylon Mesh","$8.99",4.3,3538,"71OMI8gR+eL","Bird,Habitat","Bird Cages"],
+      ["B075DX5LD1","Yaheetech 64-inch Open Top Bird Cage for Parakeets and Cockatiels, Black","$62.99",4.6,6933,"61iISfD64AL","Bird,Habitat","Bird Cages"],
+      ["B07CPKP2J8","Yaheetech 41-inch Open Top Medium Bird Cage for Parakeets Finches Canaries Lovebirds","$52.99",4.6,3410,"81w5W+PachL","Bird,Habitat","Bird Cages"],
+      ["B083S9S5RC","VIVOHOME Wrought Iron Bird Cage with Rolling Stand, 30 Inch Height","$65.99",4.3,2220,"91zvvigr4dL","Bird,Habitat","Bird Cages"],
+      ["B0002AQ228","Prevue Hendryx Wrought Iron Flight Cage, Big Rolling Bird Cage","$299.99",4.5,1740,"91ks02RF3OL","Bird,Habitat","Bird Cages"],
+      ["B07W7H7VYR","Bird Travel Carrier Cage, Clear Space Capsule Backpack to Carry Parakeet","$34.99",4.6,2365,"61VV6x4q67L","Bird,Walk & Travel","Bird Carriers"],
+      ["B0BG63CR3K","Bird Carrier, Portable Small Bird Parrot Parakeet Carrier with Standing Perch and Mat","$16.29",4.6,1404,"61Ub3TtAtDL","Bird,Walk & Travel","Bird Carriers"],
+      ["B09L8BZYSJ","Texsens Bird Carrier Backpack, Pet Travel Cage with Upgraded Tray and Standing Perch","$33.08",4.6,1373,"81twBr9h6VL","Bird,Walk & Travel","Bird Carriers"],
+      ["B08G129XMG","eWonLife 2 Pack 16 oz Saucer Hummingbird Feeders for Outdoors, Garden Decor","$15.99",4.4,11325,"71gbdvOYtHL","Bird,Feeding","Bird Feeding"],
+      ["B0G4VHF5B7","FEED GARDEN Glass Hummingbird Feeder for Outdoors Hanging, 16 oz Leak-Proof Nectar","",4.5,6792,"71uECY03tsL","Bird,Feeding","Bird Feeding"],
+      ["B07MMM38FF","Tfwadmx Bird Feeding Dish Cups Parrot Food Bowl Clamp Holder Coop Cup, 2 Pack","$7.56",4.6,2800,"71P+LGeyEfL","Bird,Feeding","Bird Feeding"],
+      ["B07SCK4TKP","PINVNBY Parrot Feeding Cups Bird Food Dish Stainless Steel Parrot Feeders Water Cage","$7.88",4.5,2761,"619NOVC1tEL","Bird,Feeding","Bird Feeding"],
+      ["B0GHR4RVSB","Kingsyard 2-Pack Glass Hummingbird Feeder for Outdoors Hanging, 10 oz Leak-Proof","$16.99",4.6,1590,"713WmdiaXUL","Bird,Feeding","Bird Feeding"],
+      ["B0055INY1Y","Kaytee Nut and Fruit Wild Bird Seed, 5 lb","$12.59",4.7,18006,"81AZwrZmXGL","Bird,Food","Bird Food"],
+      ["B01EUP8ZG6","Hatortempt 5 lb Dried Mealworms for Chickens and Wild Birds, Chicken Feed","$39.99",4.8,16422,"81TX+-t8NuL","Bird,Food","Bird Food"],
+      ["B004477AOO","Wagners 57075 Safflower Seed Wild Bird Food, 5 Pound","$11.98",4.6,13765,"81izIQn+LvL","Bird,Food","Bird Food"],
+      ["B00106TB58","Kaytee Fiesta Parakeet Food, Parakeet Bird Food, 4.5 Pounds","$16.95",4.7,11157,"916JMEiDflL","Bird,Food","Bird Food"],
+      ["B07R1NCF3B","Kaytee Ultimate No Mess Wild Bird Seed, 9.75 Pounds","$20.84",4.4,7518,"91gEZXQ8NNL","Bird,Food","Bird Food"],
+      ["B001VACPE2","Kaytee Forti-Diet Pro Health Nourish+Protect Cockatiel Food, 5 lb","$12.95",4.7,7170,"81FBUTry8fL","Bird,Food","Bird Food"],
+      ["B07VR2MR8D","Birds LOVE Cuttlebone for Birds, 100% Natural Sun-Dried Calcium and Beak Conditioner","$5.99",4.1,7106,"71Cobl28EmL","Bird,Health","Bird Health"],
+      ["B01N7KBFCS","Manna Pro Chick Grit Digestive Supplement for Young Growing Poultry and Bantams","$7.99",4.8,6845,"51vtp5lW4cL","Farm,Health","Poultry Supplies"],
+      ["B0002DILSI","Nekton-S Multi-Vitamin for Birds, 35 gm","$16.69",4.7,4488,"81DafFosZdL","Bird,Health","Bird Health"],
+      ["B00UTDXBX6","Vetericyn Plus Poultry Care Spray","$23.99",4.7,3519,"61VSHApmY-L","Farm,Health","Poultry Supplies"],
+      ["B074WNXJTV","Jusney Bird Rope Perches, Parrot Toys 33 inches Rope Bungee Bird Toy, 1 Pack","$9.99",4.4,4502,"71rebtXBHDL","Bird,Toys","Bird Toys"],
+      ["B076VKT4CN","Extra Large Natural Wood Bird Toys for Macaws, African Grey, Amazon Parrots","$28.99",4.6,3627,"71QRqcGr0cL","Bird,Toys","Bird Toys"],
+      ["B00134MCPI","Bird Kabob Pet Mini Shreddable Bird Toy","$8.38",4.6,3352,"71gqxzohrYL","Bird,Toys","Bird Toys"],
+      ["B097339313","Bird Shredding Foraging Toys Parakeet Toy Chewing Hanging Shredded Paper Bird Cage","$7.99",4.6,2732,"71H6BUUi1pL","Bird,Toys","Bird Toys"],
+      ["B078XQJJ6K","Large Bird Parrot Toys for Cockatoos African Grey Macaws Amazon Parrots","$23.99",4.5,2360,"71NkLN8wXPL","Bird,Toys","Bird Toys"],
+      ["B0D5QZ6SS2","Bird Toys for Large Birds, Natural Corn Cob and Loofah Slices Bird Chew Toy","$12.97",4.4,2163,"71gauGond5L","Bird,Toys","Bird Toys"],
+      ["B000VOE3QW","Kaytee Spray Millet Treat for Pet Birds, 7 oz","$5.19",4.6,28219,"71Nfg4rRY9L","Bird,Treats","Bird Treats"],
+      ["B08THGBXZP","WORMSKING 5 lb Dried Black Soldier Fly Larvae for Chickens","$23.99",4.7,4958,"81HlTNnhcnL","Farm,Treats","Poultry Supplies"],
+      ["B07QK1KBZ6","Nemeth Farms Spray Millet, Edible Tops Only, Non-GMO and Sun-Dried, 1 lb","$19.85",4.5,4236,"71GBnKPwZWL","Bird,Treats","Bird Treats"],
+      ["B002UIZ12W","Kaytee Fiesta Healthy Toppings Papaya Bits For All Pet Birds, 2.5 oz Bag","$3.99",4.5,3315,"71+6q1j4PjL","Bird,Treats","Bird Treats"],
+      ["B0068MYE5Q","Manna Pro Harvest Delight Poultry Treat, Whole Grain and Seed Mix with Fruits","$11.49",4.7,3293,"61fEWzx6X3L","Farm,Treats","Poultry Supplies"],
+      ["B000OLZJ7O","Trixie Pico Transport Crate, Small Pet Carrier, Portable Travel Carrier","$16.99",4.3,4336,"61gP1+pZLzL","Small Pets,Walk & Travel","Small Pet Travel"],
+      ["B096WZ3DVZ","Guinea Pig Carrier Backpack, Clear Bubble Window Backpack for Guinea Pig, Bunny, Rat","$15.99",4.6,2344,"716YYvXwgAS","Small Pets,Walk & Travel","Small Pet Travel"],
+      ["B09Z64Y3SD","Bearded Dragon Travel Carrier, Small Animal Travel Carrier for Sugar Gliders","$15.99",4.8,902,"71T565FjeIL","Small Pets,Walk & Travel","Small Pet Travel"],
+      ["B01FDB1WNO","Niteangel Adjustable Soft Harness with Elastic Leash for Rabbits, Large, Pink","$9.99",4.1,12018,"71UnrWaTe6L","Small Pets,Walk & Travel","Small Pet Travel"],
+      ["B07DT7V35J","Kaytee Silent Spinner Wheel for Syrian Hamsters, Sugar Gliders and Small Pets","$24.45",4,9864,"8177qAgd-5S","Small Pets,Toys","Small Pet Toys"],
+      ["B08SMPYB84","Hamster Flying Saucer Silent Running Exercise Wheel for Hamsters and Gerbils","$8.99",4.2,1417,"51CIre2leOS","Small Pets,Toys","Small Pet Toys"],
+      ["B08ZYWWRKK","lazYYzal Hamster Silent Wheel, Super-Silent Small Animal Exercise Wheel","$11.99",4.1,1387,"71-PQ7SnZaL","Small Pets,Toys","Small Pet Toys"],
+      ["B00S1SY1X0","Choco Nose No-Drip Water Bottle for Guinea Pigs, Hamsters, Bunnies and Ferrets","$12.69",4.2,10213,"71AuWeqPeOL","Small Pets,Feeding","Small Pet Feeding"],
+      ["B000NGR3QK","Lixit Weather Resistant Cage Water Bottles for Rabbits, Ferrets, Guinea Pigs","$6.99",4,8530,"712VVfFQ6vL","Small Pets,Feeding","Small Pet Feeding"],
+      ["B007OUE7W6","Lixit 32 oz Weather Resistant Water Bottle with Heavy Duty Mount for Rabbits","$7.99",4.1,3301,"71buwbFjuYL","Small Pets,Feeding","Small Pet Feeding"],
+      ["B07WF97NJM","Kaytee Food from the Wild Natural Snack for Rabbits and Guinea Pigs, 1 oz","$3.29",4.6,18314,"91vbHec8ttL","Small Pets,Food","Small Pet Food"],
+      ["B000WFKF9O","Oxbow Western Timothy Hay, Rabbit and Guinea Pig Hay, High Fiber, 40 oz","$11.89",4.6,16913,"81FUnRAH8DL","Small Pets,Food","Small Pet Food"],
+      ["B072XXPB49","Wild Harvest Advanced Nutrition Guinea Pig Food, 8 lbs","$12.14",4.6,13893,"81Xtxgx5kzL","Small Pets,Food","Small Pet Food"],
+      ["B0002AQO9Y","Kaytee Backyard Wildlife Food Blend for Rabbits and Squirrels, 5 Pound","$5.49",4.6,11757,"81J7xaxlcCL","Small Pets,Food","Small Pet Food"],
+      ["B001PLESBK","Kaytee Forti-Diet Pro Health Nourish+Protect Hamster Food and Gerbil Food","$5.99",4.7,11410,"81Q7pLTo9GL","Small Pets,Food","Small Pet Food"],
+      ["B06WWJQ5SS","Pet Nail Clippers for Indoor Cats and Small Animals, Precision Angled Blades","$12.99",4.6,20146,"71xBXR4BH3L","Small Pets,Grooming","Small Pet Grooming"],
+      ["B0CX6G6GTP","Poodle Pet Slicker Brush for Dogs, Cats and Rabbits, Removes Matted Fur and Knots","$14.99",4.5,4503,"71wInhEmPlL","Small Pets,Grooming","Small Pet Grooming"],
+      ["B01F2OZRAG","Pet Republique Dematting Tool for Dogs, Cats and Rabbits, Long Haired Coats","$12.99",4.4,3828,"61CLG+jk1TL","Small Pets,Grooming","Small Pet Grooming"],
+      ["B0DDQ5ZN49","Oxbow Orchard Grass Hay for Small Pets, All-Natural Long Strand Fiber Hay","$23.98",4.6,4917,"81lABtVtOYL","Small Pets,Health","Small Pet Health"],
+      ["B001OVBCPG","Kaytee Chinchilla All Natural Dusting Powder, 2.5 lb","$13.98",4.6,4718,"71jdKNqmAXL","Small Pets,Health","Small Pet Health"],
+      ["B007PZEBKS","Oxbow Digestive Support Rabbit and Guinea Pig Supplement, Timothy Hay, 4.2 oz","$7.74",4.8,3858,"714-qXHqsuL","Small Pets,Health","Small Pet Health"],
+      ["B00PBM761S","Carefresh White Natural Paper Small Pet Bedding, Odor Control, 50 L","$22.99",4.7,14576,"814EWheecFL","Small Pets,Habitat","Small Pet Habitats"],
+      ["B087CZM34K","Pawaboo Small Animal Playpen with Zippered Cover, Green","$21.99",4.3,7800,"714ozcQN+vL","Small Pets,Habitat","Small Pet Habitats"],
+      ["B07DGYNNZ9","Kaytee Clean and Cozy Extreme Odor Control Hamster Bedding, 40 Liters","$17.95",4.6,6804,"81g-RIxtAaL","Small Pets,Habitat","Small Pet Habitats"],
+      ["B008BZV7N0","Kaytee Clean and Cozy Lavender Paper Bedding for Guinea Pigs, 49.2 Liters","$19.95",4.7,6639,"81IuttP9cDL","Small Pets,Habitat","Small Pet Habitats"],
+      ["B0BN5LGPWD","SONGMICS Pet Playpen with Floor, Small Animal Playpen","$28.99",4.2,6464,"61W7JGDOFdL","Small Pets,Habitat","Small Pet Habitats"],
+      ["B0CCB6J987","Natures Miracle Small Animal Cage and Surface Cleaner, 24 oz","$6.19",4.7,18196,"714TiraApGL","Small Pets,Habitat",""],
+      ["B0CSRZ1D7L","Natures Miracle Small Animal Cage Scrubbing Wipes, 30 Count","$15.99",4.6,2601,"71fXQtsg0aL","Small Pets,Habitat",""],
+      ["B00176F466","Kaytee Lava Ledge for Small Pet Wire Habitats","$4.99",4.5,6084,"81Hza54FCiL","Small Pets,Toys","Small Pet Toys"],
+      ["B07BBM1YLV","Bojafa 250g Apple Sticks Molar Wood Treat Toys for Rabbits and Chinchillas","$8.99",4.6,3953,"714wi05K+CL","Small Pets,Toys","Small Pet Toys"],
+      ["B09FZ4JQ1H","Sofier 32 Pcs Timothy Hay Sticks for Rabbit, Guinea Pig and Hamster","$9.98",4.5,2573,"81R4KTyNPzL","Small Pets,Toys","Small Pet Toys"],
+      ["B0BYMKK4H4","Hamster and Guinea Pig Toys, Hamster Cage Accessories, Small Animal Molar Set","$9.99",4.6,2070,"71E+yUnKo3L","Small Pets,Toys","Small Pet Toys"],
+      ["B09PFKL1V4","Bissap Timothy Hay Sticks for Rabbits, 38 Pcs Natural Grass Molar Teeth Sticks","$9.98",4.4,1716,"81N8o9QdrIL","Small Pets,Toys","Small Pet Toys"],
+      ["B09FBVY39Z","Vitakraft Slims Carrot Small Animal Treats, Light Healthy Crispy Food Bites","$11.98",4.6,11163,"71YaJ51My-L","Small Pets,Treats","Small Pet Treats"],
+      ["B002UIX3CM","Kaytee Healthy Toppings Papaya Rabbit Treats, 2.5 oz","$2.69",4.7,9987,"81ico1OnRoL","Small Pets,Treats","Small Pet Treats"],
+      ["B000633KCG","Vitakraft Nibble Rings Small Animal Treat, 10.6 oz","$5.98",4.7,5916,"71-F7f+sKgL","Small Pets,Treats","Small Pet Treats"],
+      ["B0002DJRMM","Vitakraft Crunch Sticks Guinea Pig Treat, Fruit and Honey Flavor, 2 Sticks","$5.21",4.7,5648,"71Pjg7tTxGL","Small Pets,Treats","Small Pet Treats"],
+      ["B002IJOFMU","Kaytee Country Harvest Treat Blend for Rabbits, Guinea Pigs and Chinchillas","$2.69",4.6,5624,"81H+zlTmpwL","Small Pets,Treats","Small Pet Treats"],
+      ["B0CT8Z3FMZ","Cosblank Halloween Goose Outfit Pumpkin Goose Costume Cute Clothes","$16.99",4.5,236,"61-KLt3rCXL","Farm,Toys",""],
+      ["B07586PGHV","IC ICLOVER Snake Reptile Bag with Drawstring, Rattlesnake Bag for Transport","$14.99",4.7,433,"619D0G-OXtL","Reptile,Walk & Travel",""],
+      ["B0CM36PTL9","Bearded Dragon Travel Backpack with Harness and Leash Set, Lizard Travel Pack","$23.49",4.7,325,"81fjvJsP7RL","Reptile,Walk & Travel",""],
+      ["B019P10EEG","Pangea Gecko Diet with Watermelon, 2 oz","$13.99",4.8,6146,"71dTOKXe8IL","Reptile,Food","Reptile Food"],
+      ["B01N7RY3X6","Flukers Bearded Dragon Medley Treat Food, 3.2 Ounce","$9.49",4.7,5610,"711gBRZ8oJS","Reptile,Food","Reptile Food"],
+      ["B0038Z4SFW","Zoo Med Gourmet Aquatic Turtle Food, 11 oz","$11.98",4.6,4100,"71rpDGObIwL","Reptile,Food","Reptile Food"],
+      ["B000YFLLQI","Flukers Gourmet Mealworms, Canned Food for Reptiles, Fish, Birds and Small Animals","$3.99",4.1,3403,"81YXDW+ypUL","Reptile,Food","Reptile Food"],
+      ["B000PNAJKI","Zoo Med Natural Aquatic Turtle Food, Maintenance Formula, 24 Ounce","$14.98",4.8,3351,"91ITmzXtZaL","Reptile,Food","Reptile Food"],
+      ["B0032GG7M4","Exo Terra Forest Branch Small, Natural Wood Terrarium Decoration","$8.99",4.3,5485,"51GBl-cib9L","Reptile,Habitat","Reptile Habitats"],
+      ["B01N0D7MFM","Zilla Rock Lair Naturalistic Hide for Snakes and Lizards, Small","$17.99",4.7,3755,"81MB9dMm-lL","Reptile,Habitat","Reptile Habitats"],
+      ["B07Z7PRV65","AQUA KT Reptile Corner Branch Terrarium Plant Decoration with Suction Cup","$11.99",4.4,2522,"619-fsIPLjL","Reptile,Habitat","Reptile Habitats"],
+      ["B09KKRCTYC","PietyPet Reptile Plants, Terrarium Hanging Plant Vines Artificial Leaves","$13.67",4.3,2129,"81WgPvR4N3L","Reptile,Habitat","Reptile Habitats"],
+      ["B0006L2UC4","Flukers Incandescent Basking Spotlight Bulbs for Reptile Tanks, Heat Lamp","$5.14",4.4,5406,"61CmzADuDkL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B07CWKXYPP","REPTI ZOO Dual Reptile Light Fixture for Reptile Dome UVB Lamp Fixture","$26.01",4.5,5253,"61AiYzmh0-L","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B082DY67TZ","LUCKY HERP UVA UVB Reptile Light 10.0, Desert UVB 150 Compact Fluorescent Lamp","$14.99",4.4,2926,"61ALLmfjFLL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B00CYDE3WW","Zoo Med Turtle Lamp Combo Pack","$28.50",4.6,2667,"61U33yrLbFL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B00MXNYBFW","IC ICLOVER 47 Inch Heavy Duty Snake Tongs, Standard Reptile Snake Grabber","$32.99",4.6,907,"618GddP8tpL","Reptile,Habitat",""],
+      ["B01MZH6TPT","DocSeward Snake Hook, Copperhead Series for Catching and Moving Snakes","$61.00",4.8,767,"8187jtUm5eL","Reptile,Habitat",""],
+      ["B0948S179V","ADOGGYGO Pink Bearded Dragon Leash Harness, 3 Size Pack, Cool Bat Wing","$9.99",4.2,643,"61r+AkJl4mL","Reptile,Walk & Travel",""],
+      ["B003JVV2FY","TetraFauna ReptoGuard Turtle Health Conditioner, 3 Count Slow-Release","$5.99",4.6,10421,"91qqYQ78GxL","Reptile,Health","Reptile Health"],
+      ["B000UJPHL8","Zoo Med Reptile Calcium without Vitamin D3, 8 Ounce","$7.99",4.7,6195,"71OqZ26tdfL","Reptile,Health","Reptile Health"],
+      ["B001OROQ8U","Flukers Reptile Calcium Supplement Without Vitamin D3","$5.99",4.8,5141,"71YWy0eDtxL","Reptile,Health","Reptile Health"],
+      ["B0GHVWFXC6","Coospider Reptile Fogger Humidifier, Automatic Humidifier for Reptile Tanks","$79.99",4.3,4845,"71hGxHT0OXL","Reptile,Habitat","Reptile Habitats"],
+      ["B0CBKD64LP","Lasnten 2 Pcs Reptile Feeding Tongs, 10 Inch and 10.5 Inch, Silver","$8.07",4.7,1048,"61tSsHyQNpL","Reptile,Habitat","Reptile Habitats"],
+      ["B0BGS517FT","REPTIZOO Dimming Thermostat, PID Temperature Controller with Memory Function","$27.99",4.2,780,"71hpl7LRGLL","Reptile,Habitat","Reptile Habitats"],
+      ["B09G15K237","MRREPTILE Reptile Fogger Humidifier Mister, Misting System for Terrariums","$29.89",4,509,"617dfePzcWL","Reptile,Habitat","Reptile Habitats"],
+      ["B0002DIZKC","Zoo Med ReptiSand, 10 Pounds, Desert White","$12.99",4.8,5609,"81t2BWzkDfL","Reptile,Habitat","Reptile Habitats"],
+      ["B0157O1CM8","ReptiChip Reptile Substrate Coconut Chip Bedding, 72 Quart Compressed Coco Husk","$34.95",4.7,5193,"81gIgwrIRLL","Reptile,Habitat","Reptile Habitats"],
+      ["B001F9COL8","Zilla Coconut Husk Organic Reptile Bedding, Coconut Fiber, Brown","$6.79",4.7,4043,"81HCbKMvItL","Reptile,Habitat","Reptile Habitats"],
+      ["B007UE10HG","Zilla Jungle Mix Terrarium Substrate Bedding, 8 Quart","$10.95",4.7,2436,"81msRF+AiPL","Reptile,Habitat","Reptile Habitats"],
+      ["B07YYL2TKB","Reptile Food Dish Bowl 2 Pcs, Lizard Gecko Worm Water Bowls, Small","$6.99",4.4,4150,"71GdwAaUyjL","Reptile,Feeding","Reptile Feeding"],
+      ["B089CLR93M","Boao 2 Pieces Leaf Reptile Food Water Bowl Plate Feeding Dish for Tortoise","$6.99",4.5,3516,"71oLa7LWu7L","Reptile,Feeding","Reptile Feeding"],
+      ["B00NG0GNH0","Flukers Lagoon for Hermit Crabs, Water Bowl with Steps","$6.86",4.4,3388,"61VE7y-spRL","Reptile,Feeding","Reptile Feeding"],
+      ["B000QFQ300","Zilla Fresh Air Screen Cover, Secure Durable Metal Mesh Cover for Reptiles","$38.95",4.7,15677,"81DhV+n+nNL","Reptile,Habitat","Reptile Habitats"],
+      ["B00LV41V84","Exo Terra Hinged Terrarium Screen Cover, 60 Breeder / 75 Gallon","$66.99",4.6,2957,"91xLQWQ-JrL","Reptile,Habitat","Reptile Habitats"],
+      ["B018VQ71JC","Aiicioo Reptile Heating Pad, Hermit Crab Heat Mat for Snakes and Lizards","$12.99",4.5,3966,"71RpSQJDLTL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B07ZJ16HPT","MCLANZOO Reptile Heat Lamp 75W 2 Pack, UVA Basking Light Bulbs, Natural Daylight","$15.99",4.4,2263,"61uK2syKStL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B089SQ37Z8","CALPALMY 4-Pack 50W UVA plus UVB Reptile Bulbs","$8.99",4.4,2214,"81HSuNlnJBL","Reptile,Habitat","Reptile Lighting & Heat"],
+      ["B07CVRVFGL","REPTI ZOO Reptile Terrarium Hygrometer, Dial Gauge Pet Rearing Box Hygrometer","$7.99",4.2,621,"61CzZk606VS","Reptile,Tech","Reptile Gauges"],
+      ["B0042524XK","Penn-Plax Reptology Reptile Hygrometer Humidity and Temperature Sensor Gauge","$7.99",4.1,260,"A1qz2Vdf+8L","Reptile,Tech","Reptile Gauges"],
+      ["B07D284W96","REPTI ZOO Reptile Terrarium Thermometer Hygrometer, Digital LCD Display","$13.99",4.2,5959,"61UD6fPPDKL","Reptile,Tech","Reptile Gauges"],
+      ["B07SKVLV9D","Reptile Thermometer Hygrometer, Digital Temperature Humidity Gauge for Tanks","$12.79",4.5,1802,"51VNaf5H6EL","Reptile,Tech","Reptile Gauges"],
+      ["B07VVNP7F3","Coospider 3.8L Reptile Fogger Mister, Quiet Humidifier for Reptile Tanks","$49.99",4.3,4845,"71YP77Rh6UL","Reptile,Habitat","Reptile Habitats"],
+      ["B09KX9YFWW","moistenland Reptile Humidifier, Automatic Misting System for Terrariums","$29.99",4.3,1732,"71+4rh4r4VL","Reptile,Habitat","Reptile Habitats"],
+      ["B0BG4DYPXD","MoonOrange Small Turtle Tank Kit with Light and Filter, Acrylic Starter Kit","$35.99",4.4,1690,"714NFhIKtLL","Reptile,Habitat","Reptile Habitats"],
+      ["B000255NCI","API Freshwater Master Test Kit, 800-Test Freshwater Aquarium Water Kit","$35.98",4.8,31414,"61Kd-mEEjXL","Aquatic,Habitat","Aquarium Gear"],
+      ["B07L54HB83","VIVOSUN 800GPH Submersible Fountain Water Pump for Pond, Aquarium, Statuary","$25.99",4.4,26134,"71E0PMwZ1FL","Aquatic,Habitat","Aquarium Gear"],
+      ["B0002DHYF4","Tetra Whisper 85 GPH Internal Power Filter For Aquariums","$15.97",4.2,22618,"710OiJv94DL","Aquatic,Habitat","Aquarium Gear"],
+      ["B000HHLQO0","API ACCU-CLEAR Freshwater Aquarium Water Clarifier, 8 Ounce Bottle","$9.48",4.6,20315,"61xe29Te0ML","Aquatic,Habitat","Aquarium Gear"],
+      ["B000YDUAMQ","Aqueon Aquarium Fish Tank Replacement Filter Cartridges, Large, 6 Pack","$20.95",4.8,18198,"81iPIAg7kqL","Aquatic,Habitat","Aquarium Gear"],
+      ["B001DCZUO0","Tetra Whisper Bio-Bag Large Filter Cartridges for Aquariums, 12 Count","$14.57",4.7,16786,"71hLn+9WL1L","Aquatic,Habitat","Aquarium Gear"],
+      ["B00KIRR8BY","Koller Products 5-Gallon Aquarium Kit with LED Lighting and Power Filter","$65.99",4.2,5634,"81uiAXdMdxL","Aquatic,Habitat","Aquariums"],
+      ["B09FQGJS66","Koller Products 3-Gallon 360 Aquarium with LED Lighting and Power Filter","$47.99",4.3,2500,"71C7-iUtq4L","Aquatic,Habitat","Aquariums"],
+      ["B01LX0YHI8","Koller Products 1-Gallon Plastic Oval Fish Bowl, Tank for Betta and Shrimp","$16.99",4.3,724,"718GEciHyrL","Aquatic,Habitat","Aquariums"],
+      ["B00DC2Z07G","LANDEN Aquarium 60P 16 Gallon Ultra Clear Glass Rimless Fish Tank","$159.99",4.5,532,"51l8wVmE5iL","Aquatic,Habitat","Aquariums"],
+      ["B07CBW196L","Ultum Nature Systems Ultra Clear Rimless Aquarium, Low Iron Glass Fish Tank","$38.49",4.8,358,"51vOg34zdfL","Aquatic,Habitat","Aquariums"],
+      ["B07PHTHYSZ","Cepetsma Fish Breeder Box, Hang-on Nursery Fish Tank with Breeding Hatchery","$15.99",4.2,6821,"81lWFjP3RJL","Aquatic,Habitat","Aquariums"],
+      ["B088FHK33N","Pawfly Aquarium Fish Breeding Box, Acrylic Hatchery Tank with Suction Cups","$8.99",4.2,1916,"61eAqwLiwxL","Aquatic,Habitat","Aquariums"],
+      ["B07FXMB1RZ","Aquarium Hatchery Incubator Breeding Box, Fish Tank Acrylic Isolation","$9.99",4.2,1504,"6192uwuW0gL","Aquatic,Habitat","Aquariums"],
+      ["B0002DK91U","Kaytee Kois Choice Floating Fish Food for Koi, Goldfish and Pond Fish","$24.90",4.6,10646,"813DZIE702L","Aquatic,Food","Fish Food"],
+      ["B0032536RO","Tetra TetraFin Plus Goldfish Flakes Fish Food with Algae, 7.06 oz","$14.97",4.8,9101,"71dZwZeio8L","Aquatic,Food","Fish Food"],
+      ["B00025K0VC","TetraColor Tropical Flakes, Color Boosting Fish Food, Balanced Diet","$16.97",4.8,9022,"713nvy9ekDL","Aquatic,Food","Fish Food"],
+      ["B00JN9I7F4","TetraPro Tropical Color Crisps Fish Food, 7.41 oz","$22.98",4.6,8931,"81EuW8hfxSL","Aquatic,Food","Fish Food"],
+      ["B099ZLZ7XM","Ultra Fresh Betta Fish Food, Betta Pro Shrimp Patties with Sword Prawns","$7.09",4.6,8883,"712cpq1C5UL","Aquatic,Food","Fish Food"],
+      ["B00025Z6Q6","Tetra Cichlid Large Flake Food, 5.65 oz","$8.59",4.8,8701,"81-jkyMNQuL","Aquatic,Food","Fish Food"],
+      ["B00025Z6R0","Tetra Cichlid Floating Cichlid Sticks Fish Food, 11.3 oz","$7.89",4.6,8407,"81NVbqUgGWL","Aquatic,Food","Fish Food"],
+      ["B004HSOTZI","Aqueon Shrimp Pellets Sinking Food for Tropical Fish, 6.5 oz","$6.97",4.6,8358,"71FJtk6zOdL","Aquatic,Food","Fish Food"],
+      ["B0010P82UO","API AQUARIUM SALT Freshwater Aquarium Salt, 36 Ounce Box","$8.78",4.7,23880,"51xKxEwkCGL","Aquatic,Health","Fish Health"],
+      ["B0002567SM","API MELAFIX Freshwater Fish Bacterial Infection Remedy, 4 Ounce Bottle","$8.18",4.5,15316,"71pzBihgaWL","Aquatic,Health","Fish Health"],
+      ["B00025YVRQ","API BETTAFIX Antibacterial and Antifungal Betta Fish Infection Remedy","$4.58",4.4,7820,"61pC+rT03fL","Aquatic,Health","Fish Health"],
+      ["B00025646W","Kordon Methylene Blue Disease Preventative for Freshwater and Saltwater Tanks","$6.99",4.7,3805,"61Ueqt3BcYL","Aquatic,Health","Fish Health"],
+      ["B06XDFJ5XN","API FIN and BODY CURE Freshwater Fish Powder Medication, 10-Count Box","$16.38",4.4,3788,"719KUFq-EPS","Aquatic,Health","Fish Health"],
+      ["B005CTKE46","SunGrow Shrimp Rocks, Calcium and Magnesium Rocks for Crayfish and Snails","$6.95",4.4,2563,"71kNVXCUYBL","Aquatic,Health","Fish Health"],
+      ["B00O8SZTKQ","Marineland Portrait Glass LED Aquarium Kit, 5 Gallons, Hidden Filtration","$109.99",4.4,10097,"911mSfa5q9L","Aquatic,Habitat","Aquariums"],
+      ["B00591C0F8","Tetra ColorFusion Starter 3 Gallon Fish Tank Kit for Small Freshwater Fish","$45.35",4.2,5788,"91cFkDLwzdL","Aquatic,Habitat","Aquariums"],
+      ["B08LKC4NLB","Aqueon MiniBow Small Aquarium Starter Kit, Desktop Fish Tank for Betta","$72.95",4.1,5618,"91SL+Xl1h0L","Aquatic,Habitat","Aquariums"],
+      ["B0B6TZ769M","Liveek Aquarium Aquascape Tools Kit, 4 Pcs Stainless Steel Aquascaping Set","$9.99",4.7,4256,"71O0DqPbGPL","Aquatic,Habitat","Aquariums"],
+      ["B003X3V00U","Professionals Choice Equine Ballistic Hoof Overreach Bell Boot, Pair","$38.09",4.6,1708,"812YrLFlZGL","Horse,Health","Horse Boots"],
+      ["B01FV36BUI","SHOOFLY Horse Leggins, Patented Loose Fitting Fly Boots, Breathable Mesh","$55.99",4.7,1236,"71aXnXjQieL","Horse,Health","Horse Boots"],
+      ["B007WMBE1S","ARMA Over Reach Horse Bell Boots","$23.00",4.3,977,"51bsKGQcdaL","Horse,Health","Horse Boots"],
+      ["B09YTYHL1Y","CareMaster Fine Mesh Fly Boots, Loose Fitting Non-Slip Horse Fly Leggings","$23.99",4.1,965,"91DyUwFBZYL","Horse,Health","Horse Boots"],
+      ["B07QCFMJYZ","Hoof Trimmers, Goat Hoof Trimming Shears for Sheep, Alpaca, Lamb and Pig","$9.99",4.4,3459,"61HUDlZ5XzL","Farm,Grooming","Hoof Care"],
+      ["B01LXCKXK2","Intrepid International Pomms Horse Ear Plugs, 14hh and Taller, Black","$15.99",4.7,652,"51KngNLEcEL","Horse,Grooming","Hoof Care"],
+      ["B0B4MXXSB7","Loaged 8 inch Farrier Tool Kit, 7 Piece Mini Rasp Hoof File for Equine and Goat","$24.99",4.5,605,"81fLw0VEdbL","Horse,Grooming","Hoof Care"],
+      ["B004JHVUHM","Equitop Myoplast Supplement for Horses, 1.5 kg","$148.00",4.6,280,"61VTMWnAdyL","Horse,Food","Horse Feed"],
+      ["B000TZ1REO","RICHDEL MegaMSM Pellets for Horses, 5.6 Pounds","$36.99",4.7,249,"71FOFsjKiFL","Horse,Food","Horse Feed"],
+      ["B0069SGCNQ","Durvet Equine Sandrid Psyllium Pellets for Horses, 20 lb","$145.07",4.7,173,"71lAAhtDINL","Horse,Food","Horse Feed"],
+      ["B00O85BJG2","UltraCruz Equine Garlic Flakes, 2 lb","$23.49",4.3,119,"81w52vqYYXL","Horse,Food","Horse Feed"],
+      ["B07Q2ZLGVL","Purina Amplify Equine High-Fat Horse Supplement for Maintenance and Breeding","$86.98",4.6,82,"618MNazArpL","Horse,Food","Horse Feed"],
+      ["B0D9Z5HWN2","Weaver Equine Horse Grooming Kit, 7-Piece Brush Set with Tote Bag and Hoof Pick","$47.51",4.7,3536,"61sUfBkovmL","Horse,Grooming","Horse Grooming"],
+      ["B000A6XGQO","Absorbine ShowSheen Hair Polish and Detangler, 32 fl oz Quart Spray Bottle","$17.99",4.7,2700,"614bizIiSfS","Horse,Grooming","Horse Grooming"],
+      ["B000A6VLXO","Farnam Slick N Easy Horse Grooming Block","$4.49",4.6,1730,"81bHRw+q9dL","Horse,Grooming","Horse Grooming"],
+      ["B08VL4SWZ4","COAT DEFENSE Daily Preventative Powder and Rain Rot Treatment for Horses","$31.60",4.7,1691,"71qexqe1cHL","Horse,Grooming","Horse Grooming"],
+      ["B00II3L6JK","Ivermectin Paste 1.87% Horse Dewormer, Apple Flavored Oral Syringe 6.08g Tube","$15.99",4.7,9551,"61iMmsBixHL","Horse,Health","Horse Health"],
+      ["B000B6EHR0","Farnam Repel-X Fly Spray for Horses, Ready To Use, 32 fl oz Spray","$15.99",4.4,3984,"61BCmeT5O3L","Horse,Health","Horse Health"],
+      ["B0024ECAEO","Farnam Bronco E Fly Spray for Horses and Premises, 128 oz Refill","$29.97",4.4,3859,"71s1nPxsY8L","Horse,Health","Horse Health"],
+      ["B09V3GHJYF","Absorbine Silver Honey Rapid Wound Repair Ointment, 2 oz Tube, Manuka Honey","$25.99",4.7,3540,"61benhvoEvL","Horse,Health","Horse Health"],
+      ["B07D8JNRMZ","UMAID Himalayan Salt Lick 6 lbs on Rope for Horse, Goat and Livestock","$29.98",4.6,2835,"913TcedRG1L","Horse,Health","Horse Health"],
+      ["B003XKQ242","Tough 1 600 Denier Waterproof Horse Sheet","$59.99",4.5,1608,"51XUUmx97eL","Horse,Walk & Travel","Horse Blankets"],
+      ["B07K5286B6","HILASON 81 in Horse Fly Sheet with UV Protection, White Turquoise","$59.95",4,1009,"511tZTddNOL","Horse,Walk & Travel","Horse Blankets"],
+      ["B0BM2MBF62","HILASON Winter Waterproof Turnout Blanket, 1200D Poly","$98.95",4.8,898,"61pmWtwyvnL","Horse,Walk & Travel","Horse Blankets"],
+      ["B004UEK386","Tough 1 Soft Fleece Horse Blanket Liner and Sheet","$43.45",4.6,772,"41GEsYzyl0L","Horse,Walk & Travel","Horse Blankets"],
+      ["B01NBEGPNF","Bickmore Saddle Soap Plus 2.8 oz, Leather Cleaner and Conditioner","$9.99",4.7,5331,"61KVVR63NiL","Horse,Habitat","Horse Stable"],
+      ["B00TZVQBK8","Weaver Equine Slow Feed Hay Net, 36 in Small Hole Synthetic Rope Hay Feeder","$19.99",4.5,2241,"61K+TzaW6PL","Horse,Habitat","Horse Stable"],
+      ["B000BAU7KM","Farnam Leather New Easy-Polishing Glycerine Saddle and Leather Cleaner, 32 oz","$16.99",4.6,1118,"71xAbDD7a3L","Horse,Habitat","Horse Stable"],
+      ["B00TZVQBEE","Weaver Equine Slow Feed Hay Net, 36 in, Black","$20.99",4.5,992,"61KSxk9LpXL","Horse,Habitat","Horse Stable"],
+      ["B00474UCK8","Horsemens Pride Mega Ball Cover for Horses, 40 in, Solid Blue","$40.29",4.1,469,"712OoN7UcEL","Horse,Toys","Horse Toys"],
+      ["B09X5YTNYJ","LONG RIVER Horse Toys, Rubber Chicken Squeaky Toy to Reduce Stall Boredom","$12.99",4,276,"41m-iONi1iS","Horse,Toys","Horse Toys"],
+      ["B0006G56UM","Jolly Pets Horsemens Pride Amazing Graze Horse Treat Toy, Teal","$57.32",4.7,159,"51JyZwZjj+L","Horse,Toys","Horse Toys"],
+      ["B000B6I5BY","Mrs Pastures Cookies and Treats for Horses, Premium Treats Made with Apples","$24.95",4.8,1655,"81+k83N93zL","Horse,Treats","Horse Treats"],
+      ["B07YVPG587","Dimples Horse Treats with Pill Dimples, Two 3 lb Tubs, USA-Made","$51.38",4.3,897,"81WKXLr0lAL","Horse,Treats","Horse Treats"],
+      ["B074HFG96X","Manna Pro NutriGood Low-Sugar Apple Horse Treats, 4 lb Bag","$16.99",4.6,786,"81Wi4ZH7Y9L","Horse,Treats","Horse Treats"],
+      ["B01AIOIBSU","The German Horse Muffin All Natural Horse Treats, 1 lb","$12.90",4.9,709,"81wJwvc4C5L","Horse,Treats","Horse Treats"],
+      ["B015EA3MXC","Manna Pro Bite-Size Nuggets Horse Treats, Butterscotch Flavor, 4 lb","",4.8,555,"71nh4U5ZSUL","Horse,Treats","Horse Treats"],
+      ["B01B5NO5BU","Safe-Guard Fenbendazole Livestock Dewormer Liquid, 125 ml","$33.99",4.6,4743,"61wcTYxsrdL","Farm,Health","Livestock Supplies"],
+      ["B01MSJU4ZB","Weaver Livestock Braided Poly Rope Halter, 4 ft Adjustable Sheep Goat Halter","$5.45",4.6,2755,"81fOjH+EQiL","Farm,Walk & Travel","Livestock Supplies"],
+      ["B000J3AHNS","Little Giant Plastic Enclosed Feed Scoop for Livestock Feed","$12.75",4.8,2423,"61V7pPr2ggL","Farm,Feeding","Livestock Supplies"],
+      ["B019E9SB6M","Airmax Stock Tank Defense Livestock Water Trough Cleaner Treatment, 24 Tabs","$29.99",4.1,2405,"718UwjvFuBL","Farm,Habitat","Livestock Supplies"],
+      ["B01MDQJ6X2","Merck Safeguard Goat Dewormer, 125 ml","$41.99",4.8,1470,"318Zvzt-wOL","Farm,Health","Livestock Supplies"],
+      ["B014518T2K","Derby Originals Adjustable Nylon Livestock Cattle Halter","$19.95",4.3,671,"71CV+M9OzjS","Farm,Walk & Travel","Livestock Supplies"],
+      ["B01B8HB6EC","Weaver Livestock Braided Poly Rope Cattle Halter, Adjustable Cow Calf Halter","$9.49",4.6,623,"91KCHpmf1TL","Farm,Walk & Travel","Livestock Supplies"],
+      ["B082WWP64G","Weaver Livestock Basic Pig Show Whip with Braided Nylon Handle","$34.21",4.6,532,"41ZNoIAINqL","Farm,Walk & Travel","Livestock Supplies"],
+      ["B005IPLTAM","Weaver Leather Livestock Dairy and Beef Rounded Show Halter, Black, Large","$55.99",4.7,493,"51pX1Dkr0+L","Farm,Walk & Travel","Livestock Supplies"],
+      ["B00IET6LBQ","Weaver Leather Pig Brush","$7.09",4.4,448,"51Xv4hzQtDL","Farm,Grooming","Livestock Supplies"],
+      ["B009370JSY","Little Giant Plastic Utility Pan for Livestock Feed and Water","$24.99",4.6,5470,"714h3Rn7VQL","Farm,Feeding","Livestock Supplies"],
+      ["B0D5PYCYB1","RIOUSSI Guinea Pig Hay Feeder, Hanging Rabbit Hay Feeder Bag","$9.99",4.5,2805,"61HdMTb-2-L","Small Pets,Feeding","Small Pet Feeding"],
+      ["B000UJSQU2","Red Gorilla Medium Flexible Plastic Tub for Feed, Muck and Water, 26 Quart","$29.62",4.6,1930,"61qA2EvOx7L","Farm,Feeding","Livestock Supplies"],
+      ["B0042LBUHA","Little Giant Animal Mineral Feeder, 3.5 Quart Goat and Cattle Mineral Feeder","$16.99",4.7,1136,"61PI0ueoenL","Farm,Feeding","Livestock Supplies"],
+      ["B00D2XT3NC","Little Giant Automatic Animal Waterer for Livestock","$59.99",4.3,970,"81DjGuA2t4L","Farm,Feeding","Livestock Supplies"],
+      ["B002BADTYG","Durvet Ivermectin Sheep Drench Dewormer","$36.86",4.7,1793,"71lpIlLrUFL","Farm,Health","Livestock Supplies"],
+      ["B06Y311VW8","PetAg Dyne High Calorie Liquid Nutritional Supplement for Livestock, 32 oz","$29.74",4.7,412,"61dyidHsIXL","Farm,Health","Livestock Supplies"],
+      ["B000HHSBZM","Manna Pro Bounce Back Electrolyte Supplement for Livestock and Poultry","$3.81",4.6,317,"81QTZpDlCgL","Farm,Health","Livestock Supplies"],
+      ["B01L0068NG","Durvet Ampromed for Poultry, 1 Gallon","$56.03",4.8,197,"411EHQsII-L","Farm,Health","Livestock Supplies"],
+      ["B089XZVZMP","LilClucker Large Automatic Chicken Waterer Cups","$18.99",4.4,5288,"61kW7MVfn0L","Farm,Feeding","Poultry Supplies"],
+      ["B01N5HJ4JM","Manna Pro Chicken Grit with Probiotics for Healthy Chick Digestion, 5 lb","$9.99",4.8,4511,"811tlxEOuxL","Farm,Health","Poultry Supplies"],
+      ["B01N9UUC61","Sweet PDZ Coop Refresher, Zeolite Odor Eliminator for Chicken Coops","$24.95",4.6,4419,"61QbN21YQnL","Farm,Habitat","Poultry Supplies"],
+      ["B01N4KD9MY","Manna Pro All Flock Crumbles with Probiotics, Chicken and Duck Food, 8 lb Bag","$15.49",4.5,3280,"71Ws88MPrpL","Farm,Food","Poultry Supplies"],
+      ["B09NCHHCQ7","Pecking Order Nest Box Pads for Chicken Nesting Boxes, 13 x 13, Made in USA","$18.88",4.6,3229,"8107ZKa4BTL","Farm,Habitat","Poultry Supplies"],
+      ["B0FQK1DNSK","Purina Duck Feed for All Life Stages, Nutritionally Complete, 10 lbs","$21.99",4.6,4505,"71GDTwbwiTL","Farm,Food","Poultry Supplies"],
+      ["B09BDB4DNS","DIY Chicken Feeder Rain Proof Poultry Feeder Port Gravity Feed Kit for Buckets","$17.09",4.6,3113,"61kV9yVQuvL","Farm,Feeding","Poultry Supplies"],
+      ["B07FKP664H","Lixit Baby Chick Feeder or Waterer, Made in USA","$8.59",4.4,2294,"712jK+W36XL","Farm,Feeding","Poultry Supplies"],
+      ["B0B4WCB53W","2-in-1 Chick Starter Set, 0.3 Gal Feeder and 0.4 Gal Waterer, Red","$17.99",4.5,2240,"71C7Xy61I+L","Farm,Feeding","Poultry Supplies"],
+      ["B09ZY9D5M6","No Waste Chicken Feeder, DIY Automatic Poultry Feeder, 4 Ports, Red","$14.99",4.6,1500,"71WXx3qoDyL","Farm,Feeding","Poultry Supplies"],
+      ["B0BVWNZNY6","Mile Four Baby Chick Grit, Age 0-8 Weeks, Quartzite Mineral, 4 lbs Bag","$19.99",4.8,541,"81QL43jeo-L","Farm,Food","Poultry Supplies"],
+      ["B08PS24841","Mile Four Organic Chicken Feed, Layer Whole Grain, Non-GMO, US Grown, 23 lbs","$67.99",4.2,529,"51B1PLdYHcL","Farm,Food","Poultry Supplies"],
+      ["B09HCTMMTF","Mile Four Organic Chicken Feed, Starter Mash, Non-GMO, USA Grown, 2 lbs","$19.99",4.6,433,"71QC6DwY76L","Farm,Food","Poultry Supplies"],
+      ["B0B8TGY2L6","RentACoop Chick2Chicken 2.5 lb BPA-Free Single-Port No-Waste Chicken Feeder","$24.95",4.1,416,"61xmOx26c+L","Farm,Feeding","Poultry Supplies"],
+      ["B0CS6J68T6","12 Chicken Feeder Ports, DIY Poultry Feeder Cups with Lid and Drill Bit","$32.99",4.6,1556,"71S0mhOAUhL","Farm,Feeding","Poultry Supplies"],
+      ["B0CNDBDMQH","Eggluuz Chick Feeder and Waterer Kit, Top Fill 1.5 kg Feeder and 1.5 L Waterer","$19.99",4.5,1031,"61CK9-ZF7dL","Farm,Feeding","Poultry Supplies"],
+      ["B0967F36VM","Mutai 16mm Chicken Identification Leg Bands, 50 Pcs, 5 Colors, Poultry Ducks","$4.99",4.4,794,"51YO-ZrpHzS","Farm,Feeding","Poultry Supplies"],
+      ["B0DMR88XMX","No Waste Chicken Feeder, DIY Automatic Poultry Feeder, 4 Ports, Orange","$13.99",4.7,729,"71nhY5OvHOL","Farm,Feeding","Poultry Supplies"],
+      ["B0838VM7C9","KEBONNIXS 12 Egg Incubator with Humidity Display, Candler and Auto Turner","$49.99",4.4,5456,"61YzB-a4dTL","Farm,Habitat","Poultry Supplies"],
+      ["B0793HHZ1L","Harris Farms Nurture Right Egg Incubator with Auto Turner, Holds 22 Eggs","$157.88",4.3,5200,"61iQ4ShUNLL","Farm,Habitat","Poultry Supplies"],
+      ["B09Y84KPNC","MATICOOPX 30 Egg Incubator with Humidity Display, Candler and Auto Turner","$118.74",4.4,2035,"71gyZbsK8DL","Farm,Habitat","Poultry Supplies"],
+      ["B0CNTLK2LX","APDOE Egg Incubator for Hatching Eggs, Temperature and Humidity Control","$49.99",4.3,1446,"71FEUJX6s5L","Farm,Habitat","Poultry Supplies"],
+      ["B08WCKVGR1","RUN-CHICKEN Door T50 Automatic Chicken Coop Door Opener, Battery Powered","$129.99",4,2655,"81eTXLnUB0L","Farm,Habitat","Poultry Supplies"],
+      ["B076ZSJBWD","MagJo Aspen Nesting Pads for Chicken Coops, USA Grown Nest Box Liners","$36.98",4.6,2506,"81GFuNCSghL","Farm,Habitat","Poultry Supplies"],
+      ["B0DZ5XRR9D","VEVOR Metal Chicken Coop, 6.56 ft Large Walk-in Chicken Run with Cover","$98.91",4,1126,"81zHcciytbL","Farm,Habitat","Poultry Supplies"],
+      ["B09Y53MMWY","Chicken Wire Fencing Mesh, 16.9 Inch x 40 Feet Metal Chicken Wire Fence","$22.99",4.6,1043,"81SIIoJrM7L","Farm,Habitat","Poultry Supplies"],
+      ["B0B8QG6JSW","Strong Animals Coop Recuperate Chicken Coop Refresher, Essential Oils, 2 Pack","$23.99",4.5,768,"81CDjd76XQL","Farm,Habitat","Poultry Supplies"],
+      ["B09MD23JL9","Chicken Wire 13.7 in x 236 in Poultry Netting, Hexagonal Galvanized Mesh","$8.99",4.5,2703,"81Tn+P03ZKL","Farm,Habitat","Farm Fencing"],
+      ["B08C7LHM7S","LONGADS Bee Suit for Men, Full Body Beekeeper Suit with Gloves and Veil, XXL","$45.99",4.4,3697,"61PE450TuWL","Farm,Habitat","Beekeeping"],
+      ["B00B8L5UMS","Mann Lake Bee-Pro Patties, High Protein Honey Bee Nutrition, 10 lbs","$45.29",4.6,2274,"714200No4+L","Farm,Food","Beekeeping"],
+      ["B07QTCQ52P","Honey B Healthy Original 16 oz Bottle, Bee Feeding Stimulant with Essential Oils","$34.50",4.8,1447,"71yrcSA-hvL","Farm,Food","Beekeeping"],
     ];
-    const BEST_LIST_NAME = { 'Dogs Top': 'Dog Supplies', 'Cats Top': 'Cat Supplies', 'All Pets Top': 'Pet Supplies' };
+    const BEST_LIST_NAME = {
+      'Dogs Top': 'Dog Supplies', 'Cats Top': 'Cat Supplies', 'All Pets Top': 'Pet Supplies',
+      'Bird Cages': 'Bird Cages', 'Bird Carriers': 'Bird Carriers', 'Bird Feeding': 'Bird Feeding', 'Bird Food': 'Bird Food',
+      'Bird Health': 'Bird Health', 'Bird Toys': 'Bird Toys', 'Bird Treats': 'Bird Treats', 'Small Pet Travel': 'Small Pet Travel',
+      'Small Pet Toys': 'Small Pet Toys', 'Small Pet Feeding': 'Small Pet Feeding', 'Small Pet Food': 'Small Pet Food', 'Small Pet Grooming': 'Small Pet Grooming',
+      'Small Pet Health': 'Small Pet Health', 'Small Pet Habitats': 'Small Pet Habitats', 'Small Pet Treats': 'Small Pet Treats', 'Reptile Food': 'Reptile Food',
+      'Reptile Habitats': 'Reptile Habitats', 'Reptile Lighting & Heat': 'Reptile Lighting & Heat', 'Reptile Health': 'Reptile Health', 'Reptile Feeding': 'Reptile Feeding',
+      'Reptile Gauges': 'Reptile Gauges', 'Aquarium Gear': 'Aquarium Gear', 'Aquariums': 'Aquariums', 'Fish Food': 'Fish Food',
+      'Fish Health': 'Fish Health', 'Horse Boots': 'Horse Boots', 'Hoof Care': 'Hoof Care', 'Horse Feed': 'Horse Feed',
+      'Horse Grooming': 'Horse Grooming', 'Horse Health': 'Horse Health', 'Horse Blankets': 'Horse Blankets', 'Horse Stable': 'Horse Stable',
+      'Horse Toys': 'Horse Toys', 'Horse Treats': 'Horse Treats', 'Livestock Supplies': 'Livestock Supplies', 'Poultry Supplies': 'Poultry Supplies',
+      'Farm Fencing': 'Farm Fencing', 'Beekeeping': 'Beekeeping',
+    };
     const AFFILIATE_PRODUCTS = AMAZON_RAW.map(r => ({
       asin: r[0], title: r[1], price: r[2] || 'See price', rating: r[3], reviews: r[4], img: r[5],
       cats: r[6].split(','), bestIn: r[7] ? (BEST_LIST_NAME[r[7]] || r[7]) : '',
@@ -3381,7 +3645,7 @@
     // (no connection) sit here and are clearly marked.
     const LOCAL_LISTINGS = [];
     // Two filter rows: who it's for, and what kind of thing it is
-    const STORE_CATS =['All', 'Members', 'Dog', 'Cat', 'Bird', 'Small Pets', 'Reptile', 'Aquatic'];
+    const STORE_CATS =['All', 'Members', 'Dog', 'Cat', 'Bird', 'Small Pets', 'Reptile', 'Aquatic', 'Horse', 'Farm'];
     const STORE_TYPES = ['Any', 'Food', 'Treats', 'Toys', 'Beds & Crates', 'Walk & Travel', 'Litter', 'Grooming', 'Health', 'Feeding', 'Habitat', 'Tech', 'Training'];
     const TYPE_EMO = { Food: '🥘', Treats: '🦴', Toys: '🎾', 'Beds & Crates': '🛏️', 'Walk & Travel': '🦮', Litter: '🪣', Grooming: '🛁', Health: '💊', Feeding: '🍽️', Habitat: '🏠', Tech: '📷', Training: '🎓' };
     function inCat(p, c) {
@@ -3409,7 +3673,7 @@
       // A pet account defaults to its own species the first time (a cat sees cat gear)
       if (!state.storeSeen && state.accountType === 'pet') {
         const s = String(state.species || '').toLowerCase();
-        const guess = { dog: 'Dog', cat: 'Cat', bird: 'Bird', fish: 'Aquatic', snake: 'Reptile', reptile: 'Reptile', hamster: 'Small Pets', rabbit: 'Small Pets' }[s];
+        const guess = { dog: 'Dog', cat: 'Cat', bird: 'Bird', fish: 'Aquatic', snake: 'Reptile', reptile: 'Reptile', hamster: 'Small Pets', rabbit: 'Small Pets', horse: 'Horse', goat: 'Farm', sheep: 'Farm', cattle: 'Farm', pig: 'Farm', chicken: 'Farm', duck: 'Farm', turkey: 'Farm', alpaca: 'Farm' }[s];
         if (guess) state.storeCat = guess;
         state.storeSeen = true;
       }
@@ -3419,14 +3683,24 @@
       const members = LISTINGS.concat(LOCAL_LISTINGS);
       h += '<div class="sec"><h3>🛒 Pet Store</h3><span class="link" onclick="openSell()">+ Sell something</span></div>';
       h += pledgeCard(true);
-      h += '<div class="chips" style="margin-bottom:0.5rem;">' + STORE_CATS.map(c =>
-        '<div class="chip ' + (state.storeCat === c ? 'active' : '') + '" onclick="setStoreCat(\'' + c + '\')">' + (c === 'Members' ? '🐾 Members' : c) + '</div>').join('') + '</div>';
+      // Filter bar: who it's for → what kind of thing → price → sort
+      if (!STORE_SORTS[state.storeSort]) state.storeSort = 'popular';
+      if (!PRICE_CAPS.some(c => c[0] === (state.storeMax || 0))) state.storeMax = 0;
+      h += '<div class="store-filters">' +
+        '<div class="sf-row"><span class="sf-label">For</span><div class="chips chips-sm">' + STORE_CATS.map(c =>
+          '<div class="chip ' + (state.storeCat === c ? 'active' : '') + '" onclick="setStoreCat(\'' + c + '\')">' + (CAT_EMO[c] ? CAT_EMO[c] + ' ' : '') + c + '</div>').join('') + '</div></div>';
       if (state.storeCat !== 'Members') {
-        h += '<div class="chips chips-sm">' + STORE_TYPES.map(t =>
-          '<div class="chip ' + (state.storeType === t ? 'active' : '') + '" onclick="setStoreType(\'' + t + '\')">' + (TYPE_EMO[t] ? TYPE_EMO[t] + ' ' : '') + t + '</div>').join('') + '</div>';
+        h += '<div class="sf-row"><span class="sf-label">Type</span><div class="chips chips-sm">' + STORE_TYPES.map(t =>
+          '<div class="chip ' + (state.storeType === t ? 'active' : '') + '" onclick="setStoreType(\'' + t + '\')">' + (TYPE_EMO[t] ? TYPE_EMO[t] + ' ' : '') + t + '</div>').join('') + '</div></div>';
       }
+      h += '<div class="sf-row"><span class="sf-label">Price</span><div class="chips chips-sm">' + PRICE_CAPS.map(c =>
+          '<div class="chip ' + ((state.storeMax || 0) === c[0] ? 'active' : '') + '" onclick="setStoreMax(' + c[0] + ')">' + c[1] + '</div>').join('') + '</div></div>';
+      h += '<div class="sf-row"><span class="sf-label">Sort</span><select class="sf-sort" onchange="setStoreSort(this.value)">' + Object.keys(STORE_SORTS).map(k =>
+          '<option value="' + k + '"' + (state.storeSort === k ? ' selected' : '') + '>' + STORE_SORTS[k] + '</option>').join('') + '</select>' +
+        ((state.storeCat !== 'All' || state.storeType !== 'Any' || state.storeMax || state.storeSort !== 'popular') ? '<span class="link" style="font-size:0.8rem;font-weight:700;color:var(--brand);cursor:pointer;margin-left:auto;" onclick="resetStoreFilters()">✕ Clear</span>' : '') +
+        '</div></div>';
       STORE_VIEW = members.concat(AFFILIATE_PRODUCTS);
-      const items = STORE_VIEW.filter(p => inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)));
+      const items = sortStore(STORE_VIEW.filter(p => inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)) && underCap(p, state.storeMax)));
       if (state.storeCat === 'All' || state.storeCat === 'Members') {
         h += members.length
           ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + members.length + ' listing' + (members.length === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy.' + (state.storeCat === 'All' ? ' Then Amazon\'s best-selling pet products, most popular first.' : '') + '</p>'
@@ -3566,6 +3840,28 @@
     const openProductPhotos = openProductDetail; // legacy name (search results use it)
     function setStoreCat(c) { state.storeCat = c; storeShown = 0; openTab('store'); }
     function setStoreType(t) { state.storeType = t; storeShown = 0; openTab('store'); }
+    function setStoreMax(n) { state.storeMax = Number(n) || 0; storeShown = 0; openTab('store'); }
+    function setStoreSort(s) { state.storeSort = STORE_SORTS[s] ? s : 'popular'; storeShown = 0; openTab('store'); }
+    function resetStoreFilters() { state.storeCat = 'All'; state.storeType = 'Any'; state.storeMax = 0; state.storeSort = 'popular'; storeShown = 0; openTab('store'); }
+    // ---- Sorting & price filter (member listings and Amazon items alike) ----
+    const CAT_EMO = { All: '🛍️', Members: '🐾', Dog: '🐶', Cat: '🐱', Bird: '🐦', 'Small Pets': '🐹', Reptile: '🦎', Aquatic: '🐟', Horse: '🐴', Farm: '🐄' };
+    const STORE_SORTS = { popular: '🔥 Most popular', price_asc: '💲 Price: low to high', price_desc: '💰 Price: high to low', rating: '⭐ Top rated', reviews: '💬 Most reviewed', members: '🐾 Members first', az: '🔤 A to Z' };
+    const PRICE_CAPS = [[0, 'Any price'], [15, 'Under $15'], [30, 'Under $30'], [60, 'Under $60'], [100, 'Under $100']];
+    function priceNum(p) { const n = parsePrice(p.price); return n > 0 ? n : null; }
+    function underCap(p, cap) { if (!cap) return true; const n = priceNum(p); return n != null && n <= cap; }
+    function sortStore(items) {
+      const s = state.storeSort || 'popular';
+      const byPrice = dir => (a, b) => { const x = priceNum(a), y = priceNum(b); if (x == null && y == null) return 0; if (x == null) return 1; if (y == null) return -1; return dir * (x - y); };
+      const list = items.slice();
+      if (s === 'price_asc') list.sort(byPrice(1));
+      else if (s === 'price_desc') list.sort(byPrice(-1));
+      else if (s === 'rating') list.sort((a, b) => (Number(b.rating) || 0) - (Number(a.rating) || 0) || (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
+      else if (s === 'reviews') list.sort((a, b) => (Number(b.reviews) || 0) - (Number(a.reviews) || 0));
+      else if (s === 'members') list.sort((a, b) => (a.affiliate ? 1 : 0) - (b.affiliate ? 1 : 0));
+      else if (s === 'az') list.sort((a, b) => String(a.title || '').localeCompare(String(b.title || '')));
+      // 'popular' keeps the catalog order: members first, then Amazon best sellers by rank
+      return list;
+    }
 
     // ======================= GROUPS =======================
     // Groups are real, cloud-backed communities. Device-only fallbacks
@@ -3633,13 +3929,14 @@
                          : 'Owner account' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
       let h = '<div class="prof-hero">' +
         '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myAvatar(108) + '</div>' +
-        '<div class="prof-name">' + esc(state.displayName) + '</div>' +
+        '<div class="prof-name">' + esc(state.displayName) + (state.verified ? ' ' + vbadge() : '') + '</div>' +
         '<div class="prof-meta">' + meta + '</div>' +
         (isPet ? (state.status
           ? '<div class="prof-status" style="cursor:pointer;" onclick="openEditStatus()">' + esc(state.status) + ' ✏️</div>'
           : '<div class="prof-status" style="cursor:pointer;background:transparent;color:var(--muted);border:2px dashed var(--line);" onclick="openEditStatus()">＋ Add a status message</div>') : '') +
         '<div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;">' +
           (isPet && SPECIES_ART[(state.species || '').toLowerCase()] ? '<button class="pill-btn ghost" onclick="openAvatarStudio()">🎨 Customize</button>' : '') +
+          (!isPet ? '<button class="pill-btn ghost" onclick="openOwnerStudio()">🎨 Customize</button>' : '') +
           '<button class="pill-btn ghost" onclick="sharePetCard()">📸 Share my card</button>' +
         '</div>' +
       '</div>';
@@ -3789,10 +4086,43 @@
 
     // Tap your own avatar → hear your voice, see a wiggle
     function heroSpeak(el) {
-      if (state.soundsSend !== false) playVoice(myVoice());
       el.style.animation = 'wiggle 0.5s';
       setTimeout(() => { el.style.animation = ''; }, 550);
+      if (state.accountType === 'owner') {
+        // People don't bark. A wave and a hello.
+        uiSound('tick'); haptic(8);
+        toast('👋 ' + ((state.displayName || 'You').split(' ')[0]) + ' says hi! Tap 🎨 Customize to change your icon.');
+        return;
+      }
+      if (state.soundsSend !== false) playVoice(myVoice());
       toast(VOICE_WORD[myVoice()]);
+    }
+    // ---- Owner icon picker: who are you, roughly? ----
+    const OWNER_BASES = [['🧑', 'Person'], ['👨', 'Man'], ['👩', 'Woman'], ['🧔', 'Beard'], ['👨‍🦱', 'Curly'], ['👩‍🦱', 'Curly'], ['👨‍🦰', 'Red hair'], ['👩‍🦰', 'Red hair'], ['👱', 'Blond'], ['👨‍🦳', 'Gray'], ['👩‍🦳', 'Gray'], ['👨‍🦲', 'Bald'], ['🧓', 'Older'], ['👴', 'Grandpa'], ['👵', 'Grandma'], ['🧑‍🌾', 'Farmer'], ['👨‍🌾', 'Farmer'], ['👩‍🌾', 'Farmer'], ['🤠', 'Cowboy'], ['🧑‍⚕️', 'Vet'], ['🧑‍🔬', 'Scientist'], ['🧑‍🎨', 'Artist']];
+    const SKIN_TONES = ['', '🏻', '🏼', '🏽', '🏾', '🏿'];
+    const OWNER_OK = {}; OWNER_BASES.forEach(b => SKIN_TONES.forEach(t => { OWNER_OK[applyTone(b[0], t)] = 1; }));
+    function applyTone(base, tone) {
+      if (!tone || base === '🤠') return base;
+      const cps = Array.from(base);
+      return cps[0] + tone + cps.slice(1).join('');
+    }
+    // Only icons from our own list ever render (a profile row can't inject markup)
+    function safeEmoji(e) { return e && OWNER_OK[e] ? e : '🧑'; }
+    function openOwnerStudio() {
+      const base = state.ownerBase || '🧑', tone = state.ownerTone || '';
+      openSheet('🎨 My icon',
+        '<div style="text-align:center;"><div id="owner-preview" style="font-size:5rem;line-height:1.1;">' + ownerEmoji() + '</div></div>' +
+        '<label>Skin tone</label><div class="chips chips-sm" style="margin-bottom:0.4rem;">' + SKIN_TONES.map(t => '<div class="chip' + (t === tone ? ' active' : '') + '" onclick="pickOwnerIcon(null,\'' + t + '\')">' + (t ? '👋' + t : '👋') + '</div>').join('') + '</div>' +
+        '<label>Who are you, roughly?</label><div class="mm-tiles">' + OWNER_BASES.map(b => '<div class="mm-tile' + (b[0] === base ? ' on' : '') + '" onclick="pickOwnerIcon(\'' + b[0] + '\',null)"><span class="e">' + applyTone(b[0], tone) + '</span>' + b[1] + '</div>').join('') + '</div>' +
+        '<p class="sub" style="font-size:0.78rem;margin-top:0.6rem;">Hair and skin colors come from your phone\'s own emoji set, so they can look a little different on other devices.</p>' +
+        '<button class="btn" onclick="closeSheet();openTab(\'profile\')">Done ✓</button>');
+    }
+    function pickOwnerIcon(base, tone) {
+      if (base !== null) state.ownerBase = base;
+      if (tone !== null) state.ownerTone = tone;
+      state.ownerEmoji = applyTone(state.ownerBase || '🧑', state.ownerTone || '');
+      saveState(); cloudSaveProfile(); refreshTopAvatar(); haptic(8);
+      openOwnerStudio();
     }
 
     // ---- Celebration confetti 🎉 ----
@@ -4093,7 +4423,7 @@
       openSheet('❓ Help & FAQ',
         '<div class="faq" style="margin-top:0.4rem;">' +
         '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. You can have one of each!</p></details>' +
-        '<details><summary>🪪 Is there a verified badge?</summary><p>Not yet. ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody wears a badge until it\'s real. Owners can join the waitlist from their profile.</p></details>' +
+        '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Open ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody else wears a badge untilit\'s real. Owners can join the waitlist from their profile.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
@@ -4205,8 +4535,11 @@
     // A suspended account gets one clear screen, then is signed out
     async function checkSuspended() {
       if (!cloud || !cloudUser) return;
-      const { data } = await cloud.from('profiles').select('banned, ban_reason').eq('id', cloudUser.id).maybeSingle();
-      if (!data || !data.banned) return;
+      const { data } = await cloud.from('profiles').select('banned, ban_reason, verified').eq('id', cloudUser.id).maybeSingle();
+      if (!data) return;
+      // The server decides who is verified; mirror it locally so the badge shows
+      if (!!data.verified !== !!state.verified) { state.verified = !!data.verified; state.verifiedBy = data.verified ? 'petfi' : null; saveState(); if (appActive() && state.tab === 'profile') rerenderTab(renderProfile); }
+      if (!data.banned) return;
       openSheet('⛔ Account suspended',
         '<div class="note">This account was suspended for breaking the Community Guidelines' + (data.ban_reason ? ': <b>' + esc(data.ban_reason) + '</b>' : '') + '.</div>' +
         '<p class="sub" style="font-size:0.9rem;">If you think this is a mistake, email <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a>.</p>' +
@@ -4592,7 +4925,7 @@
       const pendingKey = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
         kind: state.accountType === 'owner' ? 'like' : speciesVoice(state.species),
-        variant: state.avatarVariant || null, accessories: state.accessories || null, pendingKey, scope, loc };
+        variant: state.avatarVariant || null, accessories: state.accessories || null, emoji: state.accountType === 'owner' ? ownerEmoji() : null, pendingKey, scope, loc };
       state.feedScope = scope; state.homeTab = 'feed'; // show the feed the post went to
       if (cloud && cloudUser) { post.mine = true; post.authorId = cloudUser.id; }
       const photos = postPhotos.slice(); postPhotos = [];
@@ -6171,7 +6504,7 @@
           favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: f.url })),
           sugg: (state.suggestions || []).slice(0, 10),
           age: state.accountType === 'pet' ? petAge(state.bday) : '', // a person's age stays private
-          look: { v: state.avatarVariant || null, a: state.accessories || null },
+          look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null },
         },
       }).then(({ error }) => { if (error) console.warn('profile save:', error.message); });
     }
@@ -6310,6 +6643,7 @@
         if (prof) {
           p.type = prof.kind === 'owner' ? 'owner' : 'pet';
           if (p.type === 'pet') { p.species = prof.species || p.species; p.breed = prof.breed || p.breed; const look = pubExtras(prof).look; if (look) { p.variant = look.v || null; p.accessories = look.a || null; } }
+          else { const look = pubExtras(prof).look; p.emoji = (look && look.e) || null; }
           p.kind = p.type === 'owner' ? 'like' : speciesVoice(p.species);
         }
         const meta = p.type === 'owner' ? 'Owner' : (p.breed || p.species || 'Pet');
@@ -6437,7 +6771,7 @@
         '<div class="fav-item" onclick="openLink(\'' + jsStr(s.url || '#') + '\')">' +
           '<span class="fi">🛍️</span><span class="ft">' + esc(s.label) + '</span><span class="fl">Shop ↗</span></div>';
       const heldByThem = parksHeldBy(u.id);
-      openSheet(esc(u.username),
+      openSheet(esc(u.username) + (u.verified ? ' ' + vbadge() : ''),
         '<div style="text-align:center;">' +
           '<div style="width:96px;height:96px;border-radius:50%;overflow:hidden;margin:0.5rem auto;border:3px solid var(--brand);background:var(--card);">' + personAvatar(u, 96) + '</div>' +
           (u.status ? '<div class="prof-status">' + esc(u.status) + '</div>' : '') +
