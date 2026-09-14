@@ -483,6 +483,13 @@
     body.dark .mm-banner, body.dark .mm-media { border-color: #5a3d33; background: #3a2a24; }
     body.dark .mm-btn.alt { background: var(--card); color: var(--ink); }
     body.dark .mm-seg > div.on, body.dark .mm-tile.on { color: #ffb4a0; }
+    /* ---- Two feeds ---- */
+    .feed-note { background: var(--card); border: 1px dashed var(--line); border-radius: 14px; padding: 0.6rem 0.85rem; font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.9rem; line-height: 1.4; }
+    .feed-note.local { border-color: #ffd7ca; background: var(--brand-soft); color: #7a3a28; }
+    .mm-seg > div small { display: block; font-weight: 500; font-size: 0.72rem; color: var(--muted); margin-top: 2px; }
+    .mm-seg > div.on small { color: var(--brand-dark); }
+    body.dark .feed-note.local { color: #ffb4a0; border-color: #5a3d33; }
+    body.dark .mm-seg > div.on small { color: #ffb4a0; }
     /* ---- The Petfi Pledge ---- */
     .pledge-strip { display: flex; align-items: center; gap: 0.7rem; background: linear-gradient(120deg, #ffe9f0, #ffdfe9); border: 1px solid #ffbfd2; border-radius: 16px; padding: 0.7rem 0.9rem; margin: 0 0 0.9rem; cursor: pointer; color: #7a2a44; }
     .pledge-strip .i { font-size: 1.5rem; }
@@ -1702,7 +1709,7 @@
       openSheet('🎉 Welcome to Petfi, ' + esc((state.displayName || '').split(' ')[0] || 'friend') + '!',
         '<p class="sub" style="font-size:0.88rem;">Here\'s your world in 20 seconds — everything you see is real, from real members:</p>' +
         row('💘', 'Mate Match', 'The heart of Petfi — find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
-        row('🏠', 'Home', 'The feed, 👥 Groups, and 🔒 My care: private reminders & a pet calendar') +
+        row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly) — plus 👥 Groups and 🔒 My care') +
         row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
@@ -2038,20 +2045,96 @@
     const FEED = [];
     let feedLoadedOnce = false;
 
+    // ======================= TWO FEEDS: LOCAL & EVERYONE =======================
+    // 🏡 Local = posts from within LOCAL_RADIUS_MI of your ZIP — unfiltered,
+    // talk like you would at the dog park. 🌎 Everyone = nationwide and
+    // family-friendly: a post with a slur or profanity can't be published
+    // there, and one that slips in from an older app is hidden there anyway.
+    const LOCAL_RADIUS_MI = 50;
+    function feedScope() {
+      if (state.feedScope === 'national' || state.feedScope === 'local') return state.feedScope;
+      return state.zip ? 'local' : 'national';
+    }
+    function setFeedScope(s) { state.feedScope = s; state.homeTab = 'feed'; openTab('home'); }
+    // Words that never go in the Everyone feed. Text is normalised first —
+    // lower-case, leetspeak undone, stretched letters collapsed — so
+    // "F.U.C.K", "sh1t" and "biiitch" are all caught.
+    const PG_STRONG = ['nigg', 'fuck', 'fuk', 'faggot'];                       // caught anywhere, even inside other letters
+    const PG_WORDS  = ['shit', 'bitch', 'pussy', 'retard', 'cunt', 'whore', 'slut', 'asshole', 'fag', 'niga']; // whole words, short suffixes allowed
+    const PG_OK     = ['pussycat', 'pussycats', 'pussywillow', 'pussywillows', 'shiitake', 'shitake'];       // legit words
+    function pgNormalize(t) {
+      return String(t || '').toLowerCase().normalize('NFKD').replace(/[̀-ͯ]/g, '')
+        .replace(/[@4]/g, 'a').replace(/3/g, 'e').replace(/[1!|]/g, 'i').replace(/0/g, 'o').replace(/[$5]/g, 's').replace(/7/g, 't')
+        .replace(/(.)\1{2,}/g, '$1$1');
+    }
+    // Returns the offending word, or null when the text is fine for Everyone
+    function pgOffender(text) {
+      const words = pgNormalize(text).split(/[^a-z]+/).filter(Boolean);
+      const squeeze = s => s.replace(/(.)\1+/g, '$1');           // "biiitch" → "bitch"-shaped
+      const STRONG1 = PG_STRONG.map(squeeze), WORDS1 = PG_WORDS.map(squeeze);
+      const matchWord = (w, list) => list.some(s => w === s || (w.indexOf(s) === 0 && w.length - s.length <= 4) || (w.length > s.length && w.slice(-s.length) === s && w.length - s.length <= 5));
+      for (let w of words) {
+        if (PG_OK.indexOf(w) >= 0) continue;
+        if (w.length > 4 && w.slice(-3) === 'ies') w = w.slice(0, -3) + 'y';   // pussies → pussy
+        const w1 = squeeze(w);
+        if (PG_STRONG.some(s => w.indexOf(s) >= 0) || STRONG1.some(s => w1.indexOf(s) >= 0)) return w;
+        if (matchWord(w, PG_WORDS) || matchWord(w1, WORDS1)) return w;
+      }
+      // Letters spaced or dotted out ("f u c k") — check the run of short fragments too
+      const run = words.filter(w => w.length <= 2).join('');
+      const hit = PG_STRONG.concat(PG_WORDS).find(s => run.indexOf(s) >= 0);
+      return hit || null;
+    }
+    function isPG(text) { return !pgOffender(text); }
+    function postScope(p) { return p && p.scope === 'local' ? 'local' : 'national'; }
+    // Where a post is from: its own saved spot, else the author's ZIP (once geocoded)
+    function postGeo(p) {
+      if (p.loc) return p.loc;
+      const prof = p.authorId && PROFILE_BY_ID[p.authorId];
+      const z = prof && prof.zip;
+      if (z && GEO_CACHE[z]) return GEO_CACHE[z];
+      if (p.mine && myGeo()) return myGeo();
+      return null;
+    }
+    function isLocalPost(p) {
+      if (p.mine) return true;
+      const me = myGeo(), g = postGeo(p);
+      if (!me || !g) return false;
+      return haversineMi(me.lat, me.lon, g.lat, g.lon) <= LOCAL_RADIUS_MI;
+    }
+    function feedFor(scope) {
+      if (scope === 'local') return FEED.filter(isLocalPost);
+      return FEED.filter(p => postScope(p) === 'national' && isPG(p.text));
+    }
+    // Older posts carry no location — look up their authors' ZIPs (cached, cheap) and refresh
+    let geoJobs = 0;
+    function ensurePostGeos() {
+      if (geoJobs) return;
+      const zips = {};
+      FEED.forEach(p => { if (p.loc) return; const prof = p.authorId && PROFILE_BY_ID[p.authorId]; if (prof && /^\d{5}$/.test(String(prof.zip || '')) && !GEO_CACHE[prof.zip]) zips[prof.zip] = 1; });
+      const list = Object.keys(zips).slice(0, 15);
+      if (!list.length) return;
+      geoJobs = list.length;
+      list.forEach(z => geocodeZip(z).catch(() => null).then(() => { if (--geoJobs === 0 && appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome); }));
+    }
+
     function renderHome() {
       let h = '';
-      // Sub-tabs: public feed, groups, and your private care page
+      // Sub-tabs: the two public feeds, groups, and your private care page
       const sub = state.homeTab === 'care' ? 'care' : state.homeTab === 'groups' ? 'groups' : 'feed';
+      const scope = feedScope(), me = myGeo();
       h += '<div class="chips" style="margin-bottom:0.9rem;">' +
-        '<div class="chip ' + (sub === 'feed' ? 'active' : '') + '" onclick="setHomeTab(\'feed\')">🐾 Feed</div>' +
+        '<div class="chip ' + (sub === 'feed' && scope === 'local' ? 'active' : '') + '" onclick="setFeedScope(\'local\')">🏡 Local</div>' +
+        '<div class="chip ' + (sub === 'feed' && scope === 'national' ? 'active' : '') + '" onclick="setFeedScope(\'national\')">🌎 Everyone</div>' +
         '<div class="chip ' + (sub === 'groups' ? 'active' : '') + '" onclick="setHomeTab(\'groups\')">👥 Groups</div>' +
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
       if (sub === 'groups') return h + renderGroups();
 
+      const first = esc((state.displayName || 'friend').split(' ')[0]);
       h += '<div class="composer" onclick="openCompose()">' +
              '<div class="ca">' + myAvatar(36) + '</div>' +
-             '<div class="fake-input">What\'s new with you, ' + esc((state.displayName || 'friend').split(' ')[0]) + '?</div>' +
+             '<div class="fake-input">' + (scope === 'local' ? 'Shout it out, ' + first + ' — what\'s happening?' : 'What\'s new with you, ' + first + '?') + '</div>' +
              '<span style="font-size:1.2rem;">📷</span></div>';
       // Petfi's reason for existing, one tap from the feed
       h += '<div class="mm-banner" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Looking for a breeding partner?</b><small>Dogs, cats, goats, cattle, chickens — find one near you</small></div><span class="chev">›</span></div>';
@@ -2059,20 +2142,37 @@
       h += streakCard();
       h += promptCard();
 
-      if (!FEED.length) {
-        h += feedLoadedOnce
-          ? '<div class="empty-state"><div class="es-emo">🐾</div><h3>The park is quiet</h3>' +
-            '<p>No posts yet — you\'re one of the first here. Introduce ' + esc((state.displayName || 'your pet').split(' ')[0]) + ' and get the feed going.</p>' +
+      // Which feed is this, in one line
+      h += scope === 'local'
+        ? '<div class="feed-note local">🏡 <b>Local</b> — ' +
+            (state.zip ? 'within ' + LOCAL_RADIUS_MI + ' miles of ' + esc(me && me.area ? me.area : 'ZIP ' + state.zip) : 'your neighborhood') +
+            '. Unfiltered — talk like you would at the dog park.' +
+            (!state.zip ? ' <span class="link" onclick="openTab(\'nearby\')">Set my ZIP ›</span>' : '') + '</div>'
+        : '<div class="feed-note">🌎 <b>Everyone</b> — the whole country, family-friendly. Posts with slurs or profanity can\'t be published here.</div>';
+
+      const list = feedFor(scope);
+      if (!list.length) {
+        if (!feedLoadedOnce) return h + skeletons(3, true);
+        if (scope === 'local' && !state.zip) {
+          h += '<div class="empty-state"><div class="es-emo">🏡</div><h3>Where\'s home?</h3><p>Set your ZIP code and Local shows what\'s happening within ' + LOCAL_RADIUS_MI + ' miles of you.</p>' +
+            '<button class="pill-btn" onclick="openTab(\'nearby\')">📍 Set my ZIP</button> <button class="pill-btn ghost" onclick="setFeedScope(\'national\')">🌎 See Everyone</button></div>';
+        } else if (scope === 'local') {
+          h += '<div class="empty-state"><div class="es-emo">🏡</div><h3>It\'s quiet around here</h3><p>Nothing posted within ' + LOCAL_RADIUS_MI + ' miles yet — be the first voice in your area.</p>' +
+            '<button class="pill-btn" onclick="openCompose()">📣 Say something</button> <button class="pill-btn ghost" onclick="setFeedScope(\'national\')">🌎 See Everyone</button></div>';
+        } else {
+          h += '<div class="empty-state"><div class="es-emo">🐾</div><h3>The park is quiet</h3>' +
+            '<p>No posts yet — you\'re one of the first here. Introduce ' + first + ' and get the feed going.</p>' +
             '<button class="pill-btn" onclick="openCompose()">✍️ Write the first post</button> ' +
-            '<button class="pill-btn ghost" onclick="inviteFriends()">💌 Invite friends</button></div>'
-          : skeletons(3, true);
+            '<button class="pill-btn ghost" onclick="inviteFriends()">💌 Invite friends</button></div>';
+        }
         return h;
       }
-      h += '<div class="sec"><h3>Your feed</h3><span class="link" onclick="refreshFeed()">↻ Refresh</span></div>';
-      // A live Spotlight ad (if any member is running one) sits after the first post
-      FEED.forEach((p, i) => {
-        h += feedCard(p, i);
-        if (i === 0) h += spotlightCard();
+      h += '<div class="sec"><h3>' + (scope === 'local' ? 'Around you' : 'Everyone') + '</h3><span class="link" onclick="refreshFeed()">↻ Refresh</span></div>';
+      // A live Spotlight ad (if any member is running one) sits after the first post.
+      // Cards are keyed by their FEED index so likes/comments/deletes stay correct.
+      list.forEach((p, k) => {
+        h += feedCard(p, FEED.indexOf(p));
+        if (k === 0) h += spotlightCard();
       });
       return h;
     }
@@ -2190,6 +2290,7 @@
       const inp = document.getElementById('cmt-in-' + i);
       const t = inp.value.trim(); if (!t) return;
       const p = FEED[i]; if (!p) return;
+      if (postScope(p) === 'national') { const bad = pgOffender(t); if (bad) { toast('🌎 “' + bad + '” can\'t go in the Everyone feed — reword it'); uiSound('error'); return; } }
       if (!p.comments) p.comments = [];
       const who = state.displayName || 'You';
       const d = document.getElementById('cmts-' + i);
@@ -3529,6 +3630,7 @@
         '<div class="link-row" onclick="openFeedback()"><span class="li">💌</span><div>Send feedback<small>Ideas, bugs, anything</small></div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openReport(\'general\',\'a problem\')"><span class="li">🚩</span><div>Report a problem</div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openBlockedList()"><span class="li">🚫</span><div>Blocked users' + ((state.blocked || []).length ? '<small>' + state.blocked.length + ' blocked</small>' : '') + '</div><span class="chev">›</span></div>' +
+        (isAdmin() ? '<div class="link-row" onclick="openModeration()"><span class="li">🛡️</span><div>Moderation<small>Open reports — remove posts or suspend accounts</small></div><span class="chev">›</span></div>' : '') +
         '<div class="link-row" onclick="openAbout()"><span class="li">🐾</span><div>About Petfi<small>Version ' + APP_VERSION + ' · Terms &amp; Privacy</small></div><span class="chev">›</span></div>' +
       '</div>';
 
@@ -3798,7 +3900,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.2.0';
+    const APP_VERSION = '1.2.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'July 12, 2026';
 
@@ -3878,6 +3980,7 @@
         '<p class="lu">Petfi should feel like the friendliest dog park on the internet. Here\'s how we keep it that way.</p>' +
         '<h3>💛 Be kind</h3><p>Talk to people (and pets) like you\'re face to face at the park. No harassment, hate, or pile-ons — disagree nicely or scroll on.</p>' +
         '<h3>🐶 Pets first</h3><p>We love funny pet content. We never allow content showing animals hurt, scared, or neglected — report it the moment you see it.</p>' +
+        '<h3>🏡 Local vs 🌎 Everyone</h3><p>Home has two feeds. <b>Everyone</b> is nationwide and family-friendly — posts and comments with slurs or profanity are blocked there automatically. <b>Local</b> shows posts from within about 50 miles of your ZIP and is unfiltered: talk like you would at the dog park. These guidelines still apply in both — no harassment, threats, hate, or anything illegal — and anyone can report a post.</p>' +
         '<h3>🛒 Sell honestly</h3><p>Real photos, real prices, real health info. If you\'re selling or breeding, disclose everything a caring buyer would want to know. Never sell homemade food or treats — consumables must be sealed, licensed products so no pet gets hurt.</p>' +
         '<h3>🔒 Respect privacy</h3><p>Don\'t share someone else\'s personal info, screenshots of private messages, or photos of people without permission.</p>' +
         '<h3>🚩 See something? Report it</h3><p>Every post and profile has a Report option. Reports are anonymous. You can also block anyone — they won\'t be able to message you or see you nearby.</p>' +
@@ -3894,6 +3997,7 @@
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
+        '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
         '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and subscriptions — goes back to animals: <b>adoption fees</b> so shelter pets find homes faster and more of them make it out, <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through the Petfi store costs you nothing extra and funds this. The Donate page also lists real shelters near you to give to directly.</p></details>' +
         '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores, groomers and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
         '<details><summary>⏰ How do reminders work?</summary><p>Home tab → <b>🔒 My care</b> chip → add reminders (feeding, litter box…) or calendar entries (vet visits). Enable browser notifications and Petfi alerts you when something\'s due. This page is 100% private to you.</p></details>' +
@@ -3972,6 +4076,8 @@
     async function submitReport() {
       if (!reportTarget) { closeSheet(); return; }
       const entry = { kind: reportTarget.kind, target: reportTarget.label, refId: reportTarget.refId, reason: val('rp-reason'), details: val('rp-text') };
+      // Snapshot the post so the report still makes sense if it's edited or gone
+      if (entry.kind === 'post' && entry.refId) { const p = FEED.find(x => x.cloudId === entry.refId); if (p) { entry.text = String(p.text || '').slice(0, 600); entry.authorId = p.authorId || null; entry.scope = postScope(p); } }
       reportTarget = null;
       if (cloud && cloudUser) {
         const { error } = await cloud.from('reports').insert({ reporter_id: cloudUser.id, content: entry });
@@ -3988,6 +4094,98 @@
         '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">🛡️</div>' +
         '<p class="sub" style="margin-top:0.6rem;">Thank you for keeping Petfi safe. We review every report and take action when the rules are broken.</p></div>' +
         '<button class="btn" onclick="closeSheet()">Done</button>');
+    }
+
+    // ---- Moderation: reports reach the dashboard AND an in-app panel ----
+    // Server-side rules live in petfi-moderation.sql: admin = these e-mails,
+    // suspended accounts can't write, admins can delete content and suspend.
+    const ADMIN_EMAILS = ['armedguard511@gmail.com', 'spindola.software@gmail.com'];
+    function isAdmin() { return !!(cloudUser && cloudUser.email && ADMIN_EMAILS.indexOf(String(cloudUser.email).toLowerCase()) >= 0); }
+    function isBannedUser(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.banned); }
+    // A suspended account gets one clear screen, then is signed out
+    async function checkSuspended() {
+      if (!cloud || !cloudUser) return;
+      const { data } = await cloud.from('profiles').select('banned, ban_reason').eq('id', cloudUser.id).maybeSingle();
+      if (!data || !data.banned) return;
+      openSheet('⛔ Account suspended',
+        '<div class="note">This account was suspended for breaking the Community Guidelines' + (data.ban_reason ? ': <b>' + esc(data.ban_reason) + '</b>' : '') + '.</div>' +
+        '<p class="sub" style="font-size:0.9rem;">If you think this is a mistake, email <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a>.</p>' +
+        '<button class="btn" onclick="closeSheet();logOut()">OK</button>');
+    }
+    let MOD_REPORTS = [], MOD_POSTS = {};
+    async function openModeration() {
+      if (!isAdmin()) return;
+      openSheet('🛡️ Moderation', '<div class="note">⏳ Loading reports…</div>');
+      const mySeq = sheetSeq;
+      const { data, error } = await cloud.from('reports').select('id, reporter_id, content, created_at, status').eq('status', 'open').order('created_at', { ascending: false }).limit(50);
+      if (sheetSeq !== mySeq) return;
+      if (error) { openSheet('🛡️ Moderation', '<div class="note">⚠️ ' + esc(error.message) + '<br><br>Run <b>petfi-moderation.sql</b> in the Supabase SQL editor first.</div>'); return; }
+      MOD_REPORTS = data || [];
+      const postIds = MOD_REPORTS.map(r => Number(r.content && r.content.refId)).filter(n => n > 0);
+      MOD_POSTS = {};
+      if (postIds.length) { const { data: ps } = await cloud.from('posts').select('id, author_id, content').in('id', postIds); (ps || []).forEach(p => { MOD_POSTS[p.id] = p; }); }
+      const authors = MOD_REPORTS.map(r => (r.content && r.content.authorId) || (MOD_POSTS[Number(r.content && r.content.refId)] || {}).author_id).filter(Boolean);
+      await ensureProfiles(authors);
+      if (sheetSeq !== mySeq) return;
+      renderModeration();
+    }
+    function renderModeration() {
+      const body = MOD_REPORTS.length ? MOD_REPORTS.map(modCard).join('') : '<div class="empty-state"><div class="es-emo">🛡️</div><h3>All clear</h3><p>No open reports.</p></div>';
+      openSheet('🛡️ Moderation <small style="font-weight:600;color:var(--muted);">' + MOD_REPORTS.length + ' open</small>',
+        '<p class="sub" style="font-size:0.85rem;">Reports from members. Remove the post, suspend the account, or dismiss. Reporters stay anonymous.</p>' + body);
+    }
+    function modCard(r) {
+      const c = r.content || {};
+      const post = MOD_POSTS[Number(c.refId)] || null;
+      const gone = c.kind === 'post' && !post;
+      const authorId = c.authorId || (post && post.author_id) || null;
+      const shown = authorId ? authorName(authorId, c.target) : (c.target || 'Unknown');
+      const prof = authorId && PROFILE_BY_ID[authorId];
+      const text = post ? String((post.content || {}).text || '') : String(c.text || '');
+      const photos = post ? safePhotos((post.content || {}).photoUrls) : [];
+      return '<div class="post" style="margin-bottom:0.8rem;">' +
+        '<div style="display:flex;justify-content:space-between;gap:0.5rem;font-size:0.8rem;color:var(--muted);"><span>🚩 ' + esc(c.reason || 'Report') + ' · ' + esc(c.kind || '') + '</span><span>' + esc(timeAgo(r.created_at)) + '</span></div>' +
+        (c.details ? '<div style="font-size:0.85rem;margin:0.3rem 0;">“' + esc(c.details) + '”</div>' : '') +
+        '<div style="border-left:3px solid var(--line);padding:0.4rem 0.7rem;margin:0.5rem 0;">' +
+          '<div style="font-weight:700;font-size:0.9rem;cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(authorId || '') + '\')">' + esc(shown) + (prof && prof.banned ? ' <span style="color:#c0392b;">⛔ suspended</span>' : '') + '</div>' +
+          (gone ? '<div class="sub" style="font-size:0.85rem;">Post already removed.</div>' : (text ? '<div style="font-size:0.92rem;white-space:pre-wrap;">' + esc(text) + '</div>' : '')) +
+          (photos.length ? '<div style="display:flex;gap:0.3rem;margin-top:0.4rem;">' + photos.map(u => '<img src="' + esc(u) + '" style="width:64px;height:64px;object-fit:cover;border-radius:8px;">').join('') + '</div>' : '') +
+        '</div>' +
+        '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
+          (post ? '<button class="pill-btn" style="background:#c0392b;" onclick="modRemovePost(' + post.id + ',' + r.id + ')">🗑 Remove post</button>' : '') +
+          (authorId && !(prof && prof.banned) ? '<button class="pill-btn" style="background:var(--ink);" onclick="modBan(\'' + jsStr(authorId) + '\',' + r.id + ')">⛔ Suspend account</button>' : '') +
+          '<button class="pill-btn ghost" onclick="modResolve(' + r.id + ',\'dismissed\')">✓ Dismiss</button>' +
+        '</div></div>';
+    }
+    async function modResolve(id, how, silent) {
+      const { error } = await cloud.from('reports').update({ status: 'closed', resolution: how, resolved_at: new Date().toISOString() }).eq('id', id);
+      if (error) { toast('⚠️ ' + error.message); return false; }
+      MOD_REPORTS = MOD_REPORTS.filter(r => r.id !== id);
+      if (!silent) { renderModeration(); toast('Report closed ✓'); }
+      return true;
+    }
+    async function modRemovePost(postId, reportId) {
+      const { error } = await cloud.from('posts').delete().eq('id', postId);
+      if (error) { toast('⚠️ ' + error.message); return; }
+      delete MOD_POSTS[postId];
+      const idx = FEED.findIndex(p => p.cloudId === postId); if (idx >= 0) FEED.splice(idx, 1);
+      await modResolve(reportId, 'post removed', true);
+      renderModeration(); toast('Post removed 🗑');
+    }
+    function modBan(userId, reportId) {
+      openSheet('⛔ Suspend ' + esc(authorName(userId, 'this member')) + '?',
+        '<p class="sub">They can\'t post, comment, message, list or advertise any more, and their posts are hidden from everyone. To lift it later: Supabase dashboard → profiles → set banned = false.</p>' +
+        '<label>Reason (they will see this)</label><input type="text" id="ban-reason" placeholder="e.g. Harassment">' +
+        '<button class="btn" style="background:#c0392b;" onclick="modBanConfirm(\'' + jsStr(userId) + '\',' + reportId + ')">⛔ Suspend account</button>' +
+        '<button class="btn secondary" onclick="renderModeration()">Cancel</button>');
+    }
+    async function modBanConfirm(userId, reportId) {
+      const reason = val('ban-reason') || 'Community Guidelines';
+      const { error } = await cloud.from('profiles').update({ banned: true, ban_reason: reason }).eq('id', userId);
+      if (error) { toast('⚠️ ' + error.message); return; }
+      if (PROFILE_BY_ID[userId]) PROFILE_BY_ID[userId].banned = true;
+      await modResolve(reportId, 'account suspended: ' + reason, true);
+      renderModeration(); toast('Account suspended ⛔');
     }
 
     // ---- Blocking: blocked users vanish from feed, nearby & messages ----
@@ -4194,7 +4392,31 @@
 
     let postPhotos = [];
     const MOODS = ['😊 happy', '😴 sleepy', '🍖 hungry', '🎾 playful', '🛁 squeaky clean', '🥳 celebrating', '🥺 dramatic'];
-    let composeMood = '', composeDraft = '';
+    let composeMood = '', composeDraft = '', composeScope = '';
+    function setComposeScope(s, el) {
+      if (s === 'local' && !state.zip) { toast('📍 Set your ZIP on the Nearby tab to post locally'); return; }
+      composeScope = s;
+      if (el) Array.from(el.parentNode.children).forEach(c => c.classList.toggle('on', c === el));
+      haptic(8);
+    }
+    // A post that fails the Everyone filter: offer Local (unfiltered) or an edit
+    function pgBlock(bad, text) {
+      const keep = postPhotos.slice();
+      openSheet('🌎 Keep Everyone family-friendly',
+        '<div class="note">“<b>' + esc(bad) + '</b>” can\'t be posted to the <b>Everyone</b> feed. Post it to <b>🏡 Local</b> instead (unfiltered, within ' + LOCAL_RADIUS_MI + ' miles of you), or change the wording.</div>' +
+        '<textarea id="cmp-retry" maxlength="600" style="width:100%;min-height:90px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(text) + '</textarea>' +
+        (state.zip ? '<button class="btn" onclick="pgResume(\'local\')">🏡 Post to Local instead</button>' : '') +
+        '<button class="btn secondary" onclick="pgResume(\'national\')">✏️ Edit and post to Everyone</button>');
+      window._pgKeep = keep;
+    }
+    function pgResume(scope) {
+      const t = (document.getElementById('cmp-retry') || {}).value || '';
+      closeSheet(); composeDraft = t; openCompose();
+      postPhotos = window._pgKeep || []; renderPostPreviews();
+      const seg = document.getElementById('cmp-scope');
+      if (seg) setComposeScope(scope, seg.children[scope === 'local' ? 0 : 1]);
+      if (scope === 'local') submitPost();
+    }
     function pickMood(el) {
       const m = el.dataset.mood;
       composeMood = composeMood === m ? '' : m;
@@ -4205,7 +4427,12 @@
       composeMood = '';
       const ph = (typeof seed === 'string' && seed) ? seed : 'Share something...';
       const draft = composeDraft; composeDraft = '';
-      openSheet('New post', '<textarea id="cmp-text" maxlength="600" placeholder="' + esc(ph) + '" oninput="cmpCount(this)" style="width:100%;min-height:110px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(draft) + '</textarea>' +
+      composeScope = feedScope();
+      openSheet('New post',
+        '<div class="mm-seg" id="cmp-scope" style="margin-bottom:0.7rem;">' +
+          '<div class="' + (composeScope === 'local' ? 'on' : '') + '" onclick="setComposeScope(\'local\',this)">🏡 Local<small>' + LOCAL_RADIUS_MI + ' mi · unfiltered</small></div>' +
+          '<div class="' + (composeScope === 'national' ? 'on' : '') + '" onclick="setComposeScope(\'national\',this)">🌎 Everyone<small>nationwide · family-friendly</small></div></div>' +
+        '<textarea id="cmp-text" maxlength="600" placeholder="' + esc(ph) + '" oninput="cmpCount(this)" style="width:100%;min-height:110px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(draft) + '</textarea>' +
         '<div class="cmp-count" id="cmp-count">' + draft.length + ' / 600</div>' +
         '<div class="chips" style="margin:0.6rem -1.3rem 0;padding:0 1.3rem;">' +
           MOODS.map(m => '<div class="chip mood-chip" data-mood="' + m + '" onclick="pickMood(this)">' + m + '</div>').join('') + '</div>' +
@@ -4252,14 +4479,21 @@
       let t = val('cmp-text');
       if (!t && !postPhotos.length) { toast('Write something or add a photo first'); return; }
       if (composeMood) { t = (t ? t + ' ' : '') + '— feeling ' + composeMood; composeMood = ''; }
+      // Everyone is family-friendly; Local is not filtered
+      const scope = composeScope === 'local' && state.zip ? 'local' : 'national';
+      if (scope === 'national') { const bad = pgOffender(t); if (bad) { pgBlock(bad, t); return; } }
       const btn = document.getElementById('cmp-btn');
       if (btn && btn.disabled) return; // one post per tap
       if (btn) { btn.disabled = true; btn.textContent = 'Posting…'; }
+      // Town-level location so neighbours see it in their Local feed (never an address)
+      let loc = null;
+      if (state.zip) { const g = myGeo() || await geocodeZip(state.zip); if (g) loc = { lat: +g.lat.toFixed(2), lon: +g.lon.toFixed(2), area: g.area || '' }; }
       const subBase = state.accountType === 'owner' ? 'Owner' : (state.breed || state.species);
       const pendingKey = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
-      const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now', type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
+      const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
         kind: state.accountType === 'owner' ? 'like' : speciesVoice(state.species),
-        variant: state.avatarVariant || null, accessories: state.accessories || null, pendingKey };
+        variant: state.avatarVariant || null, accessories: state.accessories || null, pendingKey, scope, loc };
+      state.feedScope = scope; state.homeTab = 'feed'; // show the feed the post went to
       if (cloud && cloudUser) { post.mine = true; post.authorId = cloudUser.id; }
       const photos = postPhotos.slice(); postPhotos = [];
       // Show it instantly with the local photo previews…
@@ -4288,7 +4522,7 @@
         const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content }).select('id').single();
         if (error) throw error;
         post.cloudId = data.id;
-        toast('Posted for everyone to see 🐾');
+        toast(post.scope === 'local' ? 'Posted to your Local feed 🏡' : 'Posted for everyone to see 🐾');
       } catch (e) {
         console.warn('post save:', e.message);
         const idx = FEED.indexOf(post); if (idx >= 0) FEED.splice(idx, 1);
@@ -4751,7 +4985,7 @@
     }
     // Sort: nearest first (unknown distance last), then newest
     function visibleMates() {
-      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId)).concat(LOCAL_MATES);
+      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId) && !isBannedUser(m.ownerId)).concat(LOCAL_MATES);
       all.forEach(m => { m._d = mateDistance(m); });
       all.sort((a, b) => {
         if (a._d != null && b._d != null && a._d !== b._d) return a._d - b._d;
@@ -5930,7 +6164,7 @@
         .select('id, author_id, content, created_at')
         .is('content->>petfiType', null)
         .order('created_at', { ascending: false })
-        .limit(50);
+        .limit(100);
       if (error || !data) { feedLoadedOnce = true; return; }
       // Everyone's likes and comments for these posts, in two quick queries
       const ids = data.map(r => r.id);
@@ -5956,7 +6190,7 @@
         FEED.splice(i, 1);
       }
       data.slice().reverse().forEach(row => {
-        if (isBlocked(row.author_id)) return; // blocked users vanish from your feed
+        if (isBlocked(row.author_id) || isBannedUser(row.author_id)) return; // blocked (by you) or suspended (by Petfi) users vanish
         const c = row.content || {};
         if (c.petfiType) return; // dating cards / territory claims aren't feed posts
         if (c.pendingKey && pendingKeys[c.pendingKey]) return; // still shown as the local copy
@@ -5968,6 +6202,8 @@
           kind: VOICE_PLAYERS[c.kind] ? c.kind : 'like',
           variant: c.variant || null, accessories: c.accessories || null,
           photoUrls: safePhotos(c.photoUrls), subBase: c.subBase,
+          scope: c.scope === 'local' ? 'local' : 'national',
+          loc: (c.loc && isFinite(+c.loc.lat) && isFinite(+c.loc.lon)) ? { lat: +c.loc.lat, lon: +c.loc.lon, area: String(c.loc.area || '').slice(0, 60) } : null,
         };
         // The author's CURRENT profile is the truth for who they are
         const prof = PROFILE_BY_ID[row.author_id];
@@ -5977,7 +6213,7 @@
           p.kind = p.type === 'owner' ? 'like' : speciesVoice(p.species);
         }
         const meta = p.type === 'owner' ? 'Owner' : (p.breed || p.species || 'Pet');
-        p.sub = meta + ' · ' + timeAgo(row.created_at);
+        p.sub = meta + ' · ' + timeAgo(row.created_at) + (p.loc && p.loc.area ? ' · 📍 ' + p.loc.area : '');
         p.likes = likes.filter(x => x.post_id === row.id).length;
         p.likedByMe = !!(cloudUser && likes.some(x => x.post_id === row.id && x.user_id === cloudUser.id));
         p.comments = comments.filter(x => x.post_id === row.id).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || '') }));
@@ -5985,6 +6221,7 @@
       });
       freshMine.forEach(p => FEED.unshift(p)); // your seconds-old posts stay on top
       feedLoadedOnce = true;
+      ensurePostGeos(); // older posts: place them by their author's ZIP for the Local feed
       // "Someone liked/commented on your post!" — compare with last look
       if (cloudUser) {
         state.myPostStats = state.myPostStats || {};
@@ -6039,7 +6276,7 @@
         .order('created_at', { ascending: false }).limit(40);
       if (!data) return;
       data.forEach(p => { PROFILE_BY_ID[p.id] = p; });
-      PEOPLE = data.filter(p => p.visible !== false && !isBlocked(p.id));
+      PEOPLE = data.filter(p => p.visible !== false && !isBlocked(p.id) && !p.banned);
       if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
     }
     // Make sure we hold the public profile of every author we're about to
@@ -6492,6 +6729,7 @@
       loadTerritory(true);
       liveConnect();
       flushOutbox();
+      checkSuspended();
     }
 
     // ======================= LIVE (realtime) =======================
