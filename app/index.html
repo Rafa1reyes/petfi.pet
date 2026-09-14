@@ -385,6 +385,17 @@
     .prod .pprice { color: var(--brand); font-weight: 800; font-size: 0.95rem; margin-top: 0.2rem; }
     .prod .pseller { color: var(--muted); font-size: 0.72rem; margin: 0.2rem 0 0.5rem; display: flex; align-items: center; gap: 0.2rem; }
     .prod .buy { margin-top: auto; background: var(--brand); color: #fff; border: none; border-radius: 10px; padding: 0.45rem; font-weight: 700; font-size: 0.78rem; cursor: pointer; font-family: inherit; }
+    /* Amazon best-seller cards: real product photo on white, rating line, badge */
+    .prod .img.az { background: #fff; position: relative; padding: 8px; height: 132px; }
+    .prod .img.az img { width: 100%; height: 100%; object-fit: contain; display: block; }
+    .bs-badge { position: absolute; top: 8px; left: 8px; background: #ff6a3d; color: #fff; font-size: 0.6rem; font-weight: 800; padding: 0.15rem 0.5rem; border-radius: 999px; letter-spacing: 0.3px; box-shadow: 0 2px 6px rgba(0,0,0,0.15); }
+    .prating { color: var(--muted); font-size: 0.72rem; margin: 0.2rem 0 0.5rem; }
+    .prating b { color: #d98a00; font-weight: 800; }
+    .chips-sm .chip { font-size: 0.75rem; padding: 0.3rem 0.7rem; min-height: 34px; }
+    .az-hero { background: #fff; border: 1px solid var(--line); border-radius: 16px; padding: 12px; margin-bottom: 0.7rem; position: relative; }
+    .az-hero img { width: 100%; height: 220px; object-fit: contain; display: block; }
+    .az-hero .bs-badge { top: 12px; left: 12px; font-size: 0.7rem; }
+    body.dark .prod .img.az, body.dark .az-hero { background: #f4f0ee; }
     .prod .buy:active { transform: scale(0.96); }
 
     /* ---- List rows (groups, spots, pets) ---- */
@@ -2534,6 +2545,10 @@
     // The buy link for a store product — prefers Chewy if you've set it up.
     function affiliateUrl(p) {
       if (p.chewy && AFFILIATE.chewyLink) return AFFILIATE.chewyLink(p.q || p.title);
+      // Best-seller rows link straight to the product page (converts far better than a search)
+      if (p.asin && /^[A-Z0-9]{10}$/.test(p.asin)) {
+        return 'https://www.amazon.com/dp/' + p.asin + '/' + (AFFILIATE.amazonTag ? '?tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
+      }
       return amazonLink(p.q || p.title);
     }
     const RETAILERS = [
@@ -2615,8 +2630,9 @@
           const i = STORE_VIEW.indexOf(x.p);
           const go = 'openProductDetail(' + i + ')';
           const ph = x.p.affiliate ? [] : safePhotos(x.p.photos);
+          const az = x.p.affiliate ? amazonImg(x.p.img, 160) : '';
           return '<div class="row" style="cursor:pointer;" onclick="' + go + '">' +
-            '<div class="ricon">' + (ph.length ? '<img src="' + esc(ph[0]) + '" style="width:100%;height:100%;object-fit:cover;">' : esc(x.p.affiliate ? x.p.emo : '🐾')) + '</div>' +
+            '<div class="ricon"' + (az ? ' style="background:#fff;"' : '') + '>' + (ph.length ? '<img src="' + esc(ph[0]) + '" style="width:100%;height:100%;object-fit:cover;">' : az ? '<img src="' + esc(az) + '" style="width:100%;height:100%;object-fit:contain;">' : esc(x.p.affiliate ? x.p.emo : '🐾')) + '</div>' +
             '<div class="rmain"><div class="rtitle">' + esc(x.p.title) + '</div><div class="rmeta">' + esc(x.p.price) + ' · ' + esc(x.p.seller) + '</div></div>' +
             '<div class="raction"><span class="fl">View ›</span></div></div>';
         }).join('');
@@ -2751,148 +2767,386 @@
     }
 
     // ======================= PET STORE =======================
-    // ---- Affiliate shop: real, popular pet products. Each opens an Amazon
-    // (or Chewy) search for that exact item carrying your tag, so a purchase
-    // in that session earns Petfi a commission. Add more anytime — one row
-    // each: [emoji, title, cats(csv), approx price, Amazon search query, bg].
-    const AFFILIATE_RAW = [
-      // Dog food & treats
-      ['🥘','Purina Pro Plan Dog Food','Dog,Food','~$65','Purina Pro Plan dry dog food','#eaf1ff'],
-      ['🥘','Blue Buffalo Life Protection Dog Food','Dog,Food','~$60','Blue Buffalo Life Protection dog food','#eaf1ff'],
-      ['🥘','Hill\'s Science Diet Dog Food','Dog,Food','~$72','Hills Science Diet dry dog food','#eaf1ff'],
-      ['🥘','Taste of the Wild Dog Food','Dog,Food','~$55','Taste of the Wild grain free dog food','#eaf1ff'],
-      ['🥫','Pedigree Wet Dog Food (12pk)','Dog,Food','~$14','Pedigree chopped wet dog food variety pack','#eaf1ff'],
-      ['🦴','Milk-Bone Dog Biscuits','Dog,Treats','~$10','Milk-Bone dog biscuits','#fff3d6'],
-      ['🦷','Greenies Dental Dog Treats','Dog,Treats,Health','~$25','Greenies original dental dog treats','#fff3d6'],
-      ['🦴','Bully Sticks (12 pack)','Dog,Treats','~$25','bully sticks for dogs 6 inch','#fff3d6'],
-      ['🥓','Freeze-Dried Liver Treats','Dog,Cat,Treats','~$12','freeze dried liver dog treats','#fff3d6'],
-      // Dog toys
-      ['🧸','KONG Classic Dog Toy','Dog,Toys','~$12','KONG Classic dog toy','#e7f6e9'],
-      ['🎾','Chuckit! Ball Launcher','Dog,Toys','~$13','Chuckit ball launcher for dogs','#e7f6e9'],
-      ['🦴','Nylabone Power Chew','Dog,Toys','~$10','Nylabone power chew dog toy','#e7f6e9'],
-      ['🧩','Dog Puzzle Feeder Toy','Dog,Toys','~$18','dog puzzle toy treat dispensing','#e7f6e9'],
-      ['🪢','Rope Tug Toy','Dog,Toys','~$9','dog rope tug toy','#e7f6e9'],
-      ['👃','Snuffle Mat for Dogs','Dog,Toys','~$20','snuffle mat for dogs','#e7f6e9'],
-      // Dog beds & crates
-      ['🛏️','Orthopedic Memory-Foam Dog Bed','Dog,Beds','~$45','orthopedic memory foam dog bed','#fff3d6'],
-      ['🛏️','Calming Donut Dog Bed','Dog,Beds','~$35','calming donut dog bed fluffy','#fff3d6'],
-      ['📦','MidWest Dog Crate','Dog,Beds','~$45','MidWest folding dog crate double door','#fff3d6'],
-      ['❄️','Elevated Cooling Dog Bed','Dog,Beds','~$30','elevated cooling dog bed raised','#fff3d6'],
-      // Dog walk & gear
-      ['🦮','No-Pull Dog Harness','Dog','~$22','no pull dog harness adjustable','#fff3d6'],
-      ['🪢','Retractable Dog Leash','Dog','~$15','retractable dog leash','#fff3d6'],
-      ['⭕','Martingale Dog Collar','Dog','~$12','martingale dog collar','#fff3d6'],
-      ['💩','Dog Poop Bags (900 ct)','Dog','~$13','dog poop bags rolls unscented','#fff3d6'],
-      ['🚗','Dog Car Seat Cover','Dog,Tech','~$30','dog car seat cover hammock','#fff3d6'],
-      // Dog health & grooming
-      ['💊','Dog Joint Supplement (Cosequin)','Dog,Health','~$30','Cosequin dog joint supplement','#f3ecff'],
-      ['🐛','Dog Flea & Tick Treatment','Dog,Health','~$45','K9 Advantix II flea tick for dogs','#f3ecff'],
-      ['🪥','Dog Toothpaste & Brush Kit','Dog,Health,Grooming','~$12','dog enzymatic toothpaste brush kit','#f3ecff'],
-      ['🧴','Oatmeal Dog Shampoo','Dog,Grooming','~$12','Earthbath oatmeal dog shampoo','#e7f6e9'],
-      ['🪮','FURminator Deshedding Tool','Dog,Cat,Grooming','~$35','FURminator deshedding tool','#e7f6e9'],
-      ['✂️','Dog Nail Clippers','Dog,Grooming','~$10','dog nail clippers with safety guard','#e7f6e9'],
-      // Cat food, treats & litter
-      ['🐟','Purina Fancy Feast (30 pk)','Cat,Food','~$22','Fancy Feast wet cat food variety pack','#ffe9d6'],
-      ['🥘','Blue Buffalo Indoor Cat Food','Cat,Food','~$30','Blue Buffalo indoor dry cat food','#ffe9d6'],
-      ['🍗','Temptations Cat Treats','Cat,Treats','~$10','Temptations cat treats','#ffe9d6'],
-      ['🪣','Dr. Elsey\'s Clumping Cat Litter','Cat','~$20','Dr Elseys ultra clumping cat litter','#ffe9d6'],
-      ['🧹','Arm & Hammer Clump Litter','Cat','~$15','Arm and Hammer clumping cat litter','#ffe9d6'],
-      ['📦','Covered Cat Litter Box','Cat','~$30','covered cat litter box large','#ffe9d6'],
-      ['🚪','Litter-Trapping Mat','Cat','~$15','cat litter trapping mat','#ffe9d6'],
-      // Cat toys & furniture
-      ['🪶','Cat Wand Teaser Toy','Cat,Toys','~$9','cat wand teaser feather toy','#e7f6e9'],
-      ['🐭','Catnip Mice (12 pk)','Cat,Toys','~$10','catnip mice cat toys','#e7f6e9'],
-      ['🌀','Automatic Motion Cat Toy','Cat,Toys','~$20','automatic moving cat toy','#e7f6e9'],
-      ['🗼','Cat Tree Tower','Cat,Beds','~$55','cat tree tower condo','#ffe9d6'],
-      ['🪧','Sisal Cat Scratching Post','Cat','~$25','cat scratching post sisal tall','#ffe9d6'],
-      ['🛖','Cozy Cat Cave Bed','Cat,Beds','~$25','cat cave bed covered','#ffe9d6'],
-      ['🪟','Cat Window Perch','Cat,Beds','~$25','cat window perch suction cup','#ffe9d6'],
-      // Cat health
-      ['🐛','Cat Flea Treatment','Cat,Health','~$40','Revolution flea treatment for cats','#f3ecff'],
-      ['🧶','Hairball Control Gel','Cat,Health','~$10','cat hairball remedy gel','#f3ecff'],
-      // Tech & general
-      ['📷','Furbo Dog Camera','Dog,Tech','~$130','Furbo dog camera treat tossing','#eef0ff'],
-      ['📡','Tractive GPS Pet Tracker','Dog,Cat,Tech','~$50','Tractive GPS pet tracker','#eef0ff'],
-      ['🍽️','Automatic Pet Feeder','Dog,Cat,Tech','~$50','automatic pet feeder timed','#eef0ff'],
-      ['⛲','Pet Water Fountain','Dog,Cat,Tech','~$35','PetSafe Drinkwell pet water fountain','#eef0ff'],
-      ['🪜','Pet Stairs & Ramp','Dog,Cat','~$40','pet stairs for bed dog','#eef0ff'],
-      // Small pets
-      ['🌾','Timothy Hay (Rabbits & Guinea Pigs)','Small Pets,Food','~$20','timothy hay for rabbits guinea pigs','#fdeef0'],
-      ['🏠','Small Animal Cage','Small Pets,Beds','~$45','small animal cage hamster','#fdeef0'],
-      ['🎡','Silent Hamster Exercise Wheel','Small Pets,Toys','~$15','silent hamster exercise wheel','#fdeef0'],
-      ['🦎','Reptile Heat Lamp','Small Pets','~$20','reptile heat lamp basking bulb','#fdeef0'],
-      // Bird
-      ['🐦','Bird Cage (Parakeet/Cockatiel)','Bird,Beds','~$60','bird cage parakeet cockatiel','#fff3d6'],
-      ['🌻','Pet Bird Seed Blend','Bird,Food','~$18','bird seed blend parakeet','#fff3d6'],
-      // Aquatic
-      ['🐠','Aquarium Starter Kit (10 gal)','Aquatic,Beds','~$60','10 gallon aquarium starter kit','#e6f4fb'],
-      ['🍥','Tropical Fish Food Flakes','Aquatic,Food','~$8','tropical fish food flakes','#e6f4fb'],
-      ['💧','Seachem Prime Water Conditioner','Aquatic,Health','~$10','Seachem Prime water conditioner','#e6f4fb'],
-      ['🌡️','Submersible Aquarium Heater','Aquatic','~$18','submersible aquarium heater','#e6f4fb'],
+    // ---- Amazon best sellers: scraped from Amazon's own Best Sellers lists
+    // (pet supplies + every dog/cat subcategory + fish, birds, small pets,
+    // reptiles) on 2026-09-14. Each row: [asin, title, price, rating, reviews,
+    // image id, categories, best-seller list (if top 3)]. Ordered by popularity.
+    // Every Shop link is a direct product page carrying AFFILIATE.amazonTag.
+    const AMAZON_RAW = [
+      ["B00BSYR7K8","Earth Rated Dog Poop Bags on Refill Rolls, 270 Bags, Lavender","$14.99",4.8,249780,"71E4pNvGAdL","Dog,Walk & Travel","Dogs Top"],
+      ["B00NABTC8M","Amazon Basics Dog Poop Bags with Dispenser and Leash Clip","$10.43",4.8,243328,"71RhBxKwOWL","Dog,Walk & Travel",""],
+      ["B00BAGTNAQ","ChomChom Roller Reusable Pet Hair Remover","$24.99",4.5,205648,"71mmJsbMGZL","Cat,Grooming","Cat Grooming"],
+      ["B01M8JT6FT","rabbitgoo No-Pull Dog Harness for Large Dogs, 2 Leash Clips","$17.98",4.5,197263,"71eROBTwkVL","Dog,Walk & Travel","Dog Collars & Leashes"],
+      ["B00MW8G62E","Amazon Basics Leak-Proof Dog and Puppy Potty Training Pee Pads","$18.99",4.4,220845,"71LHksRF15L","Dog,Training","Dogs Top"],
+      ["B000F4AVPA","Chuckit! Ultra Ball Dog Toy, Durable Rubber, Medium 2.5-in, 2 Pa","$9.94",4.8,107965,"714HUsBpO+L","Dog,Toys",""],
+      ["B0787FVCBW","Outward Hound Fun Feeder Slo Bowl, Medium 2-Cup","$8.40",4.6,135739,"91+TpjpITVL","Dog,Feeding","Dog Feeding"],
+      ["B000OXAERM","MidWest 30-Inch Single Door iCrate, Medium Breeds","$49.99",4.7,112316,"9189CDrqp-L","Dog,Beds & Crates","Dog Crates"],
+      ["B085MH756K","GoTags Personalized Stainless Steel Pet ID Tags","$8.95",4.7,104872,"71lkF0Mil4L","Dog,Walk & Travel",""],
+      ["B003PMQMK2","Milk-Bone MaroSnacks Small Dog Treats with Real Bone Marrow, 40 oz","$11.47",4.8,83775,"81xXOlvM-RL","Dog,Treats",""],
+      ["B000I82DTU","Milk-Bone Original Medium Dog Biscuits, 10 lb Box","$14.97",4.8,82821,"81IfJLJtCDL","Dog,Treats","Dog Treats"],
+      ["B00B8CG602","Seresto 8-Month Flea & Tick Collar for Large Dogs","$59.92",4.5,114882,"71Z9LppzSnL","Dog,Health","Dog Flea & Tick"],
+      ["B000KAHPZ8","Greenies Teenie Original Natural Dental Dog Treats, 43 Count","$13.99",4.8,75433,"71Rcvz62kpL","Dog,Treats",""],
+      ["B00CPDWT2M","Benebone Wishbone Dog Chew Toy for Aggressive Chewers, Real Baco","$12.78",4.5,109992,"710TsaeUe+L","Dog,Toys","Dog Toys"],
+      ["B00CKFL93K","Rocco & Roxie Enzyme Stain & Odor Eliminator, 32 Fl Oz","$23.92",4.4,127868,"61ssqqP6-iL","Litter,Litter,Cat",""],
+      ["B0002AR0I8","KONG Classic Stuffable Dog Toy, Natural Rubber Chew, for Large D","$13.96",4.6,93374,"61CT7VZTqQL","Dog,Toys",""],
+      ["B003ULL1NQ","Nutramax Cosequin Joint Supplement for Dogs, Chewable Tablets","$34.91",4.7,79797,"71FSaprWLyL","Dog,Health","Dog Health"],
+      ["B07W85ZPL1","Casfuy 2-Speed Whisper-Quiet Pet Nail Grinder","$17.97",4.4,101217,"614jcZ0hSzL","Cat,Grooming",""],
+      ["B08WHZGYM9","IRIS USA Airtight Pet Food Storage Rolling Container, 30 lb","$23.99",4.5,84902,"61x791NN4LL","Dog,Feeding","Dog Feeding"],
+      ["B005DR5KGE","Multipet Lamb Chop Dog Plush Toy - Squeaky Toy","$3.99",4.5,81939,"61wNllZr+5L","Dog,Toys","Dog Toys"],
+      ["B07NHL31CC","Earth Rated Dog Wipes for Paws & Butt, Unscented, 100ct","$9.99",4.6,69675,"71-tH6hmzqL","Dog,Grooming","Dog Grooming"],
+      ["B075N83693","gonicc Professional Dog & Cat Nail Clippers & Trimmer","$13.95",4.5,79110,"51iiP1EhLZL","Dog,Grooming","Dog Grooming"],
+      ["B07BVL8TQF","Good 'n' Fun Kabobs Long-Lasting Dog Treat, 24 oz","$17.84",4.7,59695,"815X9Vp4lVL","Dog,Treats",""],
+      ["B0114BNXQ6","Milk-Bone Flavor Snacks Mini's Dog Treats, 36 oz","$11.48",4.8,49664,"81PZ1KH7+oL","Dog,Treats",""],
+      ["B00OLSARS2","Temptations MixUps Cat Treats, Catnip Fever, 16 oz","$7.72",4.8,49371,"81sKMg97A5L","Cat,Treats",""],
+      ["B00JN9IWNG","Purina Fancy Feast Gravy Lovers Wet Cat Food, 3 oz Cans, 30-Pack","$28.06",4.7,55296,"81LCRVRnNcL","Food,Food,Cat","All Pets Top"],
+      ["B08CK5Z5Q1","Joytale Reflective Padded Dog Collar","$7.99",4.6,62804,"81bQ7rGm5rL","Dog,Walk & Travel",""],
+      ["B08N6VLJKV","Muddy Mat Super Absorbent Microfiber Door Mat","$22.70",4.7,55018,"71vvnMCj5UL","Dog,Beds & Crates","Dog Beds"],
+      ["B00JZIDFKK","Nylabone Power Chew Original Bone Dog Chew Toys, Small, 3 Count","$9.69",4.5,72322,"818G9ebZSxL","Dog,Toys",""],
+      ["B0CXKNLKMX","Zesty Paws Salmon Oil for Dogs & Cats, Omega 3, 8.5 oz","$16.97",4.5,70250,"71pEM+r3SbL","Dog,Health",""],
+      ["B0FH8C8YNJ","Voyager Step-in Air Dog Vest Harness","$11.99",4.5,70082,"81KLFui0uHL","Dog,Walk & Travel","Dog Collars & Leashes"],
+      ["B007JXVR76","Meow Mix Original Choice Dry Cat Food, 6.3 lb","$8.99",4.7,51964,"81fR3aorQGL","Food,Food,Cat",""],
+      ["B0722XGRMB","Snuggle Puppy Heartbeat Toy, Calming Comfort, Medium Breeds - Bi","$39.95",4.5,66994,"71lIf1eDgmL","Dog,Toys",""],
+      ["B001650NNW","Purina Pro Plan FortiFlora Dog Probiotic Supplement","$30.99",4.7,49593,"71Ppwe2THcL","Dog,Health","Dog Health"],
+      ["B00025694O","Seachem Prime Water Conditioner, 500 ml","$16.62",4.8,43398,"71k+2wVR8RL","Aquatic,Habitat","Fish"],
+      ["B001STX13U","Purina Fancy Feast Grilled Seafood Wet Cat Food, 24-Pack","$22.86",4.7,47383,"8122nv6lJlL","Cat,Food",""],
+      ["B000TZ5BZK","MidWest 36-Inch Replacement Crate Pan","$32.99",4.6,53923,"51nPbW-jT9L","Dog,Beds & Crates",""],
+      ["B0002AR18C","KONG Puppy, Natural Rubber Teething Chew Toy, for Small Puppies,","$7.46",4.6,53307,"61Cp9rqfzhL","Dog,Toys",""],
+      ["B07JZ31KX9","Henkelion Cat & Small Dog Carrier","$23.48",4.6,53213,"813v3252ylL","Cat,Walk & Travel","Cat Carriers"],
+      ["B0B6GLQJMV","Ring Indoor Cam (newest model), 1080p","$49.99",4.7,45735,"51gHswF64tL","Dog,Cat,Tech","Pet Cameras"],
+      ["B0009X29WK","Dr. Elsey's Ultra Unscented Clumping Clay Cat Litter, 40 lb","$22.99",4.4,69965,"71gV7T7iW-L","Litter,Litter,Cat","All Pets Top"],
+      ["B072MNCJ8K","Hi Kiss 15 ft Long Training & Recall Lead","$9.97",4.5,59398,"71SqwCKYrPL","Dog,Walk & Travel",""],
+      ["B071WCV19B","Zesty Paws Dog Allergy Relief Chews, Lamb, 90 Ct","$32.97",4.2,100914,"61mzUSiik+L","Dog,Health",""],
+      ["B01BKYFR7K","IAMS Proactive Health Indoor Dry Cat Food, 7 lb","$16.97",4.8,39542,"71FIIsgfS-L","Cat,Food",""],
+      ["B0747RSKTG","Fresh Step Extreme Clump Multi Cat Clumping Cat Litter, 14 lb","$9.97",4.6,50728,"81+42bTXCxL","Litter,Litter,Cat",""],
+      ["B000255MZG","API Stress Coat Aquarium Water Conditioner, 16 oz","$10.98",4.8,38697,"616hJyGZ3RL","Aquatic,Habitat",""],
+      ["B07ZPPSR2L","Vceoa Soft Pet Carrier for Cats, 17.5 x 11 x 11 in","$19.99",4.8,38029,"612Kkc5U+nL","Cat,Walk & Travel","Cat Carriers"],
+      ["B0746MLFB7","Comtim Silicone Pet Food Can Lids","$4.88",4.8,37819,"51rjVpAahSL","Cat,Feeding",""],
+      ["B07584TRXX","Amazon Basics Foldable Octagonal Metal Exercise Pen","$39.09",4.5,55194,"81ZJuIEmTUL","Dog,Beds & Crates",""],
+      ["B006W6YHHI","Greenies Regular Dental Dog Treats, 36 Count","$33.12",4.8,36475,"819MWUOFSQL","Dog,Treats",""],
+      ["B008GRONV6","Greenies Pill Pockets Large Size Dog Treats, Peanut Butter, 7.9 oz","$8.54",4.8,35393,"718q0OyLJnL","Dog,Treats","Dog Treats"],
+      ["B000VDR8LA","Fresh Step Odor Shield Multi Cat Clumping Cat Litter, 14 lb","$9.54",4.6,45379,"81iLZ4cQoUL","Litter,Litter,Cat",""],
+      ["B003PRI6OC","Vet's Best Indoor Flea & Tick Home Spray, Plant-Based","$15.48",4.2,87921,"71g2Ssd9f8L","Dog,Health",""],
+      ["B00074L4RW","PetSafe Gentle Leader No-Pull Headcollar, Medium","$14.49",4.3,71019,"71bgnMwoOwL","Dog,Training","Dog Training"],
+      ["B005CUTWDE","Wahl Dry Skin & Itch Relief Oatmeal Dog Shampoo","$7.97",4.6,43740,"718HUwiCsYL","Dog,Grooming","Dog Grooming"],
+      ["B07CWHTQW8","Amazon Basics X-Large Heavy Duty Absorbent Puppy Potty Pads","$24.53",4.6,43547,"71Ndgb3yL5L","Dog,Training",""],
+      ["B07F45GGPT","MeoHui Interactive Retractable Cat Wand Toys, 2 pcs","$8.80",4.5,49711,"615Ccf+wziL","Cat,Toys","Cat Toys"],
+      ["B0727R5C5Q","Friskies Gravy Swirlers Dry Cat Food, 3.15 lb","$5.24",4.7,37725,"71L-vopG6RL","Cat,Food",""],
+      ["B003TLMJL0","Loving Pets Bella Stainless Steel Dog & Cat Bowl","$5.69",4.7,37712,"51bkqXtj0nL","Dog,Feeding",""],
+      ["B00I0BWNUG","K9 Advantix II Flea, Tick & Mosquito Treatment, XL Dogs","$35.62",4.5,49395,"71fcIohlrmL","Dog,Health",""],
+      ["B0002H3RBU","Miracle Care Kwik Stop Styptic Powder","$8.49",4.7,37530,"71TOZZBFJlL","Cat,Grooming",""],
+      ["B006HKA6II","Milk-Bone Soft & Chewy Dog Treats, 25 oz Canister","$14.47",4.7,35039,"81sOoiUSUfL","Dog,Treats",""],
+      ["B0002J1FOE","FRONTLINE Plus Flea & Tick Spot Treatment, Large Dogs","$40.98",4.4,50712,"71cWyt6fBNL","Dog,Health",""],
+      ["B00008DFGY","FRONTLINE Plus Flea & Tick Spot Treatment, Small Dogs","$40.98",4.4,49756,"71Zhun4CMyL","Dog,Health",""],
+      ["B00VC8DQX2","SleekEZ Deshedding Dog Brush","$19.97",4.6,36591,"51EZk3LTzfL","Dog,Grooming",""],
+      ["B089RGDQBB","Bedsure Orthopedic Dog Bed, Large, Washable","$46.99",4.6,35892,"81LrJEODtrL","Dog,Beds & Crates",""],
+      ["B07FDHB4NC","IRIS USA 4-Panel Dog Playpen, White","$49.59",4.4,47744,"714BLGksdZL","Dog,Beds & Crates",""],
+      ["B09BBL8T4Z","Best Pet Supplies Interactive Squeaky Dog Toy - Crinkle Duck, Bl","$5.99",4.3,55327,"61AbA6dtYJL","Dog,Toys","Dog Toys"],
+      ["B003CL3PTM","Hill's Science Diet Adult Small & Mini Dry Dog Food","$23.99",4.8,26347,"811D-qkHlyL","Dog,Food",""],
+      ["B09D7DWTVB","KSIIA Washable Medium Dog Crate Bed, Plush Pet Mat","$19.99",4.6,33741,"71cgXdW0WqL","Dog,Beds & Crates",""],
+      ["B00HN089EO","Friskies Seafood Sensations Dry Cat Food, 22 lb","$19.36",4.7,29547,"81M3IVlQKSL","Cat,Food",""],
+      ["B08574XLL8","Joytale Reflective Dog Leash, 6 FT x 1 in","$7.99",4.7,29228,"81vBpDXuYbL","Dog,Walk & Travel",""],
+      ["B0718YFR4K","DreamBone Twist Sticks Rawhide-Free Dog Treats, 50 Count","$10.49",4.6,33288,"81bK2xQrL2S","Dog,Treats",""],
+      ["B00ZJ5BJ74","Vetnique Glandex Anal Gland Chews for Dogs, 60 ct","$32.99",4.5,38113,"71rQuARIlEL","Dog,Health",""],
+      ["B01N8TH7JY","Hoki Found Waterproof Pet Feeding Mat with High Lips","$12.99",4.6,32853,"51Bczd0itzL","Dog,Feeding","Dog Feeding"],
+      ["B0006JM09E","Tetra Whisper Bio-Bag Filter Cartridges, Medium, 3 pk","$6.47",4.7,28246,"61DhQ+uwXDL","Aquatic,Habitat",""],
+      ["B00WWP1U7I","PetArmor Plus Flea & Tick Topical, Dogs 5-22 lbs, 3-Month","$25.89",4.2,62704,"81meqw+pOUL","Dog,Health","Dog Flea & Tick"],
+      ["B099WM7ZT7","Taglory Rope Dog Leash, 6 FT Padded Handle","$8.99",4.7,27344,"81D0hkOSpHL","Dog,Walk & Travel","Dog Collars & Leashes"],
+      ["B004LO9KSY","API Tap Water Conditioner, 16 oz","$8.48",4.7,26942,"51VRitTWE4L","Aquatic,Habitat",""],
+      ["B000E69VDC","PetSafe Easy Walk No-Pull Dog Harness, Medium/Large","$15.19",4.3,49292,"61QxLrtzzbL","Dog,Walk & Travel",""],
+      ["B08XNWX31S","Hartz Delectables Squeeze Up Lickable Cat Treats, Variety","$9.43",4.8,23531,"81YIIpkN5UL","Cat,Treats",""],
+      ["B000R9WRIC","Tetra Goldfish Flakes Fish Food, 7.06 oz","$9.97",4.7,26407,"71baMZMhY6L","Aquatic,Food","Fish"],
+      ["B081S7C5DN","GORILLA GRIP Waterproof Silicone Dog Food Mat","$9.99",4.6,29814,"61GacIxBRmL","Dog,Feeding",""],
+      ["B00CU2CMOI","Pedigree Dentastix Large Breed Dental Dog Treats, Variety, 51 Count","$23.98",4.8,22289,"81jnJugwU3L","Dog,Treats",""],
+      ["B075QK5SP2","Sheba Perfect Portions Pate Wet Cat Food, Seafood, 24-Pack","$25.96",4.7,24900,"91PzPsTSQmL","Cat,Food",""],
+      ["B098P6164W","Aumuca Cat Brush for Shedding, Indoor Cats","$14.99",4.4,38255,"71qfz1I1S+L","Cat,Grooming","Cat Grooming"],
+      ["B08294GHXY","Pedigree Choice Cuts Wet Dog Food Pouch, Variety, 3.5 oz","$25.97",4.7,24363,"71g0u5lrsrL","Dog,Food",""],
+      ["B08NCDBT7Q","Veken 95oz Cat & Dog Water Fountain","$19.99",4.3,43823,"610vx-FyZUL","Dog,Feeding",""],
+      ["B0BWT76RD1","OLANLY Dog Door Mat for Muddy Paws, 48x30, Chenille","$19.99",4.6,26854,"91eWCrVpiSL","Dog,Beds & Crates",""],
+      ["B08CXGYW1Q","Bedsure Calming Donut Dog Bed, Medium, Washable","$42.49",4.6,26802,"919aLkynw5L","Dog,Beds & Crates",""],
+      ["B007R1BN6U","Pupstages Dogwood Stick Dog Chew Toy, Made in USA, Small, 5.4\"","$3.99",4.5,30796,"81MaNdSfWhL","Dog,Toys",""],
+      ["B0056EAKUA","Epi-Otic Advanced Ear Cleanser for Dogs and Cats","$13.59",4.7,23247,"51MOfjgj4XL","Cat,Health","Cat Health"],
+      ["B07GVCFQV6","PHOEPET No Pull Reflective Front Clip Dog Harness, Medium","$15.83",4.5,29920,"61sRVUfvoEL","Dog,Walk & Travel",""],
+      ["B00025K0TY","TetraMin Tropical Flakes Fish Food, 7.06 oz","$13.97",4.8,20182,"61P-2j7ShGL","Aquatic,Food","Fish"],
+      ["B08GHX9G5L","Kasa 1080p Indoor Pan/Tilt Camera, Pet Monitor","$20.98",4.4,34132,"51oao7xTT8L","Dog,Cat,Tech",""],
+      ["B07F6FTTM7","Dog Training Clicker with Wrist Strap","$4.99",4.3,40677,"71iSurE7U5L","Dog,Training",""],
+      ["B08CWY3TLW","Oxyfresh Pet Dental Water Additive","$18.95",4.3,40466,"61Ugh5bSNsL","Cat,Health",""],
+      ["B004KDRGD2","ADAMS Plus Flea & Tick Shampoo with Precor, 12 oz","$14.98",4.4,33674,"71MNwLQJnKL","Dog,Health",""],
+      ["B01EY9KQ2Y","Purina Pro Plan Sensitive Skin & Stomach Dry Dog Food, Salmon","$77.48",4.6,24752,"81v4zW-9XRL","Dog,Food",""],
+      ["B072DTFZHL","Sheba Perfect Portions Cuts Wet Cat Food, 24-Pack","$25.96",4.7,21052,"81wMxPo0TlL","Cat,Food",""],
+      ["B09K9FDLFN","Blue Buffalo Life Protection Small Breed Dry Dog Food","$14.97",4.7,20325,"81nH5-m0yPL","Dog,Food",""],
+      ["B001650OE0","Purina Pro Plan FortiFlora Cat Probiotic Supplement","$30.99",4.7,20318,"71qtZPpwBZL","Cat,Health","Cat Health"],
+      ["B003MGAIDI","Hill's Science Diet Sensitive Stomach & Skin Dry Dog Food","$89.99",4.7,20141,"81dCzA6NXxL","Dog,Food",""],
+      ["B08R74XVCS","Ameritex Waterproof Dog Blanket Cover for Bed, Couch, Sofa","$7.19",4.3,36492,"610abeGarmS","Dog,Beds & Crates",""],
+      ["B0037Z6VJY","Veterinary Formula Clinical Care Antiseptic & Antifungal Shampoo","$9.92",4.6,22446,"61hwF6-4c9L","Dog,Grooming",""],
+      ["B007R6G8JW","Kaytee Clean & Cozy Paper Bedding for Small Animals, 49.2 L","$14.95",4.7,19549,"71F6PPAIr4L","Small Pets,Beds & Crates","Small Animals"],
+      ["B0017JAPMQ","Tetra Pro PlecoWafers Algae-Eater Fish Food","$8.91",4.6,21841,"61sbfDzZgIL","Aquatic,Food",""],
+      ["B0866S3D82","Tapo 1080P Indoor Security Camera / Dog Camera","$17.98",4.4,28787,"719LWqwDgVL","Dog,Cat,Tech","Pet Cameras"],
+      ["B00JMABYUO","Fluval Plant and Shrimp Stratum Substrate","$29.03",4.7,18284,"61xuz5C1O9L","Aquatic,Habitat",""],
+      ["B004TS2A9S","Kaytee Timothy Biscuits Bunny Treats","$3.79",4.7,18088,"81QK7jnvsBL","Small Pets,Treats",""],
+      ["B07GL8SLKY","ARM & HAMMER Slide Platinum Clumping Cat Litter, 37 lb","",4.6,19929,"71LgQ0AKirL","Cat,Litter","Cat Litter"],
+      ["B0BDLGZCTY","EHEYCIGA Orthopedic Extra Large Dog Bed, Waterproof Washable","$46.99",4.5,22897,"61E5+Tg-R9L","Dog,Beds & Crates","Dog Beds"],
+      ["B0002DI16A","Tetra ReptoMin Floating Food Sticks for Aquatic Turtles","$7.99",4.8,15395,"91QnQmYhBDL","Reptile,Food","Reptiles"],
+      ["B077SQYX8M","PAWFUME Long-Lasting Dog Perfume Spray","$12.94",4.6,19747,"81mgRCZ5j6L","Dog,Grooming",""],
+      ["B0050JM626","Nutramax Proviable Probiotics for Dogs & Cats, 30ct","$19.97",4.6,19666,"71OjIj5BC2L","Dog,Health","Dog Health"],
+      ["B072PCLQDK","FELIWAY MultiCat Calming Diffuser Refill, 3 Pack","$56.99",4.4,26484,"81zEyKz3riL","Cat,Health",""],
+      ["B089LLHMQL","ARM & HAMMER Slide Platinum Easy Clean-Up Clumping Litter","$17.99",4.6,19490,"81QlFjLZ+9L","Cat,Litter",""],
+      ["B076BXK2NT","Catify Spin n' Scratch Round Scratch Pad Refills, 5-Pack","$16.99",4.8,14589,"71f2lYHGGPL","Cat,Beds & Crates",""],
+      ["B07YKRPYJH","Tempcore Cat Tunnel Tube for Indoor Cats","$9.49",4.6,18681,"61FN+6TrJWL","Cat,Toys",""],
+      ["B09N6YCT3Y","Blink Mini Pan-Tilt Camera (newest model)","$39.99",4.5,21119,"41aicdAQHVL","Dog,Cat,Tech",""],
+      ["B08XY6CFFW","Blue Buffalo Bits Beef Training Treats, 19 oz","$14.98",4.8,14188,"81U2E6K0nxL","Dog,Treats",""],
+      ["B08C6Z5QX3","Wild Harvest Daily Blend Bird Food for Parakeet, Canary & Finch","$10.61",4.7,15943,"91g3Zg2zuwL","Bird,Food","Birds"],
+      ["B004BFE4EI","Aqueon Aquarium Algae Scraper Magnet, Small","$7.94",4.6,17739,"81IsiYJ2TWL","Aquatic,Habitat",""],
+      ["B0066VLPGA","Zymox Otic Plus Enzymatic Ear Solution for Dogs & Cats","$33.49",4.7,15553,"512WnsXPqIL","Cat,Health",""],
+      ["B00HQ7QYBE","Fluker's Buffet Blend Aquatic Turtle Food","$7.59",4.6,17654,"71uIwmS5R+L","Reptile,Food","Reptiles"],
+      ["B00025K0XA","Tetra Pond Koi Vibrance Floating Sticks","$27.97",4.8,13713,"813UOIUXAdL","Aquatic,Food",""],
+      ["B08S7QQXCX","Purina Beneful Small Breed Wet Dog Food Variety Pack, 30 x 3 oz","$27.84",4.7,15255,"91M-JyI-8sL","Dog,Food",""],
+      ["B00RZDXA7K","C.E.T. Enzymatic Toothpaste for Dogs and Cats, Poultry, 2.5oz","$12.29",4.6,17360,"71R3bVdhaEL","Dog,Health",""],
+      ["B0B52D7BBD","INABA Churu Cat Treats, Lickable Creamy Puree","$12.79",4.8,13286,"71Mj4ao68fL","Treats,Treats,Cat","All Pets Top"],
+      ["B006AYMMRY","Oxbow Western Timothy Hay for Rabbits & Guinea Pigs","$21.68",4.6,16913,"81gBC-xRyQL","Small Pets,Food",""],
+      ["B07PWB9J43","Capstar Oral Flea Tablets, Dogs 25+ lbs, 6-Dose","$42.97",4.2,32872,"71z6bANRAnL","Dog,Health","Dog Flea & Tick"],
+      ["B0037Z6VKS","Veterinary Formula Flea and Tick Shampoo, 16 oz","$9.92",4.4,22188,"61HgiPsZ1fL","Dog,Grooming",""],
+      ["B013GLAE4Q","Kaytee Forti-Diet Pro Health Parakeet Food, 2 lb","$5.95",4.7,14025,"81doTEVJJPL","Bird,Food",""],
+      ["B009IOCCD2","Purina ONE Lamb and Rice Formula Dry Dog Food","$48.98",4.6,15793,"81xFEOR9B1L","Dog,Food","Dog Food"],
+      ["B09DJ6CD2B","Benebone Medium 4-Pack Dog Toys for Aggressive Chewers – Under 6","$34.95",4.6,15718,"81ODEubQFXL","Dog,Toys",""],
+      ["B08QV42S5F","ShawnCo Essential No-Pull Dog Harness Vest","$27.95",4.4,21225,"71V1qlW0SaL","Dog,Walk & Travel",""],
+      ["B00JN9H50M","ADAMS Flea & Tick Home Spray, 24 oz","$14.46",4.4,20851,"714oL65mXWL","Dog,Health",""],
+      ["B00NFT3PVO","Wild Harvest Universal Blend Small Bird Food, 3 lb","$3.94",4.5,17757,"817CK5y6pyL","Bird,Food",""],
+      ["B003SLLF48","Oxbow Essentials Adult Rabbit Food, Timothy Hay Pellets","$12.40",4.8,11908,"81ohQeFdtnL","Small Pets,Food","Small Animals"],
+      ["B0186R3OUG","Purina Dentalife Daily Dental Chews for Large Dogs, 18 ct","$7.94",4.7,13316,"81FxURioCoL","Dog,Treats",""],
+      ["B07P5PTZWT","Outward Hound Squeaker Ballz Tennis Ball Dog Toy, Medium, 2.5\",","$6.35",4.1,37505,"81ujSWtZrAL","Dog,Toys",""],
+      ["B079RR6CC3","Kaytee Timothy Hay for Rabbits & Guinea Pigs, 12 lb","$33.56",4.6,14346,"81mg8O3cprL","Small Pets,Food",""],
+      ["B01AHM6P18","Fashion's Talk Cat Toys Variety Pack, 20 Pieces","$9.99",4.6,13968,"71YnqjUr2OL","Cat,Toys",""],
+      ["B0CLLPVZRV","Swihauk Self-Cleaning Slicker Deshedding Brush","$16.99",4.6,13958,"61B-7qGE7eL","Dog,Cat,Grooming",""],
+      ["B0006L2OKW","Hartz DuraPlay Bacon Scented Dog Toys, Small (Assorted Color)","$4.42",4.6,13952,"71R0Q80v9bL","Dog,Toys",""],
+      ["B07T9Y7LQ4","AQUANEAT Full Spectrum LED Aquarium Light, 18-24 in","$14.88",4.4,18796,"61UcsXNJKkL","Aquatic,Habitat",""],
+      ["B09G4ZJM3D","Amazon Basics Portable Metal Wire Dog Crate, Large, Double Door","$83.87",4.7,12130,"71OB5aDYf6L","Dog,Beds & Crates","Dog Crates"],
+      ["B0B432YY5Z","gogobunny Waterproof Reversible Couch Cover Blanket for Dogs","$7.98",4.4,18346,"91PjbVBesRL","Dog,Beds & Crates","Dog Beds"],
+      ["B07K6JSBRB","Pet Honesty Chlorhexidine Itchy Skin Relief Dog Shampoo","$22.99",4.6,13524,"71jmrSvCWHL","Dog,Grooming",""],
+      ["B09WHBG4DV","Potaroma Catnip Cat Toy Pillows, 3 Pack","$9.98",4.6,13499,"71Ay6ojN2mL","Cat,Toys",""],
+      ["B0B2NKLVCS","FUKUMARU L-Shaped Cat Scratch Pad, 26.8 Inch","$24.79",4.4,18139,"710Pbd4i8fL","Cat,Beds & Crates",""],
+      ["B00COWGFUG","Oxbow Essentials Adult Guinea Pig Food, Timothy Hay Pellets","$12.40",4.8,10246,"81ARlKQbgcL","Small Pets,Food",""],
+      ["B08Y5RYPTS","Fida Durable Slip Lead Dog Training Leash, 6 FT","$12.59",4.5,14987,"81TRzWgO1mL","Dog,Training","Dog Training"],
+      ["B07FJQYVZ6","C.E.T. Veggiedent Fr3sh Tartar Control Chews for Dogs","$33.99",4.6,12619,"71tmrlfmAeL","Dog,Health",""],
+      ["B079FHJMMG","Diamond Naturals Skin & Coat Dry Dog Food","$43.99",4.6,12172,"713yBH95BLL","Dog,Food",""],
+      ["B0B6N6S2BD","AMOSIJOY Cordless Cat Window Perch with Cushion","$20.39",4.5,13961,"7185tPJUMmL","Cat,Beds & Crates","Cat Beds & Furniture"],
+      ["B000PKWKMQ","Chuckit! Dog Ball Launcher 12M Sport, Plastic, Great for Kids","$10.99",4.5,13899,"71VeMle0XOL","Dog,Toys",""],
+      ["B07G3GVBV7","Amazon Basics Cat Scratching Post, Medium","$19.94",4.4,16054,"51Db+BT9n9L","Cat,Beds & Crates",""],
+      ["B0B7J16VGK","PETLIBRO Dockstream Fountain Replacement Filters","$19.99",4.3,18804,"71IuyaxlVBL","Cat,Feeding","Cat Feeding"],
+      ["B083MN4LGT","Minties Mint Dental Chews for Dogs, Medium Breeds, 40 Ct","$16.94",4.6,11504,"71qkcRFZq3L","Dog,Treats",""],
+      ["B003P9XG68","Blue Buffalo Health Bars Pumpkin & Cinnamon Dog Biscuits, 16 oz","$4.98",4.7,9858,"814imhI+jML","Dog,Treats","Dog Treats"],
+      ["B0009YJ3QE","Pupstages Cool Teething Stick Dental Dog Chew Toy, Soak & Freeze","$4.99",4.3,17955,"71wbQQ4hxlL","Dog,Toys",""],
+      ["B08RY2YRFG","DR CATCH Dog Puzzle Food Toy for IQ Training","$8.99",4.3,16902,"71e4HQ06H4L","Dog,Feeding",""],
+      ["B09RPL4Z4J","Pedigree Adult Complete Nutrition Dry Dog Food, Steak & Vegetable","$16.98",4.7,9116,"812iomJqbPL","Dog,Food",""],
+      ["B00DW79Y4G","Kaytee Wafer-Cut Timothy Hay for Rabbits & Guinea Pigs, 60 oz","$13.95",4.6,10340,"81jhOKVIF8L","Small Pets,Food",""],
+      ["B09V9VSY53","FELIWAY Optimum Cat Calming Diffuser Refill, 3 Pack","$62.99",4.4,13849,"81n8xV-gfcL","Cat,Health",""],
+      ["B09NF8QLSY","Temptations Creamy Puree Cat Treats, 24-Pack","$11.78",4.8,7631,"81peKsURlaL","Cat,Treats",""],
+      ["B00BAQYNZQ","Kaytee Fiesta Rabbit Food","$9.95",4.7,8600,"81aGVH8LjGL","Small Pets,Food",""],
+      ["B013NUFA62","ProDen PlaqueOff Powder Tartar & Plaque Remover","$24.99",4.2,19243,"713Yj7Dj2sL","Cat,Health",""],
+      ["B0CG2VS5FD","Ring Pan-Tilt Indoor Cam (newest model)","$59.99",4.7,8325,"51OEg8NFjbL","Dog,Cat,Tech","Pet Cameras"],
+      ["B0947674MT","Douxo S3 PYO Medicated Chlorhexidine Dog Shampoo","$25.99",4.7,8299,"61MjxCuo+JL","Dog,Grooming",""],
+      ["B09MJ131L5","GAPZER Soft-Sided Carrier for Large Cats up to 20 lbs","$29.99",4.5,10821,"81XUjPV9YqL","Cat,Walk & Travel",""],
+      ["B092LJQFM1","Catstages Crunchy Pickle Kicker Catnip Chew Toy","$4.24",4.6,9359,"71DQ7TfBFsL","Cat,Toys",""],
+      ["B06XCXJ5D8","Nylabone New Puppy Starter Kit, Puppy Teething Toys, 3 Pack, Blu","$9.97",4.3,15003,"81jm2Lqja6L","Dog,Toys",""],
+      ["B0FJMF2T4J","Stainless Steel Cat Water Fountain, 74 oz","$21.99",4.4,12446,"71kO-VCwdlL","Cat,Feeding","Cat Feeding"],
+      ["B0BWBNT8JX","Vital Essentials Freeze Dried Beef Liver Dog Treats, 2.1 oz","$14.90",4.6,8719,"81wH90GjR1L","Dog,Treats",""],
+      ["B0002DH3EG","Living World Millet Spray Bird Treat, 3.5 oz","$3.98",4.6,8456,"81xL-Xw2QvL","Bird,Treats","Birds"],
+      ["B001FKACXO","Oxbow Critical Care Herbivore Recovery Food, Apple Banana","$10.19",4.8,6549,"81XWrcpmgjL","Small Pets,Food",""],
+      ["B0BDLND6ZB","EHEYCIGA 4-Step Dog Stairs for High Beds, 18 in","$32.29",4.4,11252,"81b3SIPnr6L","Dog,Beds & Crates",""],
+      ["B0C85GCLLN","Yumflan Fine Tooth Stainless Steel Flea Comb","$3.99",4.6,7908,"61cML2cb8ZL","Dog,Health",""],
+      ["B0C72S38F3","Whisper Quiet Pet Nail Grinder for Dogs & Cats","$22.49",4.4,10422,"71nrSbudc8L","Cat,Grooming","Cat Grooming"],
+      ["B0G8475551","POOPH Pet Odor Eliminator Spray, 32 fl oz","$21.97",4.5,8853,"61sQDYNnl2L","Dog,Grooming",""],
+      ["B0B591N61M","Washable Dog Crate Pad, 36-Inch Cozy Mat","$16.99",4.4,10183,"71F4MYh9vJL","Dog,Beds & Crates",""],
+      ["B013GLHYC6","Kaytee Forti-Diet Pro Health Conure & Lovebird Food","$12.95",4.6,7240,"81eWZI3TuhL","Bird,Food",""],
+      ["B0B9QSQP5Q","Cat Hairball Remedy Crunchy & Creamy Treats","$15.99",4.6,7155,"71lHvrT244L","Cat,Health","Cat Health"],
+      ["B01NC2P7BM","Tetra Whisper IQ 130 GPH Aquarium Power Filter","$23.17",4.2,14092,"61R5vWSzEfL","Aquatic,Habitat",""],
+      ["B098C8X914","GORILLA GRIP Stainless Steel Dog & Cat Bowls, Set of 2","$13.98",4.5,8123,"51JoG31dw+L","Cat,Feeding",""],
+      ["B0002DK8N4","Kaytee Alfalfa Cubes for Rabbits and Guinea Pigs, 15 oz","$2.99",4.5,7915,"81fi9g2dJuL","Small Pets,Food",""],
+      ["B086DRDHKC","OneCut Cat & Kitten Claw Nail Clippers","$4.99",4.7,6006,"61AyJs2gIGL","Cat,Grooming",""],
+      ["B001F95SV6","ZuPreem FruitBlend Parrot & Conure Food, M/L","$24.29",4.7,5891,"81OiLtPpewL","Bird,Food",""],
+      ["B09479CVXY","Douxo S3 PYO Chlorhexidine Wipes for Dogs and Cats, 30 ct","$19.94",4.6,6694,"61lNcxYHApL","Cat,Health",""],
+      ["B0D1N9PXD8","Dipoo Self-Cleaning Shedding Brush","$9.99",4.5,7692,"61evfwQ1BUL","Cat,Grooming",""],
+      ["B01LTI1WOE","Oxbow Small Animal Bedding for Hamsters, Guinea Pigs, Rabbits","$17.99",4.6,6361,"51yuFvu5viL","Small Pets,Beds & Crates",""],
+      ["B00HZDXQJM","Fluker's Freeze Dried River Shrimp","$5.79",4.6,6315,"51SvBHKsBjL","Reptile",""],
+      ["B0C3HYJCWB","FXW Rollick Dog Playpen, 24 in H, 8 Panels","$69.99",4.6,6292,"81QHr15inLL","Dog,Beds & Crates","Dog Crates"],
+      ["B0BTYQZP78","Soft-Sided Pet Carrier for Large Cats & Small Dogs","$19.98",4.7,5520,"81R6e-HWs2L","Cat,Walk & Travel","Cat Carriers"],
+      ["B01H4Y4V5O","Tetra ReptoMin Pro Sticks for Adult Aquatic Turtles","$16.99",4.8,4891,"710ysESUEzL","Reptile,Food",""],
+      ["B07Z2L8T27","FixZilla Anti-Scratch Furniture Protector, 10-Pack","$19.99",4.4,8437,"81Io4FQNX-L","Cat,Beds & Crates",""],
+      ["B0791LY9MW","PAWFUME Deshedding Dog Shampoo and Conditioner","$10.21",4.5,7139,"81ltNED+j7L","Dog,Grooming",""],
+      ["B000O3BI90","RoudyBush Daily Maintenance Bird Food","$18.95",4.7,5164,"71eQBODNwUL","Bird,Food",""],
+      ["B0CGJH5X4S","Purina Tidy Cats Clumping Litter, Glade Clear Springs, 38 lb","$25.99",4.6,5817,"71NMii7wZFL","Cat,Litter",""],
+      ["B08QSG8L85","Natural Farm Bully Sticks, Odor-Free, 6 Inch, 12 oz","$41.99",4.4,7616,"81ZV01-EylL","Dog,Treats",""],
+      ["B071J1BFTX","Cesar Classic Loaf in Sauce Wet Dog Food, Meaty Selects, 3.5 oz","$35.94",4.7,4946,"815umyp16mL","Dog,Food",""],
+      ["B09D2XLCNK","EHEYCIGA Orthopedic Large Dog Bed with Removable Cover","$29.99",4.4,7547,"71EQGRaIv-L","Dog,Beds & Crates",""],
+      ["B0D6W8B4FM","TBTeek Rechargeable Cat Laser Toy, 3 Light Modes","$9.78",4.6,5439,"61PegWwFglL","Cat,Toys","Cat Toys"],
+      ["B0DXK6R6Y6","FDW 48 in Foldable Metal Dog Crate for XL Dogs","$60.42",4.4,7070,"81NRteLrfTL","Dog,Beds & Crates",""],
+      ["B0C3NKNYLD","Daily Cat Multivitamin Crunchy Creamy Chews","$15.99",4.6,5227,"71B0nyzI0fL","Cat,Health",""],
+      ["B0C1HG6XC8","Wuffes Advanced Hip & Joint Chews for Small & Medium Dogs","$38.95",4.4,6920,"71Pki8wrtuL","Dog,Health",""],
+      ["B0D1LK2G5C","Cat's Pride Antibacterial Scented Litter, 12 lb","$9.48",4.5,5808,"71GvVEVP+fL","Cat,Litter","Cat Litter"],
+      ["B0054RV486","ZuPreem FruitBlend Cockatiel & Conure Food","$16.64",4.7,4384,"81xfsnygMeL","Bird,Food","Birds"],
+      ["B0BLKN98V6","Aodisman 3-Step Pet Stairs for Small Dogs and Cats","$33.99",4.5,5580,"71Sk-DM-PBL","Cat,Beds & Crates",""],
+      ["B08KS4NCRF","Ultra Fresh Turtle Nutri Sticks with Calcium & Vitamins","$9.09",4.6,4695,"718C9vkVp0L","Reptile,Food",""],
+      ["B091D3DTWS","Tetra Water Cleaner Gravel Siphon","$10.29",4.5,5324,"71POJ-eqDWL","Aquatic,Habitat",""],
+      ["B0CGJG25PV","Purina Tidy Cats Free & Clean Unscented Clumping Litter","$25.99",4.5,5239,"71hvbdXYkbL","Cat,Litter",""],
+      ["B097W651NJ","FELIWAY Optimum Cat Calming Diffuser Starter Kit","$29.99",3.9,20462,"71j6M4KW9xL","Cat,Health",""],
+      ["B0CLYSVSD3","SIDAZON Cardboard Cat Scratch Pad","$9.99",4.5,5129,"81rJ2USkjeL","Cat,Beds & Crates",""],
+      ["B07RP5CCSM","Explore Land Dog Crate Cover, 48 inches","$38.99",4.5,5008,"71JS5WuW8BL","Dog,Beds & Crates",""],
+      ["B09MK9GJFS","Natural Bunny Chew Toys for Teeth, 20 pcs","$8.99",4.5,4806,"81UtwO9FU-L","Small Pets,Treats",""],
+      ["B0CRV41Q3Y","XIAZ Elevated Dog Bowls Stand for Large Breeds","$19.99",4.4,5429,"71rkBAgOnLL","Dog,Feeding",""],
+      ["B0CH45HPZT","Tapo 2K+ Indoor/Outdoor Wired Camera","$35.99",4.4,5390,"61Ny8BDEkoL","Dog,Cat,Tech",""],
+      ["B0CZ3YD1V6","Potaroma Refillable Catnip Chew Ropes, 3 pcs","$7.49",4.3,6421,"71-Zlt9EfCL","Cat,Toys",""],
+      ["B084YZWS2C","YUNIQUE Cat Tree with Condo and Hammock, Grey","$39.99",4.2,7842,"81TkmI4iwRL","Cat,Beds & Crates",""],
+      ["B00TT6VJJW","Oxbow Simple Rewards Guinea Pig & Rabbit Treats, Apple Banana","$3.48",4.8,3082,"81RR+ZCI58L","Small Pets,Treats","Small Animals"],
+      ["B0D2FR7XRM","Purina Tidy Cats 24/7 Performance Clumping Litter, 16 lb","$12.50",4.5,4369,"71ryC+Z8P-L","Cat,Litter",""],
+      ["B0CPDDQ47W","TIMHAKA Corrugated Cat Scratching Board","$9.99",4.4,5096,"71eiGay-cqL","Cat,Beds & Crates","Cat Beds & Furniture"],
+      ["B0CGCS344P","Supet Inflatable Recovery Cone Collar for Dogs & Cats","$18.98",4.1,8858,"61a6+jNKU5L","Cat,Health",""],
+      ["B0BPBW45RL","EHEYCIGA Fluffy Extra Large Dog Crate Bed Pillow","$24.99",4.4,4794,"71jKksm5v2L","Dog,Beds & Crates",""],
+      ["B0CQQF67P1","heouvo Magnetic Dog Treat Pouch with Training Clicker","$9.99",4.5,4083,"61d4X2LfDhL","Dog,Training","Dog Training"],
+      ["B0C15QKM3X","WOOF Pupsicle Interactive Dog Ball Toy for Dogs 25-75 lbs - Gree","$19.99",4.1,8681,"71wyN1k7SeL","Dog,Toys",""],
+      ["B0DXM9Y8J1","Ring Indoor Cam 2K (newest model)","$59.99",4.6,3431,"51WG7mi3h-L","Dog,Cat,Tech",""],
+      ["B0BMDXQ4FF","Blue Buffalo Homestyle Recipe Wet Dog Food Variety Pack, 12.5 oz","$17.58",4.6,3358,"81HwL8z2B-L","Dog,Food",""],
+      ["B0DX67VRDW","rabbitgoo Small Dog Step-in Harness and Leash Set","$14.97",4.6,3322,"61Z-5iI+EfL","Dog,Walk & Travel",""],
+      ["B0D4VDDQV3","EHEYCIGA Cardboard Cat Scratcher, 26.8 Inch","$23.99",4.5,3739,"81+-Vfdjn2L","Cat,Beds & Crates","Cat Beds & Furniture"],
+      ["B0FNWLJWKG","Extra Thick Silicone Pet Feeding Mat, 19 x 12 in","$16.97",4.7,2694,"61eKJe3IK5L","Cat,Feeding",""],
+      ["B0FPFZ7XFJ","Veken Stainless Steel Cat Water Fountain","$29.99",4.3,4659,"7184tpvcf9L","Cat,Feeding","Cat Feeding"],
+      ["B0CL4L8M1V","Sphagnum Moss Terrarium Substrate for Reptiles","$6.99",4.5,3333,"81ZKLEdwUbL","Reptile,Habitat",""],
+      ["B0C15N2QB5","WOOF Pupsicle Peanut Butter & Beef Refill Pops Dog Treats, 7 Count","$14.99",4.5,3146,"71y5MeXuBbL","Dog,Treats",""],
+      ["B0BW4795VW","FXW Homeplus Indoor Dog Playpen, 24 in H, 6 Panels","$59.99",4.6,2580,"71q-OVy2uRL","Dog,Beds & Crates",""],
+      ["B096JWWQMC","LUCKY HERP 150W Ceramic Heat Emitter","$15.99",4.6,2556,"715tvmAtjSL","Reptile,Habitat",""],
+      ["B0F6V7XX3R","4-in-1 Dog & Cat Grooming Scissors Kit","$9.97",4.6,2456,"71Hcj2xqSjL","Cat,Grooming",""],
+      ["B07DGYXWX1","World's Best Cat Litter, Multiple Cat, Unscented","$19.15",4.3,3920,"71i+FhHjmZL","Cat,Litter",""],
+      ["B0DF7H6SGZ","ANDOLL HOME 4L Automatic Cat Feeder with Voice Recorder","$29.99",4.5,2731,"61jan--2yZL","Cat,Feeding",""],
+      ["B0D2RG3LXR","AAwipes 8-in-1 Aquarium Water Test Kit","$9.96",4.3,3508,"817f3oQ9VYL","Aquatic,Grooming",""],
+      ["B07DK2BQGF","Boxie Probiotic Clumping Clay Cat Litter","$23.99",4.1,5212,"717lrmpiFJL","Cat,Litter","Cat Litter"],
+      ["B0FDL1YDF1","Cat Spring Toys, 12 pcs","$5.39",4.7,1748,"71GfG-xNSjL","Cat,Toys",""],
+      ["B0DQ8FDJXG","LEHNI Collapsible Soft-Sided Pet Travel Carrier","$19.99",4.5,2059,"91My68A4gYL","Cat,Walk & Travel",""],
+      ["B08XYSWBBB","Natural Driftwood Aquarium Decor","$21.99",4.3,2863,"819GfnI4sLL","Aquatic,Habitat",""],
+      ["B0BWJF7GMV","Coconut Fiber Reptile Substrate, 2 Pack","$13.99",4.6,1743,"81JzgFhRL2L","Reptile,Habitat",""],
+      ["B0FJ2NPL47","Reusable Pet Hair Removal Glove for Dogs & Cats","$14.43",4,5686,"91dsB1nDR+L","Cat,Grooming",""],
+      ["B0F9FD3115","Zakkart SnugCloud Foldable Cat Window Perch","$22.49",4.7,1379,"713gEs6ZzVL","Cat,Beds & Crates",""],
+      ["B0BQW3Z9PJ","LUCKY HERP 100W UVA Daylight Basking Bulbs","$9.99",4.5,1775,"71Bxcv1gruL","Reptile,Habitat",""],
+      ["B0F4824Y6Q","Migipaws Interactive MigiMouse 360 Rolling Cat Toy","$15.99",4,4899,"71I6c2XsjyL","Cat,Toys",""],
+      ["B0DLRH694Y","BABORUI Automatic Interactive Cat Toy Ball","$9.98",4,4402,"71WDlQPY9uL","Cat,Toys","Cat Toys"],
+      ["B0F1JS95WQ","Reptile Feeding Tongs with Rubber Tips, 10.6 in","$6.99",4.8,944,"61aLTbDAlQL","Reptile,Habitat",""],
+      ["B0CT8HGW9P","Digital Reptile Thermometer & Humidity Gauge, 2 pcs","$5.99",4.3,1757,"81eMXrkmaFL","Reptile,Habitat","Reptiles"],
+      ["B0C1GWBY2D","REPTI HOME Reptile Heat Lamp Bulbs","$11.99",4.4,1472,"61+ArWDMpuL","Reptile,Habitat",""],
+      ["B00KOWG02G","ZuPreem Smart Selects Parakeet & Budgie Seed Blend","$8.79",4.6,1084,"81NBvnguPYL","Bird,Food",""],
+      ["B0GMWYR4QY","DUMOS 24 Inch Foldable Small Dog Crate","$19.92",4.4,1296,"81sjTWBYtnL","Dog,Beds & Crates",""],
+      ["B0F8VDMKJP","GAPZER Top-Load Cat Carrier, 18 x 11 x 11 in","$25.19",4.5,951,"81GPbbfxDPL","Cat,Walk & Travel",""],
+      ["B0B5W8GMPB","REPTI ZOO 100W Basking Heat Lamp, 2 Pack","$17.99",4.4,1090,"71FKnudD5oL","Reptile,Habitat",""],
+      ["B0C9RKY51D","Fluker's Grub Bag Calcium-Fortified Mealworm Treats","$6.29",4.7,626,"71fow1eEXNL","Reptile,Treats",""],
+      ["B0BGG7Z3N9","hygger Small Submersible Betta Aquarium Heater","$16.99",4.5,754,"71dOmlu4+LL","Aquatic,Habitat",""],
+      ["B0D22HPH2W","Rabbit & Guinea Pig Timothy Chew Sticks, 52 pcs","$9.99",4.5,513,"810qb-C2xZL","Small Pets,Treats",""],
+      ["B0D6DKK21P","Loving Pets Dolce Bamboo Eco-Friendly Pet Bowl","$6.79",4.6,445,"71-np9dvjTL","Cat,Feeding",""],
+      ["B0GT2CK9ZB","Vittles Vault Airtight Pet Food Storage Container + Scoop","$57.70",4.3,633,"7115uE0n-VL","Dog,Feeding",""],
     ];
-    const AFFILIATE_PRODUCTS = AFFILIATE_RAW.map(row => ({
-      emo: row[0], title: row[1], cats: row[2].split(','), price: row[3], q: row[4], bg: row[5],
-      affiliate: true, seller: 'Amazon', verified: true, cat: 'Products',
+    const BEST_LIST_NAME = { 'Dogs Top': 'Dog Supplies', 'Cats Top': 'Cat Supplies', 'All Pets Top': 'Pet Supplies' };
+    const AFFILIATE_PRODUCTS = AMAZON_RAW.map(r => ({
+      asin: r[0], title: r[1], price: r[2] || 'See price', rating: r[3], reviews: r[4], img: r[5],
+      cats: r[6].split(','), bestIn: r[7] ? (BEST_LIST_NAME[r[7]] || r[7]) : '',
+      q: r[1], affiliate: true, seller: 'Amazon', cat: 'Products', emo: '🛒', bg: '#fff',
     }));
     // Member listings live in the cloud (LISTINGS). Device-only fallbacks
     // (no connection) sit here and are clearly marked.
     const LOCAL_LISTINGS = [];
-    const STORE_CATS = ['All', 'Members', 'Dog', 'Cat', 'Bird', 'Small Pets', 'Aquatic', 'Food', 'Treats', 'Toys', 'Beds', 'Health', 'Grooming', 'Tech', 'Pets', 'Services'];
+    // Two filter rows: who it's for, and what kind of thing it is
+    const STORE_CATS =['All', 'Members', 'Dog', 'Cat', 'Bird', 'Small Pets', 'Reptile', 'Aquatic'];
+    const STORE_TYPES = ['Any', 'Food', 'Treats', 'Toys', 'Beds & Crates', 'Walk & Travel', 'Litter', 'Grooming', 'Health', 'Feeding', 'Habitat', 'Tech', 'Training'];
+    const TYPE_EMO = { Food: '🥘', Treats: '🦴', Toys: '🎾', 'Beds & Crates': '🛏️', 'Walk & Travel': '🦮', Litter: '🪣', Grooming: '🛁', Health: '💊', Feeding: '🍽️', Habitat: '🏠', Tech: '📷', Training: '🎓' };
     function inCat(p, c) {
       if (c === 'All') return true;
       if (c === 'Members') return !p.affiliate;
       return (p.cats && p.cats.indexOf(c) >= 0) || p.cat === c;
     }
+    function inType(p, t) {
+      if (!t || t === 'Any') return true;
+      if (!p.affiliate) return t === 'Any';
+      return p.cats && p.cats.indexOf(t) >= 0;
+    }
+    // Product photos come only from Amazon's image CDN, by validated id
+    function amazonImg(id, px) {
+      return /^[A-Za-z0-9+%-]{6,40}$/.test(String(id || '')) ? 'https://m.media-amazon.com/images/I/' + id + '._AC_SL' + (px || 300) + '_.jpg' : '';
+    }
+    function fmtReviews(n) { n = Number(n) || 0; return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(n); }
+    function stars(r) { r = Number(r) || 0; return '★ ' + r.toFixed(1); }
 
     let STORE_VIEW = []; // what's currently on screen: member listings first, then the catalog
+    const STORE_PAGE = 24; // cards per "Show more"
     function renderStore() {
       if (!state.storeCat || STORE_CATS.indexOf(state.storeCat) < 0) state.storeCat = 'All';
+      if (!state.storeType || STORE_TYPES.indexOf(state.storeType) < 0) state.storeType = 'Any';
+      // A pet account defaults to its own species the first time (a cat sees cat gear)
+      if (!state.storeSeen && state.accountType === 'pet') {
+        const s = String(state.species || '').toLowerCase();
+        const guess = { dog: 'Dog', cat: 'Cat', bird: 'Bird', fish: 'Aquatic', snake: 'Reptile', reptile: 'Reptile', hamster: 'Small Pets', rabbit: 'Small Pets' }[s];
+        if (guess) state.storeCat = guess;
+        state.storeSeen = true;
+      }
       let h = '<div class="composer" onclick="openSearch()" style="margin-bottom:0.9rem;">' +
         '<span style="font-size:1.15rem;">🔍</span>' +
         '<div class="fake-input">Search anything pet — food, groomers, vets…</div></div>';
       const members = LISTINGS.concat(LOCAL_LISTINGS);
       h += '<div class="sec"><h3>🛒 Pet Store</h3><span class="link" onclick="openSell()">+ Sell something</span></div>';
-      h += '<div class="chips">' + STORE_CATS.map(c =>
+      h += '<div class="chips" style="margin-bottom:0.5rem;">' + STORE_CATS.map(c =>
         '<div class="chip ' + (state.storeCat === c ? 'active' : '') + '" onclick="setStoreCat(\'' + c + '\')">' + (c === 'Members' ? '🐾 Members' : c) + '</div>').join('') + '</div>';
+      if (state.storeCat !== 'Members') {
+        h += '<div class="chips chips-sm">' + STORE_TYPES.map(t =>
+          '<div class="chip ' + (state.storeType === t ? 'active' : '') + '" onclick="setStoreType(\'' + t + '\')">' + (TYPE_EMO[t] ? TYPE_EMO[t] + ' ' : '') + t + '</div>').join('') + '</div>';
+      }
       STORE_VIEW = members.concat(AFFILIATE_PRODUCTS);
-      const items = STORE_VIEW.filter(p => inCat(p, state.storeCat));
+      const items = STORE_VIEW.filter(p => inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)));
       if (state.storeCat === 'All' || state.storeCat === 'Members') {
         h += members.length
-          ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + members.length + ' listing' + (members.length === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy. Then popular products from big pet shops.</p>'
-          : '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>. Popular products from big pet shops are below.</div>';
+          ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + members.length + ' listing' + (members.length === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy.' + (state.storeCat === 'All' ? ' Then Amazon\'s best-selling pet products, most popular first.' : '') + '</p>'
+          : (state.storeCat === 'Members'
+            ? '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>.</div>'
+            : '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 Amazon\'s best-selling pet products, most popular first. <span class="link" onclick="openSell()">Sell your own</span> and it shows up here too.</p>');
+      } else {
+        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + items.length + ' best seller' + (items.length === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
       }
-      if (!items.length) h += '<div class="note">Nothing in this category yet.</div>';
-      h += '<div class="store-grid">' + items.map(prodCard).join('') + '</div>';
+      if (!items.length) h += '<div class="note">Nothing in this combination yet — try another type.</div>';
+      const limit = storeShown || STORE_PAGE;
+      h += '<div class="store-grid">' + items.slice(0, limit).map(prodCard).join('') + '</div>';
+      if (items.length > limit) h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="storeShown=' + (limit + STORE_PAGE) + ';openTab(\'store\')">Show more (' + (items.length - limit) + ' left)</button>';
       // FTC affiliate disclosure — required because these links pay Petfi
-      h += '<p class="sub" style="font-size:0.72rem;margin:0.8rem 0 0;">🔗 Shop links go to outside retailers and may be affiliate links — Petfi may earn a commission at no extra cost to you. <a href="#" onclick="openAffiliateInfo();return false;" style="color:var(--brand);font-weight:600;">Learn more</a></p>';
+      h += '<p class="sub" style="font-size:0.72rem;margin:0.8rem 0 0;">🔗 Shop links go to Amazon and are affiliate links — Petfi may earn a commission at no extra cost to you. Prices and ratings were captured Sep 2026; the live price on Amazon is what you pay. <a href="#" onclick="openAffiliateInfo();return false;" style="color:var(--brand);font-weight:600;">Learn more</a></p>';
       h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="openPromote()">📣 Spotlight ads — promote anything you sell</button>';
       return h;
     }
+    let storeShown = 0;
     function prodCard(p) {
       const idx = STORE_VIEW.indexOf(p);
       const photos = p.affiliate ? [] : safePhotos(p.photos);
-      const img = photos.length
-        ? '<div class="img" style="padding:0;position:relative;cursor:pointer;overflow:hidden;" onclick="openProductDetail(' + idx + ')">' +
+      const az = p.affiliate ? amazonImg(p.img, 300) : '';
+      let img;
+      if (photos.length) {
+        img = '<div class="img" style="padding:0;position:relative;cursor:pointer;overflow:hidden;" onclick="openProductDetail(' + idx + ')">' +
             '<img src="' + esc(photos[0]) + '" loading="lazy" style="width:100%;height:100%;object-fit:cover;display:block;">' +
             (photos.length > 1 ? '<span style="position:absolute;bottom:6px;right:8px;background:rgba(0,0,0,0.55);color:#fff;font-size:0.68rem;font-weight:700;padding:0.1rem 0.5rem;border-radius:999px;">📷 ' + photos.length + '</span>' : '') +
-          '</div>'
-        : '<div class="img" style="background:' + safeBg(p.bg) + ';cursor:pointer;" onclick="openProductDetail(' + idx + ')">' + esc(p.affiliate ? p.emo : '🐾') + '</div>';
+          '</div>';
+      } else if (az) {
+        img = '<div class="img az" style="cursor:pointer;" onclick="openProductDetail(' + idx + ')">' +
+            '<img src="' + esc(az) + '" loading="lazy" alt="">' +
+            (p.bestIn ? '<span class="bs-badge">🔥 Best seller</span>' : '') +
+          '</div>';
+      } else {
+        img = '<div class="img" style="background:' + safeBg(p.bg) + ';cursor:pointer;" onclick="openProductDetail(' + idx + ')">' + esc(p.affiliate ? p.emo : '🐾') + '</div>';
+      }
       const sellerLine = p.affiliate
-        ? '<div class="pseller">via ' + esc(p.seller) + ' 🔗</div>'
+        ? (p.rating ? '<div class="prating"><b>' + stars(p.rating) + '</b> · ' + fmtReviews(p.reviews) + ' reviews</div>' : '<div class="pseller">via Amazon 🔗</div>')
         : p.mine
           ? '<div class="pseller">You <span style="margin-left:auto;cursor:pointer;" title="Remove listing" onclick="deleteListing(' + idx + ')">🗑</span></div>'
           : '<div class="pseller">' + esc(p.seller) + (p.cloudId ? '' : ' <small>(this device)</small>') + '</div>';
       const buttons = p.affiliate
         ? '<div style="display:flex;gap:0.3rem;margin-top:auto;">' +
             '<button class="buy" style="flex:0 0 auto;background:var(--bg);color:var(--ink);border:1px solid var(--line);margin-top:0;" title="Save to favorites" onclick="saveProductToFav(' + idx + ')">⭐</button>' +
-            '<button class="buy" style="flex:1;margin-top:0;" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop</button></div>'
+            '<button class="buy" style="flex:1;margin-top:0;" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on Amazon</button></div>'
         : p.mine
           ? '<button class="buy" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);" onclick="openProductDetail(' + idx + ')">View</button>'
           : '<button class="buy" onclick="inquireListing(' + idx + ')">💬 Message seller</button>';
       return '<div class="prod">' + img +
         '<div class="pbody">' +
           '<div class="ptitle" style="cursor:pointer;" onclick="openProductDetail(' + idx + ')">' + esc(p.title) + '</div>' +
-          '<div class="pprice">' + esc(p.price) + (p.affiliate ? ' <small style="color:var(--muted);font-weight:400;font-size:0.68rem;">approx</small>' : '') + '</div>' +
+          '<div class="pprice">' + esc(p.price) + '</div>' +
           sellerLine + buttons +
         '</div></div>';
     }
@@ -2955,17 +3209,21 @@
     function openProductDetail(i) {
       const p = STORE_VIEW[i]; if (!p) return;
       const photos = p.affiliate ? [] : safePhotos(p.photos);
+      const az = p.affiliate ? amazonImg(p.img, 500) : '';
       openSheet('🛒 ' + esc(p.title),
         (photos.length
           ? photos.map(ph => '<img src="' + esc(ph) + '" loading="lazy" style="width:100%;border-radius:14px;margin-bottom:0.6rem;display:block;">').join('')
-          : '<div class="post-photo" style="background:' + safeBg(p.bg) + ';height:110px;margin-bottom:0.7rem;">' + esc(p.affiliate ? p.emo : '🐾') + '</div>') +
+          : az
+            ? '<div class="az-hero"><img src="' + esc(az) + '" alt="">' + (p.bestIn ? '<span class="bs-badge">🔥 Best seller in ' + esc(p.bestIn) + '</span>' : '') + '</div>'
+            : '<div class="post-photo" style="background:' + safeBg(p.bg) + ';height:110px;margin-bottom:0.7rem;">' + esc(p.affiliate ? p.emo : '🐾') + '</div>') +
         (p.desc ? '<p style="font-size:0.92rem;margin-bottom:0.6rem;">' + esc(p.desc) + '</p>' : '') +
-        '<div class="pprice" style="font-size:1.2rem;">' + esc(p.price) + (p.affiliate ? ' <small style="color:var(--muted);font-size:0.7rem;font-weight:400;">approx — see live price</small>' : '') + '</div>' +
-        '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">' + (p.affiliate ? 'Shop via ' + esc(p.seller) + ' 🔗' : 'Sold by ' + esc(p.mine ? 'you' : p.seller) + (p.cat ? ' · ' + esc(p.cat) : '')) + '</div>' +
+        '<div class="pprice" style="font-size:1.2rem;">' + esc(p.price) + (p.affiliate ? ' <small style="color:var(--muted);font-size:0.7rem;font-weight:400;">on Amazon — live price may differ</small>' : '') + '</div>' +
+        (p.affiliate && p.rating ? '<div class="prating" style="font-size:0.88rem;margin-top:0.2rem;"><b>' + stars(p.rating) + '</b> · ' + Number(p.reviews).toLocaleString() + ' Amazon reviews' + (p.cats ? ' · ' + esc(p.cats.join(' · ')) : '') + '</div>' : '') +
+        (p.affiliate ? '' : '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">Sold by ' + esc(p.mine ? 'you' : p.seller) + (p.cat ? ' · ' + esc(p.cat) : '') + '</div>') +
         (p.affiliate
-          ? '<button class="btn" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on ' + esc(p.seller) + '</button>' +
+          ? '<button class="btn" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on Amazon</button>' +
             '<button class="btn secondary" onclick="closeSheet();saveProductToFav(' + i + ')">⭐ Save to favorites</button>' +
-            '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">Affiliate link — Petfi may earn a commission at no extra cost to you. Price, shipping &amp; returns are handled by the retailer.</p>'
+            '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">Affiliate link — Petfi may earn a commission at no extra cost to you. Price, shipping &amp; returns are handled by Amazon.</p>'
           : p.mine
             ? '<button class="btn secondary" onclick="deleteListing(' + i + ')">🗑 Remove my listing</button>'
             : '<button class="btn" onclick="closeSheet();inquireListing(' + i + ')">💬 Message seller</button>' +
@@ -2973,7 +3231,8 @@
               '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">You arrange payment, pickup or shipping directly with the seller. Petfi doesn\'t handle payments yet — never pay a seller you haven\'t talked to, and see the Terms of Service.</p>'));
     }
     const openProductPhotos = openProductDetail; // legacy name (search results use it)
-    function setStoreCat(c) { state.storeCat = c; openTab('store'); }
+    function setStoreCat(c) { state.storeCat = c; storeShown = 0; openTab('store'); }
+    function setStoreType(t) { state.storeType = t; storeShown = 0; openTab('store'); }
 
     // ======================= GROUPS =======================
     // Groups are real, cloud-backed communities. Device-only fallbacks
@@ -5186,7 +5445,7 @@
     // become one network call).
     let cloudSaveTimer = null, cloudSaveWarned = false;
     // Keys that are pure screen state — they never need to travel to the cloud
-    const EPHEMERAL_KEYS = ['tab', 'homeTab', 'storeCat', 'vStep', 'spotsLoading', 'spotsFailed', 'spots', 'cart', 'orders', 'pendingReports', 'outbox'];
+    const EPHEMERAL_KEYS = ['tab', 'homeTab', 'storeCat', 'storeType', 'storeSeen', 'vStep', 'spotsLoading', 'spotsFailed', 'spots', 'cart', 'orders', 'pendingReports', 'outbox'];
     function cloudSnapshot() {
       const copy = {};
       Object.keys(state).forEach(k => { if (EPHEMERAL_KEYS.indexOf(k) < 0) copy[k] = state[k]; });
