@@ -1,11 +1,14 @@
 [
   {
-    "relation": ["delegate_permission/common.handle_all_urls"],
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
     "target": {
       "namespace": "android_app",
       "package_name": "com.petfi.app",
       "sha256_cert_fingerprints": [
-        "9D:AC:0A:99:69:68:55:48:89:E0:CF:F8:B1:D7:9B:24:4E:19:DD:8A:17:B6:3D:E6:14:64:6F:E5:2F:D5:DF:73"
+        "9D:AC:0A:99:69:68:55:48:89:E0:CF:F8:B1:D7:9B:24:4E:19:DD:8A:17:B6:3D:E6:14:64:6F:E5:2F:D5:DF:73",
+        "1A:7F:9F:23:5D:24:36:C4:95:2B:FB:C4:F9:B3:3B:D3:07:5F:FB:62:C6:87:A1:59:C4:83:B8:EA:88:F6:1F:51"
       ]
     }
   }
