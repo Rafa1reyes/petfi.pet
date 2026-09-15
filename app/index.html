@@ -2237,6 +2237,7 @@
     // Every species has its own voice
     function speciesVoice(s) {
       s = String(s || '').toLowerCase();
+      if (s === 'dog') return 'bark';
       if (s === 'cat') return 'meow';
       if (s === 'bird') return 'tweet';
       if (s === 'fish') return 'blub';
@@ -2247,12 +2248,38 @@
       if (s === 'chicken' || s === 'duck' || s === 'turkey') return 'cluck';
       if (s === 'horse') return 'neigh';
       if (s === 'pig') return 'oink';
-      return 'bark';
+      // 'other', a species we don't know, and no species at all have no voice:
+      // they get the neutral ❤️ Like button and stay silent.
+      return 'like';
     }
-    const VOICE_WORD = { bark: 'Woof! 🐶', meow: 'Meow! 🐱', tweet: 'Tweet! 🐦', blub: 'Blub! 🐟', hiss: 'Hiss! 🦎', squeak: 'Squeak! 🐹', moo: 'Moo! 🐄', baa: 'Baa! 🐐', cluck: 'Cluck! 🐔', neigh: 'Neigh! 🐴', oink: 'Oink! 🐖' };
-    const VOICE_NOUN = { bark: 'a bark 🐶', meow: 'a meow 🐱', tweet: 'a tweet 🐦', blub: 'a blub 🐟', hiss: 'a hiss 🦎', squeak: 'a squeak 🐹', moo: 'a moo 🐄', baa: 'a baa 🐐', cluck: 'a cluck 🐔', neigh: 'a neigh 🐴', oink: 'an oink 🐖' };
+    // The emoji here is only the DEFAULT for a voice several species share
+    // (squeak = hamster & rabbit, baa = goat/sheep/alpaca…). Wherever we know
+    // the actual species, voiceWord()/voiceNoun() swap in speciesEmo().
+    const VOICE_WORD = { bark: 'Woof! 🐶', meow: 'Meow! 🐱', tweet: 'Tweet! 🐦', blub: 'Blub! 🐟', hiss: 'Hiss! 🐍', squeak: 'Squeak! 🐹', moo: 'Moo! 🐄', baa: 'Baa! 🐐', cluck: 'Cluck! 🐔', neigh: 'Neigh! 🐴', oink: 'Oink! 🐖', like: '❤️' };
+    const VOICE_NOUN = { bark: 'a bark 🐶', meow: 'a meow 🐱', tweet: 'a tweet 🐦', blub: 'a blub 🐟', hiss: 'a hiss 🐍', squeak: 'a squeak 🐹', moo: 'a moo 🐄', baa: 'a baa 🐐', cluck: 'a cluck 🐔', neigh: 'a neigh 🐴', oink: 'an oink 🐖', like: 'a hello 👋' };
     function voiceName(species) { return speciesVoice(species); }
-    function soundOf(species) { return VOICE_NOUN[speciesVoice(species)]; }
+    function soundOf(species) { return VOICE_NOUN[speciesVoice(species)] || VOICE_NOUN.like; }
+    // "Baa! 🐐" with the goat's own emoji; "Squeak! 🐰" for a rabbit.
+    function voiceWord(voice, species) {
+      const w = VOICE_WORD[voice] || VOICE_WORD.like;
+      return (species && voice && voice !== 'like') ? w.replace(/\S+$/, speciesEmo(species)) : w;
+    }
+    function voiceNoun(voice, species) {
+      const t = VOICE_NOUN[voice] || VOICE_NOUN.like;
+      return (species && voice && voice !== 'like') ? t.replace(/\S+$/, speciesEmo(species)) : t;
+    }
+    // Reverse lookup: the word a message carries → the voice that made it.
+    // Built FROM VOICE_WORD so a new voice can never fall back to a bark.
+    const WORD_VOICE = {};
+    Object.keys(VOICE_WORD).forEach(v => {
+      const w = String(VOICE_WORD[v]).replace(/[^A-Za-z]/g, '').toLowerCase();
+      if (w) WORD_VOICE[w] = v;
+    });
+    function sniffVoice(text) {
+      const t = String(text || '').toLowerCase();
+      const hit = Object.keys(WORD_VOICE).find(w => t.indexOf(w) >= 0);
+      return hit ? WORD_VOICE[hit] : 'like';
+    }
 
     // ---- Real bark & meow sounds (made with the browser's synth) ----
     let audioCtx = null;
@@ -2272,16 +2299,17 @@
         { src: 'sounds/bark2.mp3', off: 0.08, dur: 1.05, gain: 1.0 },
       ],
       meow: [
-        { src: 'sounds/meow1.mp3', off: 0.03, dur: 0.50, gain: 1.0 },
+        { src: 'sounds/meow1.mp3', off: 0,    dur: 0.50, gain: 1.0 },
         { src: 'sounds/meow2.mp3', off: 0.02, dur: 1.35, gain: 0.85 },
         { src: 'sounds/meow3.mp3', off: 0.00, dur: 1.45, gain: 0.85 },
       ],
     };
-    let samplesLoaded = false, samplesLoading = false;
+    let samplesLoaded = false, samplesLoading = false, samplesTried = 0;
+    const SAMPLE_TRIES = 2; // if the clips aren't there, stop asking for them
     function preloadSamples() {
-      if (samplesLoaded || samplesLoading) return;
+      if (samplesLoaded || samplesLoading || samplesTried >= SAMPLE_TRIES) return;
       const ctx = ac(); if (!ctx) return;
-      samplesLoading = true;
+      samplesLoading = true; samplesTried++;
       const jobs = [];
       Object.keys(SAMPLE_BANK).forEach(kind => SAMPLE_BANK[kind].forEach(v => {
         jobs.push(fetch(v.src)
@@ -2306,11 +2334,16 @@
         const src = ctx.createBufferSource();
         src.buffer = v.buffer;
         src.playbackRate.value = 0.94 + Math.random() * 0.12; // subtle pitch variety
-        const g = ctx.createGain(); g.gain.value = v.gain || 1;
+        const g = ctx.createGain();
         src.connect(g); g.connect(ctx.destination);
         const off = Math.min(v.off || 0, Math.max(0, v.buffer.duration - 0.05));
         const dur = Math.min(v.dur || v.buffer.duration, v.buffer.duration - off);
-        src.start(0, off, dur);
+        // A trimmed clip is cut mid-waveform, which pops. Fade the last 40 ms.
+        const t = ctx.currentTime, lvl = v.gain || 1, fade = Math.min(0.04, dur / 2);
+        g.gain.setValueAtTime(lvl, t);
+        g.gain.setValueAtTime(lvl, t + dur - fade);
+        g.gain.linearRampToValueAtTime(0.0001, t + dur);
+        src.start(t, off, dur);
         return true;
       } catch (e) { return false; }
     }
@@ -2518,13 +2551,28 @@
       try { (UI_SOUNDS[kind] || UI_SOUNDS.pop)(ctx); } catch (e) {}
     }
     function haptic(ms) { try { if (navigator.vibrate && uiSoundsOn()) navigator.vibrate(ms || 12); } catch (e) {} }
-    // Whose voice is it? Pets speak for themselves; owners borrow their first pet's
-    function myVoice() {
-      const s = state.accountType === 'owner'
-        ? ((state.pets && state.pets[0] && state.pets[0].species) || 'dog')
-        : (state.species || 'dog');
-      return speciesVoice(s);
+    // Whose voice is it? Pets speak for themselves; owners borrow their first
+    // pet's. An owner with NO pets is just a person — no animal voice at all.
+    function myGreetSpecies() {
+      return state.accountType === 'owner'
+        ? ((state.pets && state.pets[0] && state.pets[0].species) || '')
+        : (state.species || '');
     }
+    function myVoice() { return speciesVoice(myGreetSpecies()); }
+    // Mate Match is people meeting people, and a petless owner has no voice —
+    // both cases get the neutral "say hi" wording and a soft chime.
+    function isHumanProfile(id) { const p = PROFILE_BY_ID[id]; return !p || p.kind === 'owner'; }
+    function neutralGreet(id) { return myVoice() === 'like' || isHumanProfile(id); }
+    // The greeting a tap sends: an animal word, or a plain wave from a person.
+    function greetText() { const v = myVoice(); return v === 'like' ? '👋 Hi!' : voiceWord(v, myGreetSpecies()); }
+    function greetSound() {
+      if (state.soundsSend === false) return;
+      const v = myVoice();
+      if (VOICE_PLAYERS[v]) playVoice(v); else uiSound('send');
+    }
+    // Buttons label themselves with the SENDER's voice — that's what lands.
+    function sayHiLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Say hi (' + v + ')'; }
+    function sendVoiceLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Send a ' + v; }
     function reactSound(kind) {
       // Tapping "🐶 Bark", "🐍 Hiss" & co. on a post is audible — that's the fun
       if (state.soundsSend === false) return;
@@ -2708,7 +2756,7 @@
           '</div>';
         scheduleVidObs();
       }
-      const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink' };
+      const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink', like: '❤️ Like' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
         '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span></div>').join('');
@@ -3055,7 +3103,7 @@
       if (state.accountType === 'owner') {
         const pet = (state.pets && state.pets[0]) ? state.pets[0] : null;
         return { pet: pet ? pet.name : first, owner: first,
-          species: pet ? pet.species : 'dog', breed: pet ? (pet.breed || '') : '', look: null };
+          species: pet ? pet.species : 'other', breed: pet ? (pet.breed || '') : '', look: null };
       }
       return { pet: state.displayName, owner: '', species: state.species, breed: state.breed, look: { v: state.avatarVariant, a: state.accessories } };
     }
@@ -4198,6 +4246,15 @@
       ["B08C7LHM7S","LONGADS Bee Suit for Men, Full Body Beekeeper Suit with Gloves and Veil, XXL","$45.99",4.4,3697,"61PE450TuWL","Farm,Habitat","Beekeeping"],
       ["B00B8L5UMS","Mann Lake Bee-Pro Patties, High Protein Honey Bee Nutrition, 10 lbs","$45.29",4.6,2274,"714200No4+L","Farm,Food","Beekeeping"],
       ["B07QTCQ52P","Honey B Healthy Original 16 oz Bottle, Bee Feeding Stimulant with Essential Oils","$34.50",4.8,1447,"71yrcSA-hvL","Farm,Food","Beekeeping"],
+      ["B01EINBA76","Embark Breed & Health Dog DNA Test - 400+ Breeds, 270+ Health Risks","$139.00",4.7,19029,"812ipd0IkoL","Dog,Health","DNA Tests"],
+      ["B07HHF1VLH","Embark Breed ID Dog DNA Test Kit - 400+ Breeds, 99% Breed Accuracy","$109.00",4.6,19797,"61MPOYxs87L","Dog,Health","DNA Tests"],
+      ["B085WDGTJS","Wisdom Panel Essential Dog DNA Test, 430+ Breeds, 30 Health Tests","$95.99",4.6,19380,"81o9P6iNtBL","Dog,Health","DNA Tests"],
+      ["B085WDJTNW","Wisdom Panel Premium Dog DNA Test, 265+ Health Tests, 430+ Breeds","$127.99",4.6,2035,"71W9AdXA74L","Dog,Health","DNA Tests"],
+      ["B01EHX2BH0","Wisdom Panel Breed Discovery Dog DNA Test Kit, 430+ Breeds, MDR1 Health Test","$89.99",4.5,21491,"718wGFwXuwL","Dog,Health","DNA Tests"],
+      ["B018OFU3YA","DNA My Dog Test Kit - 350+ Breeds, Allergy Risk Score, Personality Insights","$64.99",3.7,8924,"51V-KaKtykL","Dog,Health","DNA Tests"],
+      ["B0FD34QKCS","ORIVET GenoPet Dog DNA Test - 365+ Breeds, Health & Ancestry, Cheek Swab","$94.95",3.8,47,"71rNJEN-nIL","Dog,Health","DNA Tests"],
+      ["B09J2YJHBL","Wisdom Panel Complete for Cat DNA Test Kit, 45 Health Conditions, 1 Pack","$97.49",4.2,531,"71E1WWW9RfL","Cat,Health","DNA Tests"],
+      ["B07NP4Q3Z8","Basepaws Cat DNA Test Kit - Breed, Health & Dental Insights, 114 DNA Traits","$103.99",4.3,2120,"71W06Jm06YL","Cat,Health","DNA Tests"],
     ];
     const BEST_LIST_NAME = {
       'Dogs Top': 'Dog Supplies', 'Cats Top': 'Cat Supplies', 'All Pets Top': 'Pet Supplies',
@@ -4211,10 +4268,13 @@
       'Horse Grooming': 'Horse Grooming', 'Horse Health': 'Horse Health', 'Horse Blankets': 'Horse Blankets', 'Horse Stable': 'Horse Stable',
       'Horse Toys': 'Horse Toys', 'Horse Treats': 'Horse Treats', 'Livestock Supplies': 'Livestock Supplies', 'Poultry Supplies': 'Poultry Supplies',
       'Farm Fencing': 'Farm Fencing', 'Beekeeping': 'Beekeeping',
+      'DNA Tests': 'DNA tests',
     };
     const AFFILIATE_PRODUCTS = AMAZON_RAW.map(r => ({
       asin: r[0], title: r[1], price: r[2] || 'See price', rating: r[3], reviews: r[4], img: r[5],
-      cats: r[6].split(','), bestIn: r[7] ? (BEST_LIST_NAME[r[7]] || r[7]) : '',
+      // A DNA kit is Health gear AND its own 🧬 type, so both chips find it
+      cats: r[6].split(',').concat(r[7] === 'DNA Tests' ? ['DNA'] : []),
+      bestIn: r[7] ? (BEST_LIST_NAME[r[7]] || r[7]) : '',
       q: r[1], affiliate: true, seller: 'Amazon', cat: 'Products', emo: '🛒', bg: '#fff',
     }));
     // Member listings live in the cloud (LISTINGS). Device-only fallbacks
@@ -4222,8 +4282,8 @@
     const LOCAL_LISTINGS = [];
     // Two filter rows: who it's for, and what kind of thing it is
     const STORE_CATS =['All', 'Members', 'Dog', 'Cat', 'Bird', 'Small Pets', 'Reptile', 'Aquatic', 'Horse', 'Farm'];
-    const STORE_TYPES = ['Any', 'Food', 'Treats', 'Toys', 'Beds & Crates', 'Walk & Travel', 'Litter', 'Grooming', 'Health', 'Feeding', 'Habitat', 'Tech', 'Training'];
-    const TYPE_EMO = { Food: '🥘', Treats: '🦴', Toys: '🎾', 'Beds & Crates': '🛏️', 'Walk & Travel': '🦮', Litter: '🪣', Grooming: '🛁', Health: '💊', Feeding: '🍽️', Habitat: '🏠', Tech: '📷', Training: '🎓' };
+    const STORE_TYPES = ['Any', 'Food', 'Treats', 'Toys', 'Beds & Crates', 'Walk & Travel', 'Litter', 'Grooming', 'Health', 'DNA', 'Feeding', 'Habitat', 'Tech', 'Training'];
+    const TYPE_EMO = { Food: '🥘', Treats: '🦴', Toys: '🎾', 'Beds & Crates': '🛏️', 'Walk & Travel': '🦮', Litter: '🪣', Grooming: '🛁', Health: '💊', DNA: '🧬', Feeding: '🍽️', Habitat: '🏠', Tech: '📷', Training: '🎓' };
     function inCat(p, c) {
       if (c === 'All') return true;
       if (c === 'Members') return !p.affiliate;
@@ -4284,7 +4344,15 @@
             ? '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>.</div>'
             : '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 Amazon\'s best-selling pet products, most popular first. <span class="link" onclick="openSell()">Sell your own</span> and it shows up here too.</p>');
       } else {
-        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + items.length + ' best seller' + (items.length === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
+        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + items.length + ' best seller' + (items.length === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
+      }
+      // 🧬 needs a sentence of context — nobody shops for a cheek swab by name
+      if (state.storeType === 'DNA') {
+        h += '<div class="note" style="margin-bottom:0.8rem;">' +
+          '<b>🧬 Which breed is my dog (or cat)?</b><br>' +
+          'A cheek swab and a few weeks later you know the breed mix and the health risks worth watching. ' +
+          'These are the best-selling kits on Amazon — Petfi earns a small commission at no extra cost to you, ' +
+          'and half of all Petfi profit goes back to animals.</div>';
       }
       if (!items.length) h += '<div class="note">Nothing in this combination yet — try another type.</div>';
       const limit = storeShown || STORE_PAGE;
@@ -4514,6 +4582,7 @@
           (isPet && SPECIES_ART[(state.species || '').toLowerCase()] ? '<button class="pill-btn ghost" onclick="openAvatarStudio()">🎨 Customize</button>' : '') +
           (!isPet ? '<button class="pill-btn ghost" onclick="openOwnerStudio()">🎨 Customize</button>' : '') +
           '<button class="pill-btn ghost" title="' + (isPet ? 'Use a photo of your pet' : 'Use a photo of you') + '" onclick="pickAvatarPhoto()">📷 Use a photo</button>' +
+          (isPet ? '<button class="pill-btn ghost" title="Turn a photo of your pet into a cartoon icon" onclick="cartoonMyPet()">✨ Cartoon my pet</button>' : '') +
           (state.avatarUrl ? '<button class="pill-btn ghost" onclick="clearAvatarPhoto()">↺ Back to my icon</button>' : '') +
           '<button class="pill-btn ghost" onclick="sharePetCard()">📸 Share my card</button>' +
           '<input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this)">' +
@@ -4735,8 +4804,11 @@
         toast('👋 ' + ((state.displayName || 'You').split(' ')[0]) + ' says hi! Tap 🎨 Customize to change your icon.');
         return;
       }
-      if (state.soundsSend !== false) playVoice(myVoice());
-      toast(VOICE_WORD[myVoice()]);
+      const v = myVoice();
+      // A pet with no real species (🐾 "other") wiggles and waves — no voice.
+      if (v === 'like') { toast('👋 ' + esc(state.displayName || 'You') + ' says hi!'); return; }
+      if (state.soundsSend !== false) playVoice(v);
+      toast(voiceWord(v, myGreetSpecies()));
     }
     // ---- Owner icon picker: who are you, roughly? ----
     const OWNER_BASES = [['🧑', 'Person'], ['👨', 'Man'], ['👩', 'Woman'], ['🧔', 'Beard'], ['👨‍🦱', 'Curly'], ['👩‍🦱', 'Curly'], ['👨‍🦰', 'Red hair'], ['👩‍🦰', 'Red hair'], ['👱', 'Blond'], ['👨‍🦳', 'Gray'], ['👩‍🦳', 'Gray'], ['👨‍🦲', 'Bald'], ['🧓', 'Older'], ['👴', 'Grandpa'], ['👵', 'Grandma'], ['🧑‍🌾', 'Farmer'], ['👨‍🌾', 'Farmer'], ['👩‍🌾', 'Farmer'], ['🤠', 'Cowboy'], ['🧑‍⚕️', 'Vet'], ['🧑‍🔬', 'Scientist'], ['🧑‍🎨', 'Artist']];
@@ -5275,6 +5347,281 @@
       await modResolve(reportId, 'account suspended: ' + reason, true);
       renderModeration(); toast('Account suspended ⛔');
     }
+
+    // ======================= AI CARTOON ICON (petfi-api on Vercel) =======================
+    var CARTOON_API = 'https://petfi-api.vercel.app';
+
+    var cartoonJob = { file: null, jpegBase64: null, previewUrl: null, pngBase64: null, busy: false };
+
+    function cartoonMyPet() {
+      cartoonJob = { file: null, jpegBase64: null, previewUrl: null, pngBase64: null, busy: false };
+      cartoonRenderPick();
+    }
+
+    function cartoonSheet(html) {
+      openSheet('✨ Cartoon my pet', html);
+    }
+
+    function cartoonRenderPick() {
+      var pet = (state && state.accountType === 'pet' && state.displayName) || '';
+      cartoonSheet(
+        '<div style="text-align:center">' +
+          '<p style="margin:0 0 14px;line-height:1.45">Pick a clear, well-lit photo of ' +
+          (pet ? esc(pet) : 'your pet') +
+          '. Face forward works best.</p>' +
+          '<input type="file" accept="image/*" id="cartoonFile" style="display:none">' +
+          '<button class="btn" id="cartoonPickBtn" style="width:100%">Choose a photo</button>' +
+          '<p style="margin:14px 0 0;font-size:13px;opacity:.7">3 cartoons per week per account.</p>' +
+        '</div>'
+      );
+      cartoonWire(function () {
+        var input = document.getElementById('cartoonFile');
+        var btn = document.getElementById('cartoonPickBtn');
+        if (!input || !btn) return;
+        btn.onclick = function () { input.click(); };
+        input.onchange = function () {
+          var f = input.files && input.files[0];
+          if (f) cartoonPrepare(f);
+        };
+      });
+    }
+
+    function cartoonPrepare(file) {
+      if (!/^image\//.test(file.type || '')) { toast('That file is not an image.'); return; }
+      cartoonSheet('<div style="text-align:center;padding:24px 0">Reading the photo…</div>');
+      cartoonDownsize(file).then(function (out) {
+        cartoonJob.file = file;
+        cartoonJob.jpegBase64 = out.base64;
+        cartoonJob.previewUrl = out.dataUrl;
+        cartoonRenderPreview();
+      }).catch(function () {
+        toast('Could not read that photo. Try another one.');
+        cartoonRenderPick();
+      });
+    }
+
+    /* Draws the photo into a canvas capped at 1024 px on the long edge and
+       re-encodes it as JPEG 0.85, so the upload stays well under the 4 MB cap. */
+    function cartoonDownsize(file) {
+      return new Promise(function (resolve, reject) {
+        var url = URL.createObjectURL(file);
+        var img = new Image();
+        img.onload = function () {
+          try {
+            var max = 1024;
+            var w = img.naturalWidth || img.width;
+            var h = img.naturalHeight || img.height;
+            if (!w || !h) throw new Error('no dimensions');
+            var scale = Math.min(1, max / Math.max(w, h));
+            var cw = Math.max(1, Math.round(w * scale));
+            var ch = Math.max(1, Math.round(h * scale));
+            var c = document.createElement('canvas');
+            c.width = cw;
+            c.height = ch;
+            var ctx = c.getContext('2d');
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, cw, ch);
+            ctx.drawImage(img, 0, 0, cw, ch);
+            var dataUrl = c.toDataURL('image/jpeg', 0.85);
+            URL.revokeObjectURL(url);
+            resolve({ dataUrl: dataUrl, base64: dataUrl.slice(dataUrl.indexOf(',') + 1) });
+          } catch (e) {
+            URL.revokeObjectURL(url);
+            reject(e);
+          }
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+        img.src = url;
+      });
+    }
+
+    function cartoonRenderPreview() {
+      cartoonSheet(
+        '<div style="text-align:center">' +
+          '<img src="' + cartoonJob.previewUrl + '" alt="" ' +
+            'style="width:200px;height:200px;object-fit:cover;border-radius:18px;display:block;margin:0 auto 16px">' +
+          '<button class="btn" id="cartoonGoBtn" style="width:100%">✨ Make my cartoon</button>' +
+          '<button class="btn secondary" id="cartoonOtherBtn" style="width:100%;margin-top:8px">Pick a different photo</button>' +
+        '</div>'
+      );
+      cartoonWire(function () {
+        var go = document.getElementById('cartoonGoBtn');
+        var other = document.getElementById('cartoonOtherBtn');
+        if (go) go.onclick = cartoonGenerate;
+        if (other) other.onclick = cartoonRenderPick;
+      });
+    }
+
+    function cartoonRenderWorking() {
+      cartoonSheet(
+        '<div style="text-align:center;padding:18px 0">' +
+          '<div style="font-size:40px;line-height:1;margin-bottom:12px">✨</div>' +
+          '<p style="margin:0;font-weight:600">Drawing… this takes about 20 seconds</p>' +
+          '<p style="margin:8px 0 0;font-size:13px;opacity:.7">Keep this sheet open.</p>' +
+        '</div>'
+      );
+    }
+
+    function cartoonGenerate() {
+      if (cartoonJob.busy || !cartoonJob.jpegBase64) return;
+      /* Vercel rejects request bodies over ~4.5 MB with a plain-text 413 that
+         carries no CORS headers, so the browser would surface it as a network
+         error. The downsize above keeps us far under this; guard anyway. */
+      if (cartoonJob.jpegBase64.length > 3 * 1024 * 1024) {
+        cartoonFail({ code: 413, body: {} });
+        return;
+      }
+      cartoonJob.busy = true;
+      cartoonRenderWorking();
+
+      cartoonToken().then(function (token) {
+        if (!token) throw { code: 401 };
+        return fetch(CARTOON_API + '/api/cartoon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            image: cartoonJob.jpegBase64,
+            species: (state && state.species) || 'pet',
+            name: (state && state.accountType === 'pet' && state.displayName) || ''
+          })
+        });
+      }).then(function (r) {
+        return r.json().catch(function () { return {}; }).then(function (j) {
+          if (!r.ok) throw { code: r.status, body: j };
+          return j;
+        });
+      }).then(function (j) {
+        if (!j.imageBase64) throw { code: 502 };
+        cartoonJob.pngBase64 = j.imageBase64;
+        cartoonJob.busy = false;
+        cartoonRenderResult();
+      }).catch(function (err) {
+        cartoonJob.busy = false;
+        cartoonFail(err);
+      });
+    }
+
+    function cartoonToken() {
+      if (typeof cloud === 'undefined' || !cloud || !cloud.auth) return Promise.resolve(null);
+      return cloud.auth.getSession().then(function (res) {
+        return (res && res.data && res.data.session && res.data.session.access_token) || null;
+      }).catch(function () { return null; });
+    }
+
+    function cartoonFail(err) {
+      var code = (err && err.code) || 0;
+      var body = (err && err.body) || {};
+      var msg;
+      if (code === 401) {
+        msg = 'Please sign in again, then try once more.';
+      } else if (code === 413) {
+        msg = body.error === 'not_an_image'
+          ? 'That file did not look like a photo. Try a JPEG or PNG.'
+          : 'That photo is too large. Try a smaller one.';
+      } else if (code === 429) {
+        msg = 'You have used all 3 cartoons for this week.' + cartoonResetText(body.resetAt);
+      } else if (code === 504) {
+        msg = 'The artist took too long. Try again in a minute.';
+      } else if (code === 502 || code === 503) {
+        msg = 'The cartoon service is having a moment. Try again shortly.';
+      } else {
+        msg = 'Something went wrong. Try again.';
+      }
+
+      cartoonSheet(
+        '<div style="text-align:center">' +
+          '<p style="margin:0 0 16px;line-height:1.45">' + esc(msg) + '</p>' +
+          (code === 429
+            ? '<button class="btn secondary" id="cartoonCloseBtn" style="width:100%">Close</button>'
+            : '<button class="btn" id="cartoonRetryBtn" style="width:100%">Try again</button>' +
+              '<button class="btn secondary" id="cartoonCloseBtn" style="width:100%;margin-top:8px">Close</button>') +
+        '</div>'
+      );
+      cartoonWire(function () {
+        var retry = document.getElementById('cartoonRetryBtn');
+        var close = document.getElementById('cartoonCloseBtn');
+        if (retry) retry.onclick = function () {
+          if (cartoonJob.jpegBase64) cartoonGenerate(); else cartoonRenderPick();
+        };
+        if (close) close.onclick = closeSheet;
+      });
+    }
+
+    function cartoonResetText(resetAt) {
+      if (!resetAt) return '';
+      var d = new Date(resetAt);
+      if (isNaN(d.getTime())) return '';
+      return ' You get another one on ' + d.toLocaleDateString() + '.';
+    }
+
+    function cartoonRenderResult() {
+      cartoonSheet(
+        '<div style="text-align:center">' +
+          '<img src="data:image/png;base64,' + cartoonJob.pngBase64 + '" alt="" ' +
+            'style="width:220px;height:220px;object-fit:cover;border-radius:24px;display:block;margin:0 auto 16px">' +
+          '<button class="btn" id="cartoonUseBtn" style="width:100%">Use it as my icon</button>' +
+          '<button class="btn secondary" id="cartoonAgainBtn" style="width:100%;margin-top:8px">Try again</button>' +
+          '<p style="margin:12px 0 0;font-size:13px;opacity:.7">Trying again uses one of your 3 weekly cartoons.</p>' +
+        '</div>'
+      );
+      cartoonWire(function () {
+        var use = document.getElementById('cartoonUseBtn');
+        var again = document.getElementById('cartoonAgainBtn');
+        if (use) use.onclick = cartoonUseAsIcon;
+        if (again) again.onclick = cartoonGenerate;
+      });
+    }
+
+    function cartoonUseAsIcon() {
+      if (cartoonJob.busy || !cartoonJob.pngBase64) return;
+      var uid = (typeof cloudUser !== 'undefined' && cloudUser && cloudUser.id) || null;
+      if (!uid || typeof cloud === 'undefined' || !cloud) { toast('Please sign in first.'); return; }
+
+      cartoonJob.busy = true;
+      var btn = document.getElementById('cartoonUseBtn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
+
+      var blob = cartoonBlob(cartoonJob.pngBase64);
+      var path = uid + '/avatar-' + Date.now() + '.png';
+
+      cloud.storage.from('photos').upload(path, blob, {
+        contentType: 'image/png',
+        cacheControl: '31536000',
+        upsert: false
+      }).then(function (res) {
+        if (res && res.error) throw res.error;
+        var pub = cloud.storage.from('photos').getPublicUrl(path);
+        var url = pub && pub.data && pub.data.publicUrl;
+        if (!url) throw new Error('no public url');
+        state.avatarUrl = url;
+        saveState();
+        return Promise.resolve(cloudSaveProfile());
+      }).then(function () {
+        cartoonJob.busy = false;
+        refreshTopAvatar();
+        closeSheet();
+        openTab('profile');
+        toast('Your cartoon is now your icon ✨');
+      }).catch(function () {
+        cartoonJob.busy = false;
+        if (btn) { btn.disabled = false; btn.textContent = 'Use it as my icon'; }
+        toast('Could not save the icon. Try again.');
+      });
+    }
+
+    function cartoonBlob(b64) {
+      var bin = atob(b64);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      return new Blob([bytes], { type: 'image/png' });
+    }
+
+    /* openSheet may swap the DOM on the next frame; wire on both ticks. */
+    function cartoonWire(fn) {
+      fn();
+      requestAnimationFrame(fn);
+    }
+
 
     // ---- Blocking: blocked users vanish from feed, nearby & messages ----
     function isBlocked(id) { return !!id && (state.blocked || []).some(b => b.id === id); }
@@ -6108,9 +6455,9 @@
               ? '<button class="pill-btn" style="background:#e0527a;" onclick="closeSheet();openCloudDM(\'' + jsStr(m.sender_id) + '\')">💬 Match!</button>'
               : iBarkedToo
                 ? '<span class="fl">Sent ✓</span>'
-                : '<button class="pill-btn ghost" onclick="barkBack(\'' + jsStr(m.sender_id) + '\')">🔊 Bark back</button>';
+                : '<button class="pill-btn ghost" onclick="barkBack(\'' + jsStr(m.sender_id) + '\')">' + (neutralGreet(m.sender_id) ? '👋 Say hi back' : '🔊 Bark back') + '</button>';
             real += '<div class="notif"><span class="ne">' + (isMate ? '💘' : '🔊') + '</span>' +
-              '<div class="nt"><b>' + esc(name) + '</b> ' + (isMate ? 'barked at you on Mate Match' : 'said hi: ' + esc(m.text || '')) +
+              '<div class="nt"><b>' + esc(name) + '</b> ' + (isMate ? 'said hi on Mate Match' : 'said hi: ' + esc(m.text || '')) +
               '<small>' + timeAgo(m.created_at) + '</small></div>' + action + '</div>';
           });
         // Unread conversations
@@ -6344,6 +6691,8 @@
         '<div class="rmeta" style="font-size:0.85rem;">' + esc(mateSummary(m)) + (extra ? '<br>' + esc(extra) : '') + '</div></div>' +
         '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>';
     }
+    // The only two species the store has DNA kits for
+    const DNA_STORE_CAT = { dog: 'Dog', cat: 'Cat' };
     function openMateDetail(i) {
       const m = MATES_VIEW[i]; if (!m) return;
       const mine = !!(cloudUser && m.ownerId === cloudUser.id);
@@ -6356,6 +6705,11 @@
         '<div style="text-align:center;margin:0.3rem 0 0.9rem;">' + mateBadge(m, true) + '<div style="margin-top:0.45rem;font-size:1.05rem;font-weight:600;">' + esc(mateSummary(m)) + '</div></div>' +
         fact('📍', 'Where', mateWhere(m, d)) +
         fact('📄', 'Papers', m.purity || 'Not stated') +
+        (DNA_STORE_CAT[String(m.species || '').toLowerCase()]
+          ? '<p class="sub" style="font-size:0.8rem;margin:-0.2rem 0 0.6rem 2.6rem;">Not sure of the breed mix? 🧬 ' +
+            '<a style="color:var(--brand);font-weight:700;cursor:pointer;" onclick="closeSheet();setStoreType(\'DNA\');setStoreCat(\'' +
+            DNA_STORE_CAT[String(m.species || '').toLowerCase()] + '\');">DNA tests</a></p>'
+          : '') +
         fact('💰', 'Terms', m.comp || 'Ask the owner') +
         fact('❤️', 'Health', m.health || 'None reported') +
         (matches.length ? '<div class="note" style="cursor:pointer;background:var(--brand-soft);border-color:#ffd7ca;" onclick="showMatchesFor(' + (Number(m.cloudId) || 0) + ')">🎯 <b>' + matches.length + '</b> listing' + (matches.length === 1 ? '' : 's') + ' nearby pair' + (matches.length === 1 ? 's' : '') + ' with this one — <b>tap to see</b></div>' : '') +
@@ -6838,8 +7192,8 @@
       const action = matched
         ? '<button class="btn-friend" onclick="openCloudDM(\'' + jsStr(c.authorId) + '\')">💬 Message</button>'
         : barked
-          ? '<button class="btn-friend" disabled style="opacity:0.7;">⏳ Barked</button>'
-          : '<button class="btn-sound" onclick="mateBark(' + i + ')">🔊 Say hi</button>';
+          ? '<button class="btn-friend" disabled style="opacity:0.7;">⏳ Said hi</button>'
+          : '<button class="btn-sound" onclick="mateBark(' + i + ')">👋 Say hi</button>';
       const mi = c.mi != null && isFinite(Number(c.mi)) ? ' · ' + Number(c.mi) + ' mi' : '';
       return '<div class="user-card">' +
         (matched ? '<div class="status-bubble" style="background:#e0527a;">MATCH! 🎉</div>' : '') +
@@ -6851,13 +7205,15 @@
     }
     function mateBark(i) {
       const c = CLOUD_HUMANS[i]; if (!c || !cloudUser) return;
-      const voice = myVoice();
-      if (state.soundsSend !== false) playVoice(voice);
+      // Mate Match cards are PEOPLE. A person says hi to a person — a soft
+      // chime, never a bark, and no animal word in the copy.
+      if (state.soundsSend !== false) uiSound('send');
+      haptic(8);
       state.mateBarks = state.mateBarks || {};
       state.mateBarks[c.authorId] = 1;
       saveState();
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: c.authorId, kind: 'bark', text: '💘 ' + VOICE_WORD[voice] })
-        .then(({ error }) => { toast(error ? '⚠️ It didn\'t go through' : '💘 ' + c.name + ' got your ' + voice + '! Bark back = match'); });
+      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: c.authorId, kind: 'bark', text: '💘 👋 Hi!' })
+        .then(({ error }) => { toast(error ? '⚠️ It didn\'t go through' : '💘 ' + c.name + ' got your ' + VOICE_NOUN.like + '! Say hi back = match'); });
       renderHumanMatches();
     }
     function matchedWith(id) {
@@ -6870,11 +7226,11 @@
     // Bark back from a notification — completing the pair = instant match
     function barkBack(id) {
       if (!cloudUser) return;
-      const voice = myVoice();
-      if (state.soundsSend !== false) playVoice(voice);
+      const quiet = neutralGreet(id); // person → person, or I have no pet voice
+      if (state.soundsSend !== false) { if (quiet) uiSound('send'); else playVoice(myVoice()); }
       state.mateBarks = state.mateBarks || {};
       state.mateBarks[id] = 1; saveState();
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: VOICE_WORD[voice] })
+      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: quiet ? '👋 Hi!' : greetText() })
         .then(({ error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); return; }
           if (matchedWith(id)) {
@@ -6884,7 +7240,7 @@
             const who = PROFILE_BY_ID[id];
             toast('💘 It\'s a match' + (who ? ' with ' + who.username : '') + '! You can message now 🎉');
           } else {
-            toast('You barked back 🔊');
+            toast(quiet ? 'You said hi back 👋' : 'You barked back 🔊');
           }
           openNotifications();
         });
@@ -7544,7 +7900,7 @@
           const prev = state.myPostStats[p.cloudId];
           if (prev) {
             if (p.likes > prev.likes && notifPref('likes')) {
-              toast((p.kind === 'meow' ? '😺' : p.kind === 'bark' ? '🐶' : '❤️') + ' Your post got ' + (p.likes - prev.likes > 1 ? (p.likes - prev.likes) + ' new likes!' : 'a new like!'));
+              toast((REACT_EMO[p.kind] || '❤️') + ' Your post got ' + (p.likes - prev.likes > 1 ? (p.likes - prev.likes) + ' new likes!' : 'a new like!'));
             }
             if ((p.comments || []).length > prev.comments && notifPref('comments')) {
               const latest = p.comments[p.comments.length - 1];
@@ -7676,7 +8032,7 @@
           : '') +
         friendBtn +
         '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(u.id) + '\')">💬 Message</button>' +
-        (u.kind === 'owner' ? '' : '<button class="btn secondary" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">🔊 Say hi (' + voiceName(u.species) + ')</button>') +
+        (u.kind === 'owner' ? '' : '<button class="btn secondary" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">' + sayHiLabel() + '</button>') +
         '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;">' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block</button>' +
@@ -7704,17 +8060,17 @@
     function sendCloudBark(i) { const u = PEOPLE[i]; if (u) sendCloudBarkById(u.id); }
     function sendCloudBarkById(id) {
       const u = PROFILE_BY_ID[id]; if (!u || !cloudUser) return;
-      // You speak in YOUR voice: dogs woof, cats meow
+      // You speak in YOUR voice: dogs woof, cats meow, people just wave
       const voice = myVoice();
-      if (state.soundsSend !== false) playVoice(voice);
+      greetSound();
       haptic(8);
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: VOICE_WORD[voice] }).select('*').single()
+      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: greetText() }).select('*').single()
         .then(({ data, error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); uiSound('error'); return; }
           if (data) MY_MESSAGES.unshift(data);
           livePing(id, { type: 'bark' });
           if (dmOpenWith === id) renderDMThread(threadWith(id));
-          toast(u.username + ' got ' + VOICE_NOUN[voice]);
+          toast(u.username + ' got ' + voiceNoun(voice, myGreetSpecies()));
         });
     }
 
@@ -7738,12 +8094,16 @@
         const wanted = newest.kind === 'bark' ? notifPref('barks') : notifPref('messages');
         if (!firstMsgLoad && dmOpenWith !== newest.sender_id && wanted) {
           const name = authorName(newest.sender_id, 'a Petfi member');
-          toast(newest.kind === 'bark' ? '🔊 ' + name + ' says ' + (newest.text || 'hi') : '💬 New message from ' + name);
+          // Which animal said it? Read it off the word itself, via VOICE_WORD —
+          // a goat's "Baa! 🐐" must never come out of the speaker as a bark.
+          const heard = newest.kind === 'bark' ? sniffVoice(newest.text) : '';
+          toast(newest.kind === 'bark'
+            ? (VOICE_PLAYERS[heard] ? '🔊 ' : '👋 ') + name + ' says ' + (newest.text || 'hi')
+            : '💬 New message from ' + name);
           ringBell();
-          // …and you actually HEAR the bark or meow (unless turned off)
+          // …and you actually HEAR the bark, meow or baa (unless turned off)
           if (newest.kind === 'bark' && state.soundsReceive !== false) {
-            const heard = ((newest.text || '').match(/meow|tweet|blub|hiss|squeak/i) || ['bark'])[0].toLowerCase();
-            playVoice(heard);
+            if (VOICE_PLAYERS[heard]) playVoice(heard); else uiSound('receive');
           } else if (newest.kind !== 'bark') uiSound('receive');
         }
         lastSeenMsgId = newest.id;
@@ -7828,8 +8188,8 @@
       if (u.friends_only && !areFriendsWith(userId)) {
         const f = friendshipWith(userId);
         openSheet('🔒 ' + esc(u.username),
-          '<div class="note">' + esc(u.username) + ' only accepts messages from friends. You can still say hi!</div>' +
-          '<button class="btn" onclick="sendCloudBarkById(\'' + userId + '\')">🔊 Send a ' + voiceName(u.species) + '</button>' +
+          '<div class="note">' + esc(u.username) + ' only accepts messages from friends.' + (u.kind === 'owner' ? '' : ' You can still say hi!') + '</div>' +
+          (u.kind === 'owner' ? '' : '<button class="btn" onclick="sendCloudBarkById(\'' + userId + '\')">' + sendVoiceLabel() + '</button>') +
           (!f ? '<button class="btn secondary" onclick="sendFriendRequest(\'' + userId + '\',\'' + esc(u.username).replace(/'/g,'') + '\')">🐾 Add friend</button>'
               : f.status === 'pending' && f.addressee_id === cloudUser.id
                 ? '<button class="btn secondary" onclick="acceptFriend(' + f.id + ',\'' + esc(u.username).replace(/'/g,'') + '\')">✅ Accept their request</button>'
