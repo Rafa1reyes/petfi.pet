@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.petfi.app",
+      "sha256_cert_fingerprints": [
+        "9D:AC:0A:99:69:68:55:48:89:E0:CF:F8:B1:D7:9B:24:4E:19:DD:8A:17:B6:3D:E6:14:64:6F:E5:2F:D5:DF:73"
+      ]
+    }
+  }
+]
