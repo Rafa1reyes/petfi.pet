@@ -497,6 +497,15 @@
     .pee-drops span:nth-child(6) { animation-delay: 0.85s; --dx: 50px; --dy: 60px; }
     @keyframes peeDrop { 0% { opacity: 0; transform: translate(0, 0) scale(0.6); } 20% { opacity: 1; } 100% { opacity: 0; transform: translate(var(--dx), var(--dy)) scale(1.1); } }
     .pee-grass { position: absolute; left: 0; right: 0; bottom: 0; text-align: center; font-size: 1.5rem; letter-spacing: 0.2rem; }
+    /* ---- Closed breeding listing ---- */
+    .mm-badge.closed { background: var(--muted); }
+    /* ---- Photo avatars (a real photo instead of the drawn icon) ---- */
+    /* Every avatar box is already round + overflow:hidden, so the photo just
+       fills it. Two boxes need a nudge: list rows are rounded squares, and
+       the nearby card's avatar has no box of its own (it sizes by font). */
+    .pav { background: var(--bg); }
+    .row .ricon .pav { border-radius: 12px !important; }
+    .user-card .u-avatar .pav, .profile-head .u-avatar .pav { width: 62px !important; height: 62px !important; margin: 0 auto; }
     /* ---- Store filter bar ---- */
     .store-filters { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 0.55rem 0.8rem 0.35rem; margin-bottom: 0.9rem; }
     .sf-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
@@ -504,6 +513,11 @@
     .sf-label { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; width: 38px; flex-shrink: 0; }
     .sf-sort { flex: 0 1 auto; width: auto; padding: 0.45rem 0.7rem; font-size: 0.85rem; font-weight: 700; border-radius: 999px; border: 2px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; }
     body.dark .store-filters { background: var(--card); }
+    /* ---- Video posts ---- */
+    .pvid { position: relative; border-radius: 14px; overflow: hidden; background: #000; margin-bottom: 0.6rem; }
+    .pvid video { width: 100%; max-height: 420px; display: block; object-fit: cover; }
+    .pvid-sound { position: absolute; right: 0.55rem; bottom: 0.55rem; width: 36px; height: 36px; border-radius: 50%; border: 0; background: rgba(0, 0, 0, 0.5); color: #fff; font-size: 1rem; line-height: 1; display: flex; align-items: center; justify-content: center; cursor: pointer; }
+    .pvid-dur { position: absolute; left: 0.55rem; bottom: 0.55rem; background: rgba(0, 0, 0, 0.55); color: #fff; font-size: 0.72rem; font-weight: 700; padding: 0.15rem 0.5rem; border-radius: 999px; pointer-events: none; }
     /* ---- Two feeds ---- */
     .feed-note { background: var(--card); border: 1px dashed var(--line); border-radius: 14px; padding: 0.6rem 0.85rem; font-size: 0.85rem; color: var(--muted); margin: 0.2rem 0 0.9rem; line-height: 1.4; }
     .feed-note.local { border-color: #ffd7ca; background: var(--brand-soft); color: #7a3a28; }
@@ -861,6 +875,7 @@
       <h1 style="text-align:center;">Meet your new self! 🎉</h1>
       <div class="avatar-wrap"><span class="avatar" id="the-avatar">🐶</span></div>
       <p class="sub" style="text-align:center;margin-bottom:0.6rem;" id="avatar-caption">Biscuit the Dog</p>
+      <p class="sub" style="text-align:center;font-size:0.78rem;margin-bottom:0.6rem;">Prefer a real photo? You can switch to one any time from your profile.</p>
       <p style="text-align:center;margin-bottom:1rem;">
         <button class="pill-btn ghost" onclick="remixAvatar()">🎲 Change it up</button>
         <button class="pill-btn ghost" id="remix-reset" style="display:none;" onclick="resetAvatarLook()">↺ Original</button>
@@ -1279,6 +1294,342 @@
         <path d="M38 76 Q60 88 82 76" stroke="${shade(base,-32)}" stroke-width="2.2" fill="none" stroke-linecap="round"/></svg>`;
     }
 
+    // ================= Farm & ranch portraits =================
+    // Same 120x120 stage as the pets: head centred on x=60, eyes near y=52 and
+    // the chest from y=91 down, so accSVG collars and glasses land correctly.
+
+    // Neck + shoulders wedge the collar sits on.
+    function farmChest(color) {
+      return `<path d="M22 120 Q24 97 60 91 Q96 97 98 120 Z" fill="${color}"/>`;
+    }
+
+    function goatSVG(p, px) {
+      const base = p.base,
+            body = p.body || base,
+            muzzle = p.muzzle || shade(base, 26),
+            earFill = p.earFill || shade(base, -14),
+            eye = p.eye || '#c19233',
+            horn = p.horn || '#b5a488',
+            dark = shade(base, -45),
+            ear = p.ear || 'floppy';
+
+      let ears;
+      if (ear === 'tiny') {
+        ears = `<ellipse cx="34" cy="37" rx="6.5" ry="4.5" fill="${earFill}"/><ellipse cx="86" cy="37" rx="6.5" ry="4.5" fill="${earFill}"/>`;
+      } else if (ear === 'floppy' || ear === 'longfloppy') {
+        const ry = p.longEar ? 25 : 20;
+        ears = `<ellipse cx="27" cy="66" rx="10" ry="${ry}" fill="${earFill}" transform="rotate(30 27 52)"/>
+        <ellipse cx="93" cy="66" rx="10" ry="${ry}" fill="${earFill}" transform="rotate(-30 93 52)"/>`;
+      } else {
+        ears = `<ellipse cx="25" cy="42" rx="14" ry="7" fill="${earFill}" transform="rotate(-16 25 42)"/>
+        <ellipse cx="95" cy="42" rx="14" ry="7" fill="${earFill}" transform="rotate(16 95 42)"/>`;
+      }
+
+      let horns = '';
+      if (p.horns === 'short') {
+        horns = `<path d="M48 29 Q39 11 45 4 Q55 14 57 30 Z" fill="${horn}"/><path d="M72 29 Q81 11 75 4 Q65 14 63 30 Z" fill="${horn}"/>`;
+      } else if (p.horns === 'swept') {
+        horns = `<path d="M48 26 Q32 6 16 2 Q29 15 44 33 Z" fill="${horn}"/><path d="M72 26 Q88 6 104 2 Q91 15 76 33 Z" fill="${horn}"/>`;
+      }
+
+      const roman = p.roman ? `<ellipse cx="60" cy="62" rx="13.5" ry="11" fill="${muzzle}"/>` : '';
+      const beard = p.beard === false ? '' : `<path d="M52 88 Q60 112 68 88 Q60 94 52 88 Z" fill="${shade(base, -16)}"/>`;
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        ${farmChest(body)}${horns}${ears}
+        <ellipse cx="60" cy="50" rx="25" ry="26" fill="${base}"/>
+        ${roman}
+        <ellipse cx="60" cy="74" rx="15" ry="16" fill="${muzzle}"/>
+        ${beard}
+        <ellipse cx="46" cy="52" rx="7" ry="5.6" fill="${eye}"/><ellipse cx="74" cy="52" rx="7" ry="5.6" fill="${eye}"/>
+        <rect x="41" y="50.2" width="10" height="3.6" rx="1.8" fill="#1a1a1a"/><rect x="69" y="50.2" width="10" height="3.6" rx="1.8" fill="#1a1a1a"/>
+        <circle cx="43.5" cy="49" r="1.4" fill="#fff"/><circle cx="71.5" cy="49" r="1.4" fill="#fff"/>
+        <ellipse cx="54.5" cy="73" rx="2.4" ry="3.2" fill="${dark}"/><ellipse cx="65.5" cy="73" rx="2.4" ry="3.2" fill="${dark}"/>
+        <path d="M52 82 Q60 87 68 82" stroke="${dark}" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+    }
+
+    function cattleSVG(p, px) {
+      const base = p.base,
+            body = p.body || base,
+            muzzle = p.muzzle || '#c98f92',
+            earFill = p.earFill || shade(base, -16),
+            eye = p.eye || '#2a2320',
+            horn = p.horn || '#d8cdb4',
+            dark = '#3a322c',
+            ear = p.ear || 'side';
+
+      const hump = p.hump ? `<ellipse cx="60" cy="94" rx="27" ry="16" fill="${shade(base, -8)}"/>` : '';
+      const ears = ear === 'droop'
+        ? `<ellipse cx="22" cy="62" rx="9" ry="17" fill="${earFill}" transform="rotate(26 22 52)"/>
+        <ellipse cx="98" cy="62" rx="9" ry="17" fill="${earFill}" transform="rotate(-26 98 52)"/>`
+        : `<ellipse cx="23" cy="52" rx="15" ry="8.5" fill="${earFill}" transform="rotate(-10 23 52)"/>
+        <ellipse cx="97" cy="52" rx="15" ry="8.5" fill="${earFill}" transform="rotate(10 97 52)"/>`;
+
+      let horns = '';
+      if (p.horns === 'short') {
+        horns = `<path d="M40 30 Q32 18 38 13 Q46 20 48 31 Z" fill="${horn}"/><path d="M80 30 Q88 18 82 13 Q74 20 72 31 Z" fill="${horn}"/>`;
+      } else if (p.horns === 'wide') {
+        horns = `<path d="M40 30 Q20 18 4 24 Q18 26 38 37 Z" fill="${horn}"/><path d="M80 30 Q100 18 116 24 Q102 26 82 37 Z" fill="${horn}"/>`;
+      }
+
+      const head = `<ellipse cx="60" cy="52" rx="29" ry="27" fill="${base}"/>`;
+      const face = p.face ? `<ellipse cx="60" cy="56" rx="22" ry="24" fill="${p.face}"/>` : '';
+      const patches = p.patches
+        ? `<path d="M31 42 Q25 60 40 70 L43 40 Z" fill="${p.patches}"/>
+        <path d="M86 46 Q93 60 80 72 L78 46 Z" fill="${p.patches}"/>
+        <ellipse cx="38" cy="112" rx="13" ry="10" fill="${p.patches}"/><ellipse cx="84" cy="114" rx="11" ry="9" fill="${p.patches}"/>`
+        : '';
+      const fringe = p.fringe
+        ? `<path d="M36 30 Q40 50 34 58 Q46 52 44 30 Z" fill="${shade(base, 14)}"/>
+        <path d="M52 26 Q54 50 47 60 Q60 54 60 26 Z" fill="${shade(base, 20)}"/>
+        <path d="M84 30 Q80 50 86 58 Q74 52 76 30 Z" fill="${shade(base, 14)}"/>
+        <path d="M68 26 Q66 50 73 60 Q60 54 60 26 Z" fill="${shade(base, 20)}"/>`
+        : '';
+      const eyeY = p.fringe ? 58 : 50;
+      const eyes = `<ellipse cx="46" cy="${eyeY}" rx="7.4" ry="8.4" fill="#f7f3ec"/><ellipse cx="74" cy="${eyeY}" rx="7.4" ry="8.4" fill="#f7f3ec"/>
+        <ellipse cx="46" cy="${eyeY}" rx="6" ry="7" fill="${eye}"/><ellipse cx="74" cy="${eyeY}" rx="6" ry="7" fill="${eye}"/>
+        <circle cx="48" cy="${eyeY - 2}" r="1.8" fill="#fff"/><circle cx="76" cy="${eyeY - 2}" r="1.8" fill="#fff"/>`;
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        ${farmChest(body)}${hump}${horns}${ears}${head}${face}${patches}
+        <ellipse cx="60" cy="78" rx="20" ry="14" fill="${muzzle}"/>
+        <ellipse cx="51" cy="76" rx="3.6" ry="4.8" fill="${dark}"/><ellipse cx="69" cy="76" rx="3.6" ry="4.8" fill="${dark}"/>
+        <path d="M50 86 Q60 91 70 86" stroke="${shade(muzzle, -35)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        ${fringe}${eyes}</svg>`;
+    }
+
+    function sheepSVG(p, px) {
+      // Also draws alpacas and llamas (long neck + banana ears).
+      const wool = p.base,
+            face = p.face || shade(wool, -30),
+            eye = p.eye || '#2a2320',
+            horn = p.horn || '#b5a488',
+            dark = shade(face, -35),
+            fluff = p.fluff || 'med',
+            ear = p.ear || 'side',
+            longNeck = p.neck === 'long';
+
+      const puff = (x, y, r) => `<circle cx="${x}" cy="${y}" r="${r}" fill="${wool}"/>`;
+      const bumpy = fluff !== 'low';
+      let chest = longNeck
+        ? `<path d="M44 120 Q41 88 50 76 L70 76 Q79 88 76 120 Z" fill="${wool}"/>`
+        : farmChest(wool);
+      if (bumpy) {
+        const neckPuffs = longNeck
+          ? [[46, 84, 9], [74, 84, 9], [42, 100, 10], [78, 100, 10], [60, 112, 12]]
+          : [[30, 104, 12], [90, 104, 12], [48, 112, 13], [74, 112, 13]];
+        chest += neckPuffs.map(c => puff(c[0], c[1], c[2])).join('');
+      }
+
+      const ears = ear === 'long'
+        ? `<ellipse cx="43" cy="20" rx="5.5" ry="16" fill="${face}" transform="rotate(-10 43 20)"/>
+        <ellipse cx="77" cy="20" rx="5.5" ry="16" fill="${face}" transform="rotate(10 77 20)"/>`
+        : `<ellipse cx="32" cy="56" rx="11" ry="6" fill="${face}" transform="rotate(16 32 56)"/>
+        <ellipse cx="88" cy="56" rx="11" ry="6" fill="${face}" transform="rotate(-16 88 56)"/>`;
+
+      let horns = '';
+      if (p.horns === 'curl' || p.horns === 'four') {
+        horns = `<path d="M38 34 Q20 36 22 54 Q24 66 38 62" stroke="${horn}" stroke-width="7" fill="none" stroke-linecap="round"/>
+        <path d="M82 34 Q100 36 98 54 Q96 66 82 62" stroke="${horn}" stroke-width="7" fill="none" stroke-linecap="round"/>`;
+      }
+      if (p.horns === 'four') {
+        horns += `<path d="M48 26 Q42 8 46 2" stroke="${horn}" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <path d="M72 26 Q78 8 74 2" stroke="${horn}" stroke-width="5" fill="none" stroke-linecap="round"/>`;
+      }
+
+      // Wool cap around the head
+      let cap = '';
+      if (bumpy) {
+        const ring = longNeck
+          ? [[60, 28, 14], [40, 34, 12], [80, 34, 12], [30, 50, 12], [90, 50, 12]]
+          : (fluff === 'high'
+            ? [[60, 18, 16], [38, 24, 14], [82, 24, 14], [24, 40, 14], [96, 40, 14], [22, 58, 13], [98, 58, 13], [30, 74, 13], [90, 74, 13], [48, 14, 12], [72, 14, 12]]
+            : [[60, 22, 15], [38, 28, 13], [82, 28, 13], [26, 44, 13], [94, 44, 13], [26, 60, 12], [94, 60, 12]]);
+        cap = ring.map(c => puff(c[0], c[1], c[2])).join('');
+      } else {
+        cap = `<ellipse cx="60" cy="44" rx="${longNeck ? 26 : 32}" ry="28" fill="${wool}"/>`;
+      }
+
+      const spots = p.spots
+        ? [[34, 30, 8], [86, 38, 7], [44, 104, 8], [60, 40, 6]].map(c =>
+            `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}" fill="${p.spots}"/>`).join('')
+        : '';
+
+      const faceEl = longNeck
+        ? `<ellipse cx="60" cy="52" rx="16" ry="19" fill="${face}"/><ellipse cx="60" cy="64" rx="11" ry="10" fill="${shade(face, 18)}"/>`
+        : `<ellipse cx="60" cy="58" rx="19" ry="22" fill="${face}"/>`;
+      const noseY = longNeck ? 66 : 72;
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        ${chest}${horns}${cap}${ears}${spots}${faceEl}
+        <ellipse cx="50" cy="52" rx="6.8" ry="7.8" fill="#f7f3ec"/><ellipse cx="70" cy="52" rx="6.8" ry="7.8" fill="#f7f3ec"/>
+        <ellipse cx="50" cy="52" rx="5.4" ry="6.4" fill="${eye}"/><ellipse cx="70" cy="52" rx="5.4" ry="6.4" fill="${eye}"/>
+        <circle cx="51.8" cy="50" r="1.6" fill="#fff"/><circle cx="71.8" cy="50" r="1.6" fill="#fff"/>
+        <ellipse cx="56" cy="${noseY}" rx="2.2" ry="2.8" fill="${dark}"/><ellipse cx="64" cy="${noseY}" rx="2.2" ry="2.8" fill="${dark}"/>
+        <path d="M53 ${noseY + 7} Q60 ${noseY + 12} 67 ${noseY + 7}" stroke="${dark}" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>`;
+    }
+
+    function horseSVG(p, px) {
+      const base = p.base,
+            mane = p.mane || shade(base, -40),
+            muzzle = p.muzzle || shade(base, -18),
+            eye = p.eye || '#2a2320',
+            dark = '#241f1b',
+            earTop = p.ear === 'small' ? 20 : 14;
+
+      const ears = `<path d="M40 34 Q34 ${earTop - 6} 47 ${earTop} Q51 26 50 38 Z" fill="${base}"/>
+        <path d="M80 34 Q86 ${earTop - 6} 73 ${earTop} Q69 26 70 38 Z" fill="${base}"/>
+        <path d="M43 33 Q40 21 47 24 Q49 30 48 36 Z" fill="${shade(mane, 20)}"/>
+        <path d="M77 33 Q80 21 73 24 Q71 30 72 36 Z" fill="${shade(mane, 20)}"/>`;
+
+      const maneEl = `<path d="M34 42 Q26 70 34 96 L46 90 Q38 66 44 44 Z" fill="${mane}"/>
+        <path d="M86 42 Q94 70 86 96 L74 90 Q82 66 76 44 Z" fill="${mane}"/>
+        <path d="M46 26 Q60 12 74 26 Q70 40 60 34 Q50 40 46 26 Z" fill="${mane}"/>`;
+
+      const head = `<path d="M60 22 Q84 26 84 52 Q84 74 73 89 Q67 96 60 96 Q53 96 47 89 Q36 74 36 52 Q36 26 60 22 Z" fill="${base}"/>`;
+
+      let blaze = '';
+      if (p.blaze === 'stripe') blaze = `<path d="M56 26 Q52 56 55 86 L65 86 Q68 56 64 26 Z" fill="#f4f2ee"/>`;
+      else if (p.blaze === 'star') blaze = `<circle cx="60" cy="34" r="8" fill="#f4f2ee"/>`;
+      else if (p.blaze === 'wide') blaze = `<path d="M48 26 Q43 58 50 90 L70 90 Q77 58 72 26 Z" fill="#f4f2ee"/>`;
+
+      const patches = p.patches
+        ? `<path d="M36 60 Q30 82 44 94 L48 62 Z" fill="${p.patches}"/><ellipse cx="88" cy="110" rx="16" ry="12" fill="${p.patches}"/>`
+        : '';
+      const spots = p.spots
+        ? [[42, 100, 4.5], [58, 106, 4], [76, 100, 4.5], [90, 108, 4], [30, 110, 4], [66, 114, 3.5]].map(c =>
+            `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}" fill="${shade(base, -55)}"/>`).join('')
+        : '';
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        ${farmChest(base)}${spots}${patches}${ears}${maneEl}${head}${blaze}
+        <ellipse cx="60" cy="86" rx="14" ry="12" fill="${muzzle}"/>
+        <ellipse cx="54" cy="84" rx="2.8" ry="4" fill="${dark}"/><ellipse cx="66" cy="84" rx="2.8" ry="4" fill="${dark}"/>
+        <path d="M54 93 Q60 97 66 93" stroke="${dark}" stroke-width="1.6" fill="none" stroke-linecap="round"/>
+        <ellipse cx="44" cy="52" rx="5.6" ry="6.6" fill="${eye}"/><ellipse cx="76" cy="52" rx="5.6" ry="6.6" fill="${eye}"/>
+        <circle cx="45.8" cy="50" r="1.7" fill="#fff"/><circle cx="77.8" cy="50" r="1.7" fill="#fff"/></svg>`;
+    }
+
+    function pigSVG(p, px) {
+      const base = p.base,
+            muzzle = p.muzzle || shade(base, -14),
+            earFill = p.earFill || shade(base, -10),
+            eye = p.eye || '#2a2320',
+            dark = shade(muzzle, -45),
+            ear = p.ear || 'upright';
+
+      const ears = (ear === 'floppy' || ear === 'longfloppy')
+        ? `<path d="M28 32 Q17 60 40 64 Q47 46 43 32 Z" fill="${earFill}"/>
+        <path d="M92 32 Q103 60 80 64 Q73 46 77 32 Z" fill="${earFill}"/>`
+        : `<path d="M30 40 Q24 12 47 25 Q49 38 43 47 Z" fill="${earFill}"/>
+        <path d="M90 40 Q96 12 73 25 Q71 38 77 47 Z" fill="${earFill}"/>`;
+      const points = p.points
+        ? `<path d="M33 22 Q28 16 34 18 Q38 22 38 27 Z" fill="${p.points}"/><path d="M87 22 Q92 16 86 18 Q82 22 82 27 Z" fill="${p.points}"/>`
+        : '';
+
+      const head = `<ellipse cx="60" cy="58" rx="${p.small ? 28 : 32}" ry="${p.small ? 26 : 28}" fill="${base}"/>`;
+      const spots = p.spots
+        ? [[36, 46, 7], [82, 44, 6], [44, 74, 5], [86, 66, 5.5], [34, 108, 8], [80, 112, 7]].map(c =>
+            `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}" fill="${p.spots}"/>`).join('')
+        : '';
+      const belt = p.belt ? `<path d="M26 106 Q60 96 94 106 L96 120 L24 120 Z" fill="${p.belt}"/>` : '';
+      const wattles = p.wattles
+        ? `<ellipse cx="50" cy="96" rx="4" ry="8" fill="${shade(base, -8)}"/><ellipse cx="70" cy="96" rx="4" ry="8" fill="${shade(base, -8)}"/>`
+        : '';
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        ${farmChest(base)}${belt}${ears}${points}${head}${spots}${wattles}
+        <ellipse cx="60" cy="76" rx="18" ry="13" fill="${muzzle}"/>
+        <ellipse cx="53" cy="76" rx="3.2" ry="4.6" fill="${dark}"/><ellipse cx="67" cy="76" rx="3.2" ry="4.6" fill="${dark}"/>
+        <path d="M46 86 Q60 93 74 86" stroke="${shade(base, -38)}" stroke-width="1.8" fill="none" stroke-linecap="round"/>
+        <ellipse cx="46" cy="50" rx="5" ry="5.8" fill="${eye}"/><ellipse cx="74" cy="50" rx="5" ry="5.8" fill="${eye}"/>
+        <circle cx="47.6" cy="48" r="1.5" fill="#fff"/><circle cx="75.6" cy="48" r="1.5" fill="#fff"/></svg>`;
+    }
+
+    function chickenSVG(p, px) {
+      // Chickens, ducks and turkeys share this one: comb/snood, beak style and
+      // feather pattern are all params.
+      const base = p.base,
+            body = p.body || base,
+            red = p.wattle || '#d63a3a',
+            beak = p.beak || '#e8a83c',
+            eye = p.eye || '#c9922a',
+            comb = p.comb || 'single',
+            size = p.combSize || 'med',
+            bill = p.bill || 'point';
+
+      const fluffRing = p.fluff
+        ? [[60, 20, 15], [38, 28, 13], [82, 28, 13], [26, 46, 13], [94, 46, 13], [30, 66, 12], [90, 66, 12]]
+          .map(c => `<circle cx="${c[0]}" cy="${c[1]}" r="${c[2]}" fill="${base}"/>`).join('')
+        : '';
+
+      let combEl = '';
+      const h = size === 'large' ? 1.5 : (size === 'small' ? 0.65 : 1);
+      const t = y => (54 - (54 - y) * h).toFixed(1);
+      if (comb === 'single') {
+        combEl = `<path d="M44 34 Q46 ${t(20)} 52 ${t(29)} Q56 ${t(13)} 62 ${t(27)} Q68 ${t(15)} 72 ${t(31)} Q77 ${t(23)} 78 36 Z" fill="${red}"/>`;
+      } else if (comb === 'rose') {
+        combEl = `<ellipse cx="60" cy="31" rx="15" ry="8" fill="${red}"/><circle cx="52" cy="28" r="3" fill="${shade(red, 18)}"/><circle cx="60" cy="26" r="3" fill="${shade(red, 18)}"/><circle cx="68" cy="28" r="3" fill="${shade(red, 18)}"/>`;
+      } else if (comb === 'pea') {
+        combEl = `<path d="M50 34 Q52 26 55 34 Z" fill="${red}"/><path d="M57 33 Q60 23 63 33 Z" fill="${red}"/><path d="M65 34 Q68 26 70 34 Z" fill="${red}"/>`;
+      } else if (comb === 'puff') {
+        combEl = `<circle cx="52" cy="24" r="11" fill="${base}"/><circle cx="68" cy="24" r="11" fill="${base}"/><circle cx="60" cy="18" r="11" fill="${base}"/>`;
+      }
+
+      const head = `<circle cx="60" cy="54" r="24" fill="${p.face || base}"/>`;
+      const muff = p.muff
+        ? `<circle cx="36" cy="64" r="11" fill="${shade(base, 22)}"/><circle cx="84" cy="64" r="11" fill="${shade(base, 22)}"/>`
+        : '';
+
+      let pattern = '';
+      if (p.pattern === 'barred') {
+        pattern = `<g stroke="${shade(base, 45)}" stroke-width="3.4" stroke-linecap="round" opacity="0.85">
+        <path d="M32 100 H88"/><path d="M28 109 H92"/><path d="M34 118 H86"/>
+        <path d="M44 44 H76"/><path d="M40 60 H80"/></g>`;
+      } else if (p.pattern === 'laced') {
+        pattern = `<g stroke="${shade(base, -50)}" stroke-width="2.4" fill="none" stroke-linecap="round" opacity="0.75">
+        <path d="M30 104 Q42 96 54 104"/><path d="M60 106 Q72 98 84 106"/><path d="M26 116 Q40 108 54 116"/><path d="M62 118 Q76 110 90 118"/></g>`;
+      } else if (p.pattern === 'sheen') {
+        pattern = `<ellipse cx="46" cy="44" rx="12" ry="9" fill="#3f6a58" opacity="0.5" transform="rotate(-20 46 44)"/>
+        <ellipse cx="42" cy="104" rx="16" ry="9" fill="#3f6a58" opacity="0.45"/>`;
+      }
+
+      const wing = `<path d="M27 120 Q23 102 41 97 Q47 109 43 120 Z" fill="${shade(body, -11)}"/>
+        <path d="M93 120 Q97 102 79 97 Q73 109 77 120 Z" fill="${shade(body, -11)}"/>`;
+
+      let beakEl, wattleEl;
+      if (bill === 'flat') {
+        beakEl = `<ellipse cx="60" cy="70" rx="15" ry="9.5" fill="${beak}"/>
+        <path d="M45 70 Q60 78 75 70" stroke="${shade(beak, -30)}" stroke-width="1.4" fill="none"/>
+        <circle cx="54" cy="65" r="1.4" fill="${shade(beak, -40)}"/><circle cx="66" cy="65" r="1.4" fill="${shade(beak, -40)}"/>`;
+        wattleEl = '';
+      } else {
+        beakEl = `<path d="M52 64 L68 64 L60 78 Z" fill="${beak}"/><path d="M52 64 L68 64" stroke="${shade(beak, -32)}" stroke-width="1.4"/>`;
+        wattleEl = p.snood
+          ? `<ellipse cx="60" cy="86" rx="7.5" ry="10" fill="${red}"/>`
+          : `<ellipse cx="54" cy="84" rx="4.5" ry="8" fill="${red}"/><ellipse cx="66" cy="84" rx="4.5" ry="8" fill="${red}"/>`;
+      }
+
+      const snood = p.snood
+        ? `<path d="M57 46 Q49 56 51 72" stroke="${red}" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path d="M40 74 Q60 88 80 74" stroke="${shade(red, -14)}" stroke-width="5" fill="none" stroke-linecap="round" opacity="0.8"/>`
+        : '';
+      const caruncle = p.caruncle
+        ? [[42, 42], [48, 35], [56, 32], [64, 32], [72, 35], [78, 42]].map(c =>
+            `<circle cx="${c[0]}" cy="${c[1]}" r="2.6" fill="${shade(red, -12)}" opacity="0.85"/>`).join('')
+        : '';
+      const crest = p.crest ? `<path d="M50 32 Q52 12 60 28 Q68 12 70 32 Z" fill="${p.crest}"/>` : '';
+
+      return `<svg width="${px}" height="${px}" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" style="overflow:visible">
+        <path d="M18 120 Q18 90 60 86 Q102 90 102 120 Z" fill="${body}"/>
+        ${wing}${pattern}${fluffRing}${combEl}${crest}${head}${caruncle}${muff}${snood}
+        <circle cx="48" cy="52" r="5.6" fill="#fdfbf6"/><circle cx="72" cy="52" r="5.6" fill="#fdfbf6"/>
+        <circle cx="48" cy="52" r="4" fill="${eye}"/><circle cx="72" cy="52" r="4" fill="${eye}"/>
+        <circle cx="48" cy="52" r="2.2" fill="#1a1a1a"/><circle cx="72" cy="52" r="2.2" fill="#1a1a1a"/>
+        <circle cx="49.4" cy="50.4" r="1.2" fill="#fff"/><circle cx="73.4" cy="50.4" r="1.2" fill="#fff"/>
+        ${beakEl}${wattleEl}</svg>`;
+    }
+
     // ---- Breed lookup tables (aliases are matched against typed breed text) ----
     const RABBIT_DEFAULT = { base:'#b98c5f' };
     const RABBIT_BREEDS = {
@@ -1370,6 +1721,103 @@
       persian:  { aliases:['persian','fluffy','maine','coon'], base:'#e7ddce', type:'solid', wide:true, eye:'#e0a83a', whisk:'#cabfad' }
     };
 
+    // ---- Farm & ranch breed tables ----
+    const GOAT_DEFAULT = { base:'#e6dfd2', body:'#efe9df', ear:'floppy', muzzle:'#f4efe6', horns:'short', beard:true, eye:'#c19233' };
+    const GOAT_BREEDS = {
+      boer:     { aliases:['boer'], base:'#a9532c', body:'#f4f0e8', ear:'floppy', muzzle:'#c9744a', horns:'swept', eye:'#b07d2c' },
+      nubian:   { aliases:['nubian','anglo'], base:'#6a4a32', body:'#7a5a40', ear:'floppy', longEar:true, roman:true, muzzle:'#8a6648', horns:'none', eye:'#a97c2e' },
+      alpine:   { aliases:['alpine','french alpine','oberhasli'], base:'#3a332c', body:'#d8cfc2', ear:'upright', muzzle:'#5a5048', horns:'swept', eye:'#c19233' },
+      nigerian: { aliases:['nigerian','dwarf','nigerian dwarf'], base:'#8a6a48', body:'#c9b08a', ear:'upright', muzzle:'#a9855e', horns:'short', eye:'#5b8def' },
+      lamancha: { aliases:['lamancha','la mancha','gopher'], base:'#4a3a2c', body:'#5a4838', ear:'tiny', muzzle:'#6a5442', horns:'none', eye:'#b07d2c' },
+      saanen:   { aliases:['saanen','white goat','toggenburg'], base:'#f4f2ee', body:'#f4f2ee', ear:'upright', muzzle:'#f7f5f1', horns:'none', eye:'#c19233' },
+      pygmy:    { aliases:['pygmy'], base:'#6a6258', body:'#8a8278', ear:'upright', muzzle:'#a9a096', horns:'short', eye:'#c19233' },
+      kiko:     { aliases:['kiko'], base:'#efe9df', body:'#efe9df', ear:'floppy', muzzle:'#f4efe6', horns:'swept', eye:'#c19233' }
+    };
+
+    const CATTLE_DEFAULT = { base:'#241f1b', ear:'side', horns:'none', muzzle:'#5a4f48', eye:'#2a2320' };
+    const CATTLE_BREEDS = {
+      angus:      { aliases:['angus','black angus','black cow'], base:'#241f1b', ear:'side', horns:'none', muzzle:'#4a423c' },
+      hereford:   { aliases:['hereford'], base:'#9a4a26', face:'#f4f2ee', body:'#8a4122', ear:'side', horns:'short', muzzle:'#d8a89a' },
+      holstein:   { aliases:['holstein','friesian','dairy'], base:'#f4f2ee', body:'#f4f2ee', patches:'#241f1b', ear:'side', horns:'none', muzzle:'#3a332c' },
+      jersey:     { aliases:['jersey','guernsey'], base:'#c49a5e', body:'#b98d52', ear:'side', horns:'short', muzzle:'#3a332c' },
+      brahman:    { aliases:['brahman','zebu','brahma'], base:'#a9a49c', body:'#9a958e', ear:'droop', hump:true, horns:'short', muzzle:'#6a625c' },
+      longhorn:   { aliases:['longhorn','texas'], base:'#a9541f', body:'#9a4c1c', ear:'side', horns:'wide', muzzle:'#c98f92' },
+      highland:   { aliases:['highland','scottish','coo'], base:'#c9793a', body:'#b96c33', ear:'side', horns:'wide', fringe:true, muzzle:'#8a5a3a' },
+      charolais:  { aliases:['charolais','charolaise','cream cow','white cow'], base:'#eee7d8', body:'#e6ddcc', ear:'side', horns:'short', muzzle:'#e0c9b0' }
+    };
+
+    const SHEEP_DEFAULT = { base:'#f2ede2', face:'#4a4540', ear:'side', horns:'none', fluff:'med' };
+    const SHEEP_BREEDS = {
+      suffolk:   { aliases:['suffolk'], base:'#f4f0e6', face:'#2a2622', ear:'side', horns:'none', fluff:'med' },
+      dorper:    { aliases:['dorper'], base:'#f7f5f1', face:'#241f1b', ear:'side', horns:'none', fluff:'low' },
+      merino:    { aliases:['merino','rambouillet'], base:'#eee6d4', face:'#e2d8c2', ear:'side', horns:'curl', fluff:'high' },
+      katahdin:  { aliases:['katahdin','hair sheep','dorset'], base:'#e8dfcd', face:'#d8c9ad', ear:'side', horns:'none', fluff:'low' },
+      jacob:     { aliases:['jacob'], base:'#f2ede2', face:'#f2ede2', spots:'#2a2622', ear:'side', horns:'four', fluff:'med' },
+      hampshire: { aliases:['hampshire','shropshire'], base:'#efe9dc', face:'#3a332c', ear:'side', horns:'none', fluff:'med' },
+      romney:    { aliases:['romney','lincoln','cotswold'], base:'#f2eee4', face:'#efe9dc', ear:'side', horns:'none', fluff:'high' },
+      icelandic: { aliases:['icelandic','shetland'], base:'#d8c9a8', face:'#c9b892', ear:'side', horns:'curl', fluff:'high' }
+    };
+
+    const ALPACA_DEFAULT = { base:'#d8bd94', face:'#e8d8b8', neck:'long', ear:'long', horns:'none', fluff:'high' };
+    const ALPACA_BREEDS = {
+      huacaya: { aliases:['huacaya','alpaca'], base:'#d8bd94', face:'#e8d8b8', neck:'long', ear:'long', fluff:'high' },
+      suri:    { aliases:['suri'], base:'#e8dcc4', face:'#efe6d2', neck:'long', ear:'long', fluff:'med' },
+      llama:   { aliases:['llama','lama','guanaco'], base:'#c9a06a', face:'#f2ede2', neck:'long', ear:'long', fluff:'low' }
+    };
+
+    const HORSE_DEFAULT = { base:'#8a4a24', mane:'#3a2a1c', blaze:'none', ear:'medium', muzzle:'#6a3a1c', eye:'#2a2320' };
+    const HORSE_BREEDS = {
+      quarter:      { aliases:['quarter','sorrel','chestnut','quarter horse'], base:'#a9541f', mane:'#7a3a14', muzzle:'#8a4318', blaze:'stripe' },
+      paint:        { aliases:['paint','pinto','tobiano'], base:'#6a4a32', mane:'#2a2220', muzzle:'#543824', patches:'#f4f2ee', blaze:'wide' },
+      appaloosa:    { aliases:['appaloosa','appy','leopard horse'], base:'#efe9df', mane:'#8a8278', muzzle:'#d8cec0', spots:true, blaze:'none' },
+      arabian:      { aliases:['arabian','arab','andalusian'], base:'#b9b4ac', mane:'#e8e4de', muzzle:'#9a958e', blaze:'star', ear:'small' },
+      thoroughbred: { aliases:['thoroughbred','bay','racehorse','standardbred'], base:'#6a3a1c', mane:'#241f1b', muzzle:'#4a2814', blaze:'stripe' },
+      draft:        { aliases:['clydesdale','draft','shire','percheron','belgian'], base:'#5a3520', mane:'#f4f2ee', muzzle:'#452a18', blaze:'wide', ear:'small' },
+      palomino:     { aliases:['palomino','buckskin'], base:'#d8a94a', mane:'#f4f0e4', muzzle:'#b98c34', blaze:'star' },
+      mustang:      { aliases:['mustang','wild','pony','morgan'], base:'#7a5a3a', mane:'#3a2a1c', muzzle:'#5f462c', blaze:'none' }
+    };
+
+    const PIG_DEFAULT = { base:'#f0aab0', ear:'upright', muzzle:'#e08a94', eye:'#2a2320' };
+    const PIG_BREEDS = {
+      yorkshire: { aliases:['yorkshire','large white','white pig','landrace'], base:'#f2b8bc', ear:'upright', muzzle:'#e094a0' },
+      berkshire: { aliases:['berkshire'], base:'#35302c', ear:'upright', muzzle:'#5a524a', points:'#f4f2ee' },
+      duroc:     { aliases:['duroc','red pig'], base:'#b9542a', ear:'floppy', muzzle:'#9a4522' },
+      hampshire: { aliases:['hampshire','belted'], base:'#2f2b28', ear:'upright', muzzle:'#4a443e', belt:'#f4f2ee' },
+      kunekune:  { aliases:['kunekune','kune'], base:'#e8a878', ear:'floppy', muzzle:'#d08f62', spots:'#4a3a2c', wattles:true },
+      potbelly:  { aliases:['potbelly','pot belly','vietnamese','mini pig','micro pig','teacup'], base:'#3a342e', ear:'upright', muzzle:'#554d45', small:true },
+      oldspot:   { aliases:['gloucester','old spot','spotted','spot'], base:'#f2dcd6', ear:'floppy', muzzle:'#dfbcb4', spots:'#3a342e' },
+      tamworth:  { aliases:['tamworth','ginger pig'], base:'#c9663a', ear:'upright', muzzle:'#a9512a' }
+    };
+
+    const CHICKEN_DEFAULT = { base:'#8a3a22', comb:'single', combSize:'med', wattle:'#d63a3a', beak:'#e8a83c', pattern:'solid', eye:'#c9922a' };
+    const CHICKEN_BREEDS = {
+      rhodeisland: { aliases:['rhode island','rhode','rir','red hen','red'], base:'#8a3a22', body:'#7a3320', comb:'single', beak:'#e8a83c' },
+      leghorn:     { aliases:['leghorn','white hen','white'], base:'#f7f5f1', body:'#f2efe8', comb:'single', combSize:'large', beak:'#f2c04a' },
+      silkie:      { aliases:['silkie','silky','bantam'], base:'#f4f2ee', body:'#efece4', comb:'puff', fluff:true, beak:'#8a7a9a', wattle:'#7a2a4a', eye:'#3a2f3a' },
+      orpington:   { aliases:['orpington','buff'], base:'#e0a84a', body:'#d69c3e', comb:'single', beak:'#e8b860' },
+      plymouth:    { aliases:['plymouth','barred','rock'], base:'#6a6a66', body:'#5f5f5c', pattern:'barred', comb:'single' },
+      wyandotte:   { aliases:['wyandotte','laced'], base:'#e8e2d6', body:'#ded7c8', pattern:'laced', comb:'rose' },
+      australorp:  { aliases:['australorp','black hen','black','jersey giant'], base:'#2a2a33', body:'#24242c', pattern:'sheen', comb:'single' },
+      easteregger: { aliases:['easter egger','easter','ameraucana','araucana','olive egger'], base:'#b9906a', body:'#a9805c', comb:'pea', muff:true }
+    };
+
+    const DUCK_DEFAULT = { base:'#f7f5f1', body:'#f2efe8', bill:'flat', comb:'none', beak:'#f2a83c', eye:'#3a3330' };
+    const DUCK_BREEDS = {
+      pekin:    { aliases:['pekin','peking','white duck','aylesbury'], base:'#f7f5f1', body:'#f2efe8', bill:'flat', comb:'none', beak:'#f2a83c', eye:'#3a3330' },
+      mallard:  { aliases:['mallard','rouen','wild duck'], base:'#2f7a52', body:'#8a7a52', bill:'flat', comb:'none', beak:'#d8c04a', eye:'#241f1b' },
+      khaki:    { aliases:['khaki','campbell','khaki campbell'], base:'#a98a5a', body:'#9a7d50', bill:'flat', comb:'none', beak:'#4a5550', eye:'#241f1b' },
+      runner:   { aliases:['runner','indian runner'], base:'#e8dcc0', body:'#d8ccae', bill:'flat', comb:'none', beak:'#3f3f3a', eye:'#241f1b' },
+      muscovy:  { aliases:['muscovy','scovy'], base:'#2a2622', body:'#f4f2ee', bill:'flat', comb:'none', caruncle:true, beak:'#d8a0a0', wattle:'#c9505a', eye:'#241f1b' }
+    };
+
+    const TURKEY_DEFAULT = { base:'#f7f5f1', body:'#f2efe8', face:'#e3737d', snood:true, comb:'none', wattle:'#d63a3a', beak:'#e8cf94', eye:'#3a3330' };
+    const TURKEY_BREEDS = {
+      bbwhite:      { aliases:['broad breasted','broad','bb white','white turkey','white'], base:'#f7f5f1', body:'#f2efe8', face:'#e3737d', caruncle:true, snood:true, comb:'none', beak:'#e8cf94', eye:'#3a3330' },
+      bourbon:      { aliases:['bourbon','bourbon red','red'], base:'#a9542a', body:'#a9542a', face:'#e08a8a', caruncle:true, snood:true, comb:'none', beak:'#e8cf94', eye:'#3a3330' },
+      narragansett: { aliases:['narragansett','slate','blue slate'], base:'#8a8278', body:'#7a736a', face:'#d98aa0', caruncle:true, snood:true, comb:'none', pattern:'barred', beak:'#dcc288', eye:'#3a3330' },
+      royalpalm:    { aliases:['royal palm','palm','black turkey'], base:'#f4f2ee', body:'#efeae0', face:'#e3737d', caruncle:true, snood:true, comb:'none', pattern:'laced', beak:'#e8cf94', eye:'#3a3330' }
+    };
+
     const SPECIES_ART = {
       dog:     { draw: dogSVG,     breeds: DOG_BREEDS,     def: DOG_DEFAULT },
       cat:     { draw: catSVG,     breeds: CAT_BREEDS,     def: CAT_DEFAULT },
@@ -1379,6 +1827,16 @@
       reptile: { draw: reptileSVG, breeds: REPTILE_BREEDS, def: REPTILE_DEFAULT },
       fish:    { draw: fishSVG,    breeds: FISH_BREEDS,    def: FISH_DEFAULT },
       snake:   { draw: snakeSVG,   breeds: SNAKE_BREEDS,   def: SNAKE_DEFAULT },
+      // Farm & ranch. duck/turkey reuse the chicken portrait and alpaca/llama the sheep one.
+      goat:    { draw: goatSVG,    breeds: GOAT_BREEDS,    def: GOAT_DEFAULT },
+      cattle:  { draw: cattleSVG,  breeds: CATTLE_BREEDS,  def: CATTLE_DEFAULT },
+      sheep:   { draw: sheepSVG,   breeds: SHEEP_BREEDS,   def: SHEEP_DEFAULT },
+      alpaca:  { draw: sheepSVG,   breeds: ALPACA_BREEDS,  def: ALPACA_DEFAULT },
+      horse:   { draw: horseSVG,   breeds: HORSE_BREEDS,   def: HORSE_DEFAULT },
+      pig:     { draw: pigSVG,     breeds: PIG_BREEDS,     def: PIG_DEFAULT },
+      chicken: { draw: chickenSVG, breeds: CHICKEN_BREEDS, def: CHICKEN_DEFAULT },
+      duck:    { draw: chickenSVG, breeds: DUCK_BREEDS,    def: DUCK_DEFAULT },
+      turkey:  { draw: chickenSVG, breeds: TURKEY_BREEDS,  def: TURKEY_DEFAULT },
     };
 
     function matchBreed(species, breedText) {
@@ -1460,8 +1918,8 @@
     }
 
     // Main entry: every species is drawn as SVG matched to its breed/coloring.
-    // Every species Petfi knows — pets AND farm animals. Farm species have no
-    // drawn avatar (yet), so they show their emoji instead.
+    // Every species Petfi knows — pets AND farm animals. Everything except
+    // 'other' has a drawn SVG portrait; 'other' falls back to its emoji.
     const SPECIES_EMO = { dog: '🐶', cat: '🐱', bird: '🐦', rabbit: '🐰', hamster: '🐹', reptile: '🦎', fish: '🐟', snake: '🐍', other: '🐾',
       cattle: '🐄', goat: '🐐', sheep: '🐑', horse: '🐴', pig: '🐖', chicken: '🐔', duck: '🦆', turkey: '🦃', alpaca: '🦙' };
     const PET_SPECIES = [['dog', 'Dog'], ['cat', 'Cat'], ['bird', 'Bird'], ['rabbit', 'Rabbit'], ['hamster', 'Hamster'], ['reptile', 'Reptile'], ['fish', 'Fish'], ['snake', 'Snake'], ['other', 'Other']];
@@ -1653,11 +2111,20 @@
     // ---- Avatar for the logged-in user ----
     // Owners pick their own person icon (hair, skin tone, farmer, cowboy…)
     function ownerEmoji() { return state.ownerEmoji || '🧑'; }
+    // A real photo beats the drawn icon everywhere it is set. The box around
+    // it already clips to a circle, so the image just fills it.
+    function photoAvatar(url, px) {
+      return '<img class="pav" src="' + esc(url) + '" alt="" style="width:100%;height:100%;object-fit:cover;display:block;border-radius:50%;">';
+    }
     function myAvatar(px) {
+      const photo = safeAvatarUrl(state.avatarUrl);
+      if (photo) return photoAvatar(photo, px);
       if (state.accountType === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + ownerEmoji() + '</div>';
       return petAvatar(state.species, state.breed, px, myLook());
     }
     function entityAvatar(e, px) {
+      const photo = safeAvatarUrl(e.photo);
+      if (photo) return photoAvatar(photo, px);
       if (e.type === 'owner' || e.type === 'business' || e.type === 'kennel') {
         return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + safeEmoji(e.emoji) + '</div>';
       }
@@ -1750,6 +2217,7 @@
       const c = document.getElementById('tab-content');
       const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile }[name];
       if (name === 'groups') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active');
+      pvidStopAll(); // a video torn out mid-play would keep its sound going
       c.innerHTML = r ? r() : '';
       saveState();
       cloudTabRefresh(name); // quietly pull fresh cloud data for this tab
@@ -2225,6 +2693,21 @@
           : '<div style="display:grid;grid-template-columns:1fr 1fr;gap:0.4rem;margin-bottom:0.6rem;">' +
               urls.map(u => '<img src="' + esc(u) + '" loading="lazy" style="width:100%;height:120px;object-fit:cover;border-radius:12px;display:block;">').join('') + '</div>';
       }
+      // A video plays above the photos. The local blob only ever comes from
+      // this device's own instant card; everything else must be our bucket.
+      let vidHtml = '';
+      const vsrc = safeVideo(p.videoUrl) || ((typeof p.videoLocal === 'string' && p.videoLocal.indexOf('blob:') === 0) ? p.videoLocal : '');
+      if (vsrc) {
+        const calm = reducedMotion();
+        const poster = safePoster(p.posterUrl);
+        const dur = Number(p.videoDur) > 0 ? '<span class="pvid-dur">' + esc(fmtDur(p.videoDur)) + '</span>' : '';
+        vidHtml = '<div class="pvid">' +
+          '<video playsinline muted loop preload="none"' + (calm ? ' controls' : ' onclick="pvidTap(this)"') +
+            (poster ? ' poster="' + esc(poster) + '"' : '') + ' src="' + esc(vsrc) + '"></video>' +
+          '<button class="pvid-sound" title="Sound" onclick="pvidSound(this)">🔇</button>' + dur +
+          '</div>';
+        scheduleVidObs();
+      }
       const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
@@ -2244,7 +2727,7 @@
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
           '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' + del +
         '</div>' +
-        (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + photo +
+        (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + vidHtml + photo +
         '<div class="post-actions">' +
           likeBtn +
           '<button onclick="toggleCmts(' + i + ')">💬 ' + (nCmts || 'Comment') + '</button>' +
@@ -2258,11 +2741,73 @@
     // Share a post: native share sheet where available, otherwise copy a link
     function sharePost(i) {
       const p = FEED[i]; if (!p) return;
-      const text = (p.who || 'A pet') + ' on Petfi: ' + (p.text || '').slice(0, 120);
+      const clip = (safeVideo(p.videoUrl) || p.videoLocal) ? '📹 ' : '';
+      const text = (p.who || 'A pet') + ' on Petfi: ' + clip + (p.text || '').slice(0, 120);
       if (navigator.share) { navigator.share({ title: 'Petfi', text, url: INVITE_URL }).catch(() => {}); return; }
       try { navigator.clipboard.writeText(text + ' ' + INVITE_URL).then(() => toast('Copied — paste it anywhere ↗️'), () => toast('Could not copy')); }
       catch (e) { toast('Sharing isn\'t available here'); }
     }
+    // ---- Feed video: one plays at a time, muted, only while it's on screen ----
+    let vidObsPending = false;
+    function scheduleVidObs() {
+      if (vidObsPending) return;
+      vidObsPending = true;
+      setTimeout(() => { vidObsPending = false; attachVidObs(); }, 0);
+    }
+    function attachVidObs() {
+      if (reducedMotion() || !window.IntersectionObserver) return; // calm mode shows controls instead
+      if (!window._vidObs) {
+        window._vidObs = new IntersectionObserver(entries => {
+          entries.forEach(en => {
+            const v = en.target;
+            if (en.intersectionRatio >= 0.6) {
+              if (v.dataset.paused === '1') return; // the viewer tapped pause — leave it alone
+              pvidPlay(v);
+            } else {
+              try { v.pause(); } catch (e) {}
+              if (window._vidPlaying === v) window._vidPlaying = null;
+            }
+          });
+        }, { threshold: [0, 0.6, 1] });
+      }
+      // The feed re-renders by innerHTML, so the old targets are dead nodes
+      window._vidObs.disconnect();
+      document.querySelectorAll('.pvid video').forEach(v => window._vidObs.observe(v));
+    }
+    function pvidStopAll() {
+      document.querySelectorAll('.pvid video').forEach(v => { try { v.pause(); } catch (e) {} });
+      window._vidPlaying = null;
+    }
+    function pvidPlay(v) {
+      if (window._vidPlaying && window._vidPlaying !== v) { try { window._vidPlaying.pause(); } catch (e) {} }
+      window._vidPlaying = v;
+      const pr = v.play();
+      if (pr && pr.catch) pr.catch(() => {}); // autoplay refused: the poster stays
+    }
+    function pvidTap(v) {
+      if (v.paused) { v.dataset.paused = ''; pvidPlay(v); }
+      else { v.dataset.paused = '1'; v.pause(); if (window._vidPlaying === v) window._vidPlaying = null; }
+      haptic(8);
+    }
+    function pvidSound(btn) {
+      const box = btn.parentNode;
+      const v = box && box.querySelector('video'); if (!v) return;
+      const turningOn = v.muted;
+      if (turningOn) {
+        // Only one video ever has sound
+        document.querySelectorAll('.pvid video').forEach(o => {
+          if (o === v) return;
+          o.muted = true;
+          const b = o.parentNode && o.parentNode.querySelector('.pvid-sound');
+          if (b) b.textContent = '🔇';
+        });
+      }
+      v.muted = !turningOn;
+      btn.textContent = v.muted ? '🔇' : '🔊';
+      if (!v.muted && v.paused) { v.dataset.paused = ''; pvidPlay(v); }
+      haptic(8);
+    }
+
     async function toggleCloudLike(i, btn) {
       const p = FEED[i];
       if (!p || !p.cloudId || !cloud || !cloudUser) { likePost(btn, p ? p.likes : 0, p && p.kind); return; }
@@ -2299,12 +2844,28 @@
     async function reallyDeletePost(cloudId) {
       closeSheet();
       const idx = FEED.findIndex(p => p.cloudId === cloudId);
+      const gone = idx >= 0 ? FEED[idx] : null;
       if (idx >= 0) FEED.splice(idx, 1);
       lastPostsFetch = Date.now(); // don't refetch until the delete has landed
       if (state.tab === 'home') openTab('home');
       const { error } = await cloud.from('posts').delete().eq('id', cloudId);
       if (error) { toast('⚠️ Could not delete from the cloud'); loadCloudPosts(true); return; }
+      removePostMedia(gone);
       toast('Post deleted 🗑');
+    }
+    // Best effort: a deleted video shouldn't sit in the bucket forever. The row
+    // is already gone, so a storage error changes nothing the user can see.
+    function removePostMedia(p) {
+      if (!cloud || !p) return;
+      const prefix = PHOTO_ORIGIN + 'photos/';
+      const paths = [];
+      [p.videoUrl, p.posterUrl].forEach(u => {
+        if (typeof u === 'string' && u.indexOf(prefix) === 0) {
+          try { paths.push(decodeURIComponent(u.slice(prefix.length).split('?')[0])); } catch (e) {}
+        }
+      });
+      if (!paths.length) return;
+      try { cloud.storage.from('photos').remove(paths).then(() => {}, () => {}); } catch (e) {}
     }
     function toggleCmts(i) {
       const d = document.getElementById('cmts-' + i);
@@ -2398,6 +2959,19 @@
       if (!Array.isArray(list)) return [];
       return list.filter(u => typeof u === 'string' && (u.indexOf(PHOTO_ORIGIN) === 0 || u.indexOf('data:image/jpeg') === 0 || u.indexOf('data:image/png') === 0)).slice(0, 4);
     }
+    // Same rule for a profile photo: our own bucket or nothing at all
+    function safeAvatarUrl(u) {
+      return (typeof u === 'string' && u.indexOf(PHOTO_ORIGIN) === 0) ? u : null;
+    }
+    // A video and its poster follow the same rule: our own bucket only. The
+    // poster may also be the still we drew locally while the upload is in flight.
+    function safeVideo(u) { return (typeof u === 'string' && u.indexOf(PHOTO_ORIGIN) === 0) ? u : ''; }
+    function safePoster(u) {
+      if (typeof u !== 'string') return '';
+      return (u.indexOf(PHOTO_ORIGIN) === 0 || u.indexOf('blob:') === 0 || u.indexOf('data:image/jpeg') === 0) ? u : '';
+    }
+    function fmtDur(sec) { const n = Math.max(0, Math.round(Number(sec) || 0)); return Math.floor(n / 60) + ':' + ('0' + (n % 60)).slice(-2); }
+    function reducedMotion() { try { return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) { return false; } }
     // Background colors that ride in content rows must be plain hex
     function safeBg(c, fallback) { return /^#[0-9a-f]{3,8}$/i.test(String(c || '')) ? c : (fallback || '#fff3d6'); }
 
@@ -2771,6 +3345,8 @@
       return m;
     }
     function personAvatar(u, px) {
+      const photo = safeAvatarUrl((pubExtras(u).look || {}).p);
+      if (photo) return photoAvatar(photo, px);
       if (u.kind === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">' + safeEmoji((pubExtras(u).look || {}).e) + '</div>';
       return petAvatar(u.species, u.breed, px, pubExtras(u).look);
     }
@@ -3937,8 +4513,13 @@
         '<div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;">' +
           (isPet && SPECIES_ART[(state.species || '').toLowerCase()] ? '<button class="pill-btn ghost" onclick="openAvatarStudio()">🎨 Customize</button>' : '') +
           (!isPet ? '<button class="pill-btn ghost" onclick="openOwnerStudio()">🎨 Customize</button>' : '') +
+          '<button class="pill-btn ghost" title="' + (isPet ? 'Use a photo of your pet' : 'Use a photo of you') + '" onclick="pickAvatarPhoto()">📷 Use a photo</button>' +
+          (state.avatarUrl ? '<button class="pill-btn ghost" onclick="clearAvatarPhoto()">↺ Back to my icon</button>' : '') +
           '<button class="pill-btn ghost" onclick="sharePetCard()">📸 Share my card</button>' +
+          '<input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this)">' +
         '</div>' +
+        '<p class="sub" style="font-size:0.75rem;margin:0.45rem 0 0;">' +
+          (isPet ? 'Show the real thing — use a photo of your pet instead of the drawn icon.' : 'Show the real you — use a photo of you instead of the icon.') + '</p>' +
       '</div>';
 
       const nFriends = FRIENDSHIPS.filter(f => f.status === 'accepted').length;
@@ -4084,13 +4665,73 @@
       openAvatarStudio(); // re-render chips + preview
     }
 
+    // ---- Photo avatar: a real photo instead of the drawn icon ----
+    function pickAvatarPhoto() {
+      const f = document.getElementById('avatar-file');
+      if (f) f.click();
+    }
+    function avatarPhotoPicked(input) {
+      const file = input.files && input.files[0];
+      input.value = ''; // so picking the same file again still fires
+      if (!file) return;
+      if (!(cloud && cloudUser)) { toast('Sign in first — photos live in your account'); return; }
+      const url = URL.createObjectURL(file);
+      const img = new Image();
+      img.onload = () => {
+        URL.revokeObjectURL(url);
+        // Center-crop to a square, then down to 320px — avatars are small
+        const side = Math.min(img.width, img.height);
+        const sx = Math.round((img.width - side) / 2), sy = Math.round((img.height - side) / 2);
+        const c = document.createElement('canvas');
+        c.width = c.height = 320;
+        c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, 320, 320);
+        c.toBlob(blob => { if (blob) uploadAvatarPhoto(blob); else toast('⚠️ Couldn\'t read that photo'); }, 'image/jpeg', 0.85);
+      };
+      img.onerror = () => { URL.revokeObjectURL(url); toast('⚠️ Couldn\'t read that photo'); };
+      img.src = url;
+    }
+    async function uploadAvatarPhoto(blob) {
+      const old = state.avatarUrl;
+      toast('📷 Uploading your photo…');
+      try {
+        const path = cloudUser.id + '/avatar-' + Date.now() + '.jpg';
+        const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (up.error) throw up.error;
+        state.avatarUrl = cloud.storage.from('photos').getPublicUrl(path).data.publicUrl;
+        saveState(); cloudSaveProfile(); refreshTopAvatar();
+        if (state.tab === 'profile') openTab('profile');
+        removeAvatarFile(old); // the one it replaced is dead weight now
+        toast('Looking good 📸');
+      } catch (e) {
+        console.warn('avatar upload:', e.message);
+        toast('⚠️ Couldn\'t upload that photo');
+      }
+    }
+    function clearAvatarPhoto() {
+      const old = state.avatarUrl;
+      state.avatarUrl = null; // the drawn/emoji icon settings are untouched
+      saveState(); cloudSaveProfile(); refreshTopAvatar();
+      if (state.tab === 'profile') openTab('profile');
+      removeAvatarFile(old);
+      toast('Back to your icon 🎨');
+    }
+    // Best-effort delete of an avatar we no longer use — never fatal, and
+    // only ever inside our own folder (storage would refuse anything else).
+    function removeAvatarFile(url) {
+      if (!cloud || !cloudUser) return;
+      const prefix = PHOTO_ORIGIN + 'photos/';
+      if (typeof url !== 'string' || url.indexOf(prefix) !== 0) return;
+      const path = url.slice(prefix.length).split('?')[0];
+      if (path.indexOf(cloudUser.id + '/') !== 0) return;
+      try { cloud.storage.from('photos').remove([path]).then(() => {}, () => {}); } catch (e) {}
+    }
+
     // Tap your own avatar → hear your voice, see a wiggle
     function heroSpeak(el) {
       el.style.animation = 'wiggle 0.5s';
       setTimeout(() => { el.style.animation = ''; }, 550);
       if (state.accountType === 'owner') {
-        // People don't bark. A wave and a hello.
-        uiSound('tick'); haptic(8);
+        // People don't bark, and they don't beep either — silent wave.
         toast('👋 ' + ((state.displayName || 'You').split(' ')[0]) + ' says hi! Tap 🎨 Customize to change your icon.');
         return;
       }
@@ -4249,27 +4890,40 @@
         ctx.fillText('petfi.pet', W / 2, H - 42);
         presentCard(canvas);
       };
-      // Avatar
-      const av = myAvatar(220);
-      if (av.indexOf('<svg') === 0) {
-        const img = new Image();
-        img.onload = () => {
-          ctx.save();
-          ctx.beginPath(); ctx.arc(W / 2, 210, 118, 0, Math.PI * 2); ctx.closePath();
-          ctx.fillStyle = '#fff'; ctx.fill();
-          ctx.clip();
-          ctx.drawImage(img, W / 2 - 110, 100, 220, 220);
-          ctx.restore();
-          ctx.lineWidth = 6; ctx.strokeStyle = '#ff7a59';
-          ctx.beginPath(); ctx.arc(W / 2, 210, 118, 0, Math.PI * 2); ctx.stroke();
+      // Avatar — drawn into a circle, photo or icon
+      const drawInCircle = (img, size) => {
+        ctx.save();
+        ctx.beginPath(); ctx.arc(W / 2, 210, 118, 0, Math.PI * 2); ctx.closePath();
+        ctx.fillStyle = '#fff'; ctx.fill();
+        ctx.clip();
+        ctx.drawImage(img, W / 2 - size / 2, 210 - size / 2, size, size);
+        ctx.restore();
+        ctx.lineWidth = 6; ctx.strokeStyle = '#ff7a59';
+        ctx.beginPath(); ctx.arc(W / 2, 210, 118, 0, Math.PI * 2); ctx.stroke();
+      };
+      // The drawn icon, never the photo — this is the fallback path
+      const drawIcon = () => {
+        const av = state.accountType === 'owner' ? '' : petAvatar(state.species, state.breed, 220, myLook());
+        if (av.indexOf('<svg') === 0) {
+          const img = new Image();
+          img.onload = () => { drawInCircle(img, 220); finish(); };
+          img.onerror = finish;
+          img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(av);
+        } else {
+          ctx.font = '150px serif'; ctx.textAlign = 'center';
+          ctx.fillText('🧑', W / 2, 260);
           finish();
-        };
-        img.onerror = finish;
-        img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(av);
+        }
+      };
+      const photo = safeAvatarUrl(state.avatarUrl);
+      if (photo) {
+        const pimg = new Image();
+        pimg.crossOrigin = 'anonymous'; // the bucket is public + CORS-open
+        pimg.onload = () => { drawInCircle(pimg, 236); finish(); };
+        pimg.onerror = drawIcon; // photo blocked or offline → the icon still works
+        pimg.src = photo;
       } else {
-        ctx.font = '150px serif'; ctx.textAlign = 'center';
-        ctx.fillText('🧑', W / 2, 260);
-        finish();
+        drawIcon();
       }
     }
     function roundRect(ctx, x, y, w, h, r) {
@@ -4424,6 +5078,7 @@
         '<div class="faq" style="margin-top:0.4rem;">' +
         '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. You can have one of each!</p></details>' +
         '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Open ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody else wears a badge untilit\'s real. Owners can join the waitlist from their profile.</p></details>' +
+        '<details><summary>🎬 Can I post videos?</summary><p>Yes \u2014 one video per post, <b>under a minute</b> long and up to <b>45 MB</b>. Tap <b>🎬 Add a video</b> in the composer. In the feed videos start playing <b>muted</b> when they scroll into view; tap <b>🔇</b> for sound, or tap the video itself to pause it.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
@@ -4507,7 +5162,7 @@
       if (!reportTarget) { closeSheet(); return; }
       const entry = { kind: reportTarget.kind, target: reportTarget.label, refId: reportTarget.refId, reason: val('rp-reason'), details: val('rp-text') };
       // Snapshot the post so the report still makes sense if it's edited or gone
-      if (entry.kind === 'post' && entry.refId) { const p = FEED.find(x => x.cloudId === entry.refId); if (p) { entry.text = String(p.text || '').slice(0, 600); entry.authorId = p.authorId || null; entry.scope = postScope(p); } }
+      if (entry.kind === 'post' && entry.refId) { const p = FEED.find(x => x.cloudId === entry.refId); if (p) { entry.text = String(p.text || '').slice(0, 600); entry.authorId = p.authorId || null; entry.scope = postScope(p); if (p.videoUrl || p.videoLocal) entry.hasVideo = true; } }
       reportTarget = null;
       if (cloud && cloudUser) {
         const { error } = await cloud.from('reports').insert({ reporter_id: cloudUser.id, content: entry });
@@ -4824,6 +5479,22 @@
     }
 
     let postPhotos = [];
+    // One video per post. The bucket takes far more, but a phone on cell data doesn't.
+    let postVideo = null;               // { file, url (blob:), poster (data:), dur }
+    const MAX_VIDEO_BYTES = 45 * 1024 * 1024;
+    const MAX_VIDEO_SECS = 60;
+    const VIDEO_TYPES = { 'video/mp4': 'mp4', 'video/quicktime': 'mov', 'video/webm': 'webm' };
+    // Trust the real type; fall back to the extension when the browser gives us nothing
+    function videoType(f) {
+      const t = String((f && f.type) || '').toLowerCase();
+      if (VIDEO_TYPES[t]) return t;
+      const ext = String((f && f.name) || '').toLowerCase().split('.').pop();
+      if (ext === 'mp4' || ext === 'm4v') return 'video/mp4';
+      if (ext === 'mov') return 'video/quicktime';
+      if (ext === 'webm') return 'video/webm';
+      return '';
+    }
+    function videoExt(f) { return VIDEO_TYPES[videoType(f)] || 'mp4'; }
     const MOODS = ['😊 happy', '😴 sleepy', '🍖 hungry', '🎾 playful', '🛁 squeaky clean', '🥳 celebrating', '🥺 dramatic'];
     let composeMood = '', composeDraft = '', composeScope = '';
     function setComposeScope(s, el) {
@@ -4835,6 +5506,8 @@
     // A post that fails the Everyone filter: offer Local (unfiltered) or an edit
     function pgBlock(bad, text) {
       const keep = postPhotos.slice();
+      // Detach the video so re-opening the composer doesn't revoke its blob
+      window._pgKeepVid = postVideo; postVideo = null;
       openSheet('🌎 Keep Everyone family-friendly',
         '<div class="note">“<b>' + esc(bad) + '</b>” can\'t be posted to the <b>Everyone</b> feed. Post it to <b>🏡 Local</b> instead (unfiltered, within ' + LOCAL_RADIUS_MI + ' miles of you), or change the wording.</div>' +
         '<textarea id="cmp-retry" maxlength="600" style="width:100%;min-height:90px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(text) + '</textarea>' +
@@ -4846,6 +5519,7 @@
       const t = (document.getElementById('cmp-retry') || {}).value || '';
       closeSheet(); composeDraft = t; openCompose();
       postPhotos = window._pgKeep || []; renderPostPreviews();
+      postVideo = window._pgKeepVid || null; window._pgKeepVid = null; renderPostVideoPreview();
       const seg = document.getElementById('cmp-scope');
       if (seg) setComposeScope(scope, seg.children[scope === 'local' ? 0 : 1]);
       if (scope === 'local') submitPost();
@@ -4856,6 +5530,7 @@
       document.querySelectorAll('.mood-chip').forEach(c => c.classList.toggle('active', c.dataset.mood === composeMood));
     }
     function openCompose(seed) {
+      clearPostVideo(); // an abandoned pick shouldn't leak its object URL
       postPhotos = [];
       composeMood = '';
       const ph = (typeof seed === 'string' && seed) ? seed : 'Share something...';
@@ -4869,11 +5544,15 @@
         '<div class="cmp-count" id="cmp-count">' + draft.length + ' / 600</div>' +
         '<div class="chips" style="margin:0.6rem -1.3rem 0;padding:0 1.3rem;">' +
           MOODS.map(m => '<div class="chip mood-chip" data-mood="' + m + '" onclick="pickMood(this)">' + m + '</div>').join('') + '</div>' +
-        '<div style="display:flex;align-items:center;gap:0.6rem;margin-top:0.6rem;">' +
+        '<div style="display:flex;align-items:center;gap:0.6rem;margin-top:0.6rem;flex-wrap:wrap;">' +
           '<button class="pill-btn ghost" onclick="document.getElementById(\'cmp-photos\').click()">📷 Add photos</button>' +
           '<small style="color:var(--muted);">up to 4</small>' +
-          '<input type="file" id="cmp-photos" accept="image/*" multiple style="display:none;" onchange="postPhotosPicked(this)"></div>' +
+          '<button class="pill-btn ghost" onclick="document.getElementById(\'cmp-video\').click()">🎬 Add a video</button>' +
+          '<small style="color:var(--muted);">under a minute</small>' +
+          '<input type="file" id="cmp-photos" accept="image/*" multiple style="display:none;" onchange="postPhotosPicked(this)">' +
+          '<input type="file" id="cmp-video" accept="video/*" capture style="display:none;" onchange="postVideoPicked(this)"></div>' +
         '<div id="cmp-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
+        '<div id="cmp-video-preview" style="margin-top:0.6rem;"></div>' +
         '<button class="btn" id="cmp-btn" onclick="submitPost()">Post</button>');
     }
     function cmpCount(el) {
@@ -4908,9 +5587,63 @@
         '<span onclick="removePostPhoto(' + i + ')" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:18px;height:18px;font-size:0.7rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>').join('');
     }
     function removePostPhoto(i) { postPhotos.splice(i, 1); renderPostPreviews(); }
+    function postVideoPicked(input) {
+      const f = input.files && input.files[0];
+      input.value = '';
+      if (!f) return;
+      if (!videoType(f)) { toast('Petfi takes MP4, MOV and WebM videos'); return; }
+      if (f.size > MAX_VIDEO_BYTES) { toast('Videos up to 45 MB \u2014 trim it a little'); return; }
+      const url = URL.createObjectURL(f);
+      const probe = document.createElement('video');
+      probe.preload = 'metadata'; probe.muted = true; probe.playsInline = true;
+      probe.onerror = () => { URL.revokeObjectURL(url); toast('Petfi couldn\'t read that video'); };
+      probe.onloadedmetadata = () => {
+        const dur = probe.duration;
+        if (!isFinite(dur) || dur <= 0) { URL.revokeObjectURL(url); toast('Petfi couldn\'t read that video'); return; }
+        if (dur > MAX_VIDEO_SECS + 0.5) { URL.revokeObjectURL(url); toast('Keep videos under a minute'); return; }
+        clearPostVideo();               // one video per post
+        postVideo = { file: f, url, dur, poster: '' };
+        renderPostVideoPreview();
+        grabVideoPoster(probe, url);
+      };
+      probe.src = url;
+    }
+    // A still from about half a second in stands in for the video in the feed
+    function grabVideoPoster(v, url) {
+      const draw = () => {
+        try {
+          const w = v.videoWidth, h = v.videoHeight;
+          if (!w || !h) return;
+          const scale = Math.min(1, 720 / w);
+          const c = document.createElement('canvas');
+          c.width = Math.round(w * scale); c.height = Math.round(h * scale);
+          c.getContext('2d').drawImage(v, 0, 0, c.width, c.height);
+          if (postVideo && postVideo.url === url) { postVideo.poster = c.toDataURL('image/jpeg', 0.8); renderPostVideoPreview(); }
+        } catch (e) { /* a codec the canvas can't read: the tile just stays black */ }
+      };
+      v.onseeked = () => { v.onseeked = null; draw(); };
+      try { v.currentTime = Math.min(0.5, (v.duration || 1) / 2); } catch (e) { draw(); }
+    }
+    function renderPostVideoPreview() {
+      const d = document.getElementById('cmp-video-preview'); if (!d) return;
+      if (!postVideo) { d.innerHTML = ''; return; }
+      const bg = postVideo.poster
+        ? 'background-image:url(' + esc(postVideo.poster) + ');background-size:cover;background-position:center;'
+        : 'background:#000;';
+      d.innerHTML = '<div style="position:relative;display:inline-block;">' +
+        '<div style="width:104px;height:74px;border-radius:10px;border:2px solid var(--line);overflow:hidden;' + bg + 'display:flex;align-items:flex-end;">' +
+          '<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:0.68rem;font-weight:700;padding:0.12rem 0.4rem;border-radius:999px;margin:0 0 5px 5px;">🎬 ' + esc(fmtDur(postVideo.dur)) + '</span></div>' +
+        '<span onclick="clearPostVideo(true)" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:18px;height:18px;font-size:0.7rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">\u00d7</span></div>';
+    }
+    function clearPostVideo(announce) {
+      if (postVideo && postVideo.url) URL.revokeObjectURL(postVideo.url);
+      postVideo = null;
+      renderPostVideoPreview();
+      if (announce) toast('Video removed');
+    }
     async function submitPost() {
       let t = val('cmp-text');
-      if (!t && !postPhotos.length) { toast('Write something or add a photo first'); return; }
+      if (!t && !postPhotos.length && !postVideo) { toast('Write something, or add a photo or video first'); return; }
       if (composeMood) { t = (t ? t + ' ' : '') + '— feeling ' + composeMood; composeMood = ''; }
       // Everyone is family-friendly; Local is not filtered
       const scope = composeScope === 'local' && state.zip ? 'local' : 'national';
@@ -4925,12 +5658,15 @@
       const pendingKey = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
       const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
         kind: state.accountType === 'owner' ? 'like' : speciesVoice(state.species),
-        variant: state.avatarVariant || null, accessories: state.accessories || null, emoji: state.accountType === 'owner' ? ownerEmoji() : null, pendingKey, scope, loc };
+        variant: state.avatarVariant || null, accessories: state.accessories || null, emoji: state.accountType === 'owner' ? ownerEmoji() : null, photo: state.avatarUrl || null, pendingKey, scope, loc };
       state.feedScope = scope; state.homeTab = 'feed'; // show the feed the post went to
       if (cloud && cloudUser) { post.mine = true; post.authorId = cloudUser.id; }
       const photos = postPhotos.slice(); postPhotos = [];
+      const vid = postVideo; postVideo = null; // keep the blob alive for the instant card
+      renderPostVideoPreview();
       // Show it instantly with the local photo previews…
       if (photos.length) post.photoUrls = photos;
+      if (vid) { post.videoLocal = vid.url; post.posterUrl = vid.poster || ''; post.videoDur = vid.dur; }
       post.fresh = true; // slides in
       FEED.unshift(post);
       closeSheet(); openTab('home'); window.scrollTo(0, 0);
@@ -4951,13 +5687,37 @@
           }
           post.photoUrls = urls;
         }
+        if (vid) {
+          toast('🎬 Uploading video\u2026');
+          const vts = Date.now();
+          if (vid.poster) {
+            const pblob = await (await fetch(vid.poster)).blob();
+            const ppath = cloudUser.id + '/video-' + vts + '.jpg';
+            const pup = await cloud.storage.from('photos').upload(ppath, pblob, { contentType: 'image/jpeg' });
+            if (pup.error) throw pup.error;
+            post.posterUrl = cloud.storage.from('photos').getPublicUrl(ppath).data.publicUrl;
+          }
+          const vpath = cloudUser.id + '/video-' + vts + '.' + videoExt(vid.file);
+          const vup = await cloud.storage.from('photos').upload(vpath, vid.file, { contentType: videoType(vid.file) });
+          if (vup.error) throw vup.error;
+          post.videoUrl = cloud.storage.from('photos').getPublicUrl(vpath).data.publicUrl;
+          // Swap the card over to the cloud copy, then let the blob go
+          delete post.videoLocal;
+          if (appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
+          const deadUrl = vid.url; setTimeout(() => URL.revokeObjectURL(deadUrl), 2000);
+        }
         const content = Object.assign({}, post); delete content.mine; delete content.authorId; delete content.sub; delete content.likes; delete content.fresh;
+        // Never let a local-only link (or a fat data: poster) reach the row
+        delete content.videoLocal;
+        if (content.posterUrl && content.posterUrl.indexOf(PHOTO_ORIGIN) !== 0) delete content.posterUrl;
+        if (!content.videoUrl) { delete content.videoUrl; delete content.videoDur; delete content.posterUrl; }
         const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content }).select('id').single();
         if (error) throw error;
         post.cloudId = data.id;
         toast(post.scope === 'local' ? 'Posted to your Local feed 🏡' : 'Posted for everyone to see 🐾');
       } catch (e) {
         console.warn('post save:', e.message);
+        if (vid && vid.url) URL.revokeObjectURL(vid.url);
         const idx = FEED.indexOf(post); if (idx >= 0) FEED.splice(idx, 1);
         if (state.tab === 'home') openTab('home');
         openSheet('⚠️ Post didn\'t send',
@@ -5388,7 +6148,7 @@
       const mine = MATES_VIEW.filter(m => m.mine);
       return '<div class="sec"><h3>💘 My breeding listings</h3><span class="link" onclick="openTab(\'mate\')">Open Mate Match ›</span></div>' +
         (mine.length
-          ? mine.map(m => { const n = matchesFor(m).length; return mateRow(m, MATES_VIEW.indexOf(m), n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby' : ''); }).join('')
+          ? mine.map(m => { const n = matchesFor(m).length; return mateRow(m, MATES_VIEW.indexOf(m), isClosedListing(m) ? 'Closed' : n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby' : ''); }).join('')
           : '<div class="note">You haven\'t listed an animal for breeding yet. <span class="link" onclick="startMateListing()">List one now</span> — it takes about a minute.</div>');
     }
 
@@ -5416,9 +6176,12 @@
       if (area) return area;
       return m.loc ? 'Distance unknown — add your ZIP in Nearby' : 'Location not shared';
     }
+    // A listing the owner closed ("found a match") stays theirs to see, but
+    // disappears for everyone else.
+    function isClosedListing(m) { return !!(m && m.status === 'closed'); }
     // Sort: nearest first (unknown distance last), then newest
     function visibleMates() {
-      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId) && !isBannedUser(m.ownerId)).concat(LOCAL_MATES);
+      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId) && !isBannedUser(m.ownerId) && (m.mine || !isClosedListing(m))).concat(LOCAL_MATES);
       all.forEach(m => { m._d = mateDistance(m); });
       all.sort((a, b) => {
         if (a._d != null && b._d != null && a._d !== b._d) return a._d - b._d;
@@ -5450,19 +6213,20 @@
     function pairMiles(a, b) { return (a.loc && b.loc) ? haversineMi(a.loc.lat, a.loc.lon, b.loc.lat, b.loc.lon) : null; }
     const MATCH_RADIUS_MI = 150;
     function matchesFor(m) {
+      if (isClosedListing(m)) return [];
       const pool = MATES_VIEW.length ? MATES_VIEW : visibleMates();
-      return pool.filter(x => { if (!complementary(m, x)) return false; const mi = pairMiles(m, x); return mi == null || mi <= MATCH_RADIUS_MI; });
+      return pool.filter(x => { if (isClosedListing(x) || !complementary(m, x)) return false; const mi = pairMiles(m, x); return mi == null || mi <= MATCH_RADIUS_MI; });
     }
     // A listing that appeared since your last look and pairs with one of yours → say so
     function noteNewMatches() {
       if (!cloudUser) return;
       visibleMates();
-      const mine = MATES_VIEW.filter(m => m.mine && m.cloudId);
+      const mine = MATES_VIEW.filter(m => m.mine && m.cloudId && !isClosedListing(m));
       const maxId = CLOUD_MATES.reduce((a, m) => Math.max(a, m.cloudId || 0), 0);
       const seen = state.mateSeenMax || 0;
       if (mine.length && seen) {
         const fresh = {};
-        mine.forEach(m => matchesFor(m).forEach(x => { if (x.cloudId > seen && !x.mine) fresh[x.cloudId] = x; }));
+        mine.forEach(m => matchesFor(m).forEach(x => { if (x.cloudId > seen && !x.mine && !isClosedListing(x)) fresh[x.cloudId] = x; }));
         const ids = Object.keys(fresh), n = ids.length;
         if (n) {
           toast('🎯 ' + (n === 1 ? 'A new ' + speciesLabel(fresh[ids[0]].species).toLowerCase() + ' listing near you matches yours!' : n + ' new listings near you match yours!'));
@@ -5497,7 +6261,7 @@
       if (!cloudUser) return h + '<div class="note">Log in to see and post breeding listings.</div>';
       if (mine.length) {
         h += '<div class="sec" style="margin-top:0.4rem;"><h3>🐾 My listings</h3></div>';
-        mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — you\'ll be told the moment one appears'); });
+        mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), isClosedListing(m) ? 'Closed — only you can see this one. Tap to reopen.' : n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — you\'ll be told the moment one appears'); });
       }
       const me = myGeo();
       h += '<div class="sec" id="mm-browse"><h3>🔍 Listings near you</h3>' +
@@ -5541,6 +6305,7 @@
     function filteredMates() {
       if (mateFilter.forId) { const m = MATES_VIEW.find(x => x.cloudId === mateFilter.forId); return m ? matchesFor(m) : []; }
       return MATES_VIEW.filter(m => {
+        if (isClosedListing(m)) return false;   // yours, but done — only in "My listings"
         const k = String(m.species || 'other').toLowerCase();
         if (mateFilter.species) return k === mateFilter.species;
         if (mateFilter.group === 'pets') return !isLivestock(k);
@@ -5554,8 +6319,10 @@
       closeSheet(); openTab('mate'); setTimeout(scrollToBrowse, 80);
     }
     function mateBadge(m, inline) {
+      const tail = (inline ? ' inline' : '') + '">';
+      if (isClosedListing(m)) return '<span class="mm-badge closed' + tail + '✅ Closed</span>';
       const s = listingIntent(m) === 'seeking';
-      return '<span class="mm-badge ' + (s ? 'seek' : 'offer') + (inline ? ' inline' : '') + '">' + (s ? '🔍 Looking for a mate' : '✅ Available to breed') + '</span>';
+      return '<span class="mm-badge ' + (s ? 'seek' : 'offer') + tail + (s ? '🔍 Looking for a mate' : '✅ Available to breed') + '</span>';
     }
     function mateCard(m, i) {
       const ph = safePhotos(m.photos), d = mateDistance(m);
@@ -5572,7 +6339,8 @@
       const ph = safePhotos(m.photos);
       return '<div class="row" style="cursor:pointer;" onclick="openMateDetail(' + i + ')">' +
         '<div class="ricon">' + (ph.length ? '<img src="' + esc(ph[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(m.species)) + '</div>' +
-        '<div class="rmain"><div class="rtitle" style="font-size:1rem;">' + esc(m.name) + (m.mine ? ' <small style="color:var(--muted);font-weight:600;">(yours)</small>' : '') + '</div>' +
+        '<div class="rmain"><div class="rtitle" style="font-size:1rem;">' + esc(m.name) + (m.mine ? ' <small style="color:var(--muted);font-weight:600;">(yours)</small>' : '') +
+        (isClosedListing(m) ? ' ' + mateBadge(m, true) : '') + '</div>' +
         '<div class="rmeta" style="font-size:0.85rem;">' + esc(mateSummary(m)) + (extra ? '<br>' + esc(extra) : '') + '</div></div>' +
         '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>';
     }
@@ -5593,9 +6361,15 @@
         (matches.length ? '<div class="note" style="cursor:pointer;background:var(--brand-soft);border-color:#ffd7ca;" onclick="showMatchesFor(' + (Number(m.cloudId) || 0) + ')">🎯 <b>' + matches.length + '</b> listing' + (matches.length === 1 ? '' : 's') + ' nearby pair' + (matches.length === 1 ? 's' : '') + ' with this one — <b>tap to see</b></div>' : '') +
         '<p class="sub" style="font-size:0.85rem;margin-top:0.5rem;">Listed by ' +
           (m.business ? '<b>' + esc(m.business) + '</b>' : esc(m.owner || authorName(m.ownerId, 'a member')) + ' <span style="color:var(--muted);">(Private breeder)</span>') +
-          (m.createdAt ? ' · ' + esc(timeAgo(m.createdAt)) : '') + '</p>' +
+          (m.createdAt ? ' · ' + esc(timeAgo(m.createdAt)) : '') +
+          (m.updatedAt ? ' · Updated ' + esc(timeAgo(m.updatedAt)) : '') + '</p>' +
         (mine
-          ? '<button class="btn secondary" onclick="deleteMateListing(' + (Number(m.cloudId) || 0) + ')">🗑 Remove my listing</button>'
+          ? (isClosedListing(m)
+              ? '<div class="note">✅ This listing is closed — only you can see it' + (m.closedAt ? ' · closed ' + esc(timeAgo(m.closedAt)) : '') + '.</div>' +
+                '<button class="btn mm-publish" onclick="reopenMateListing(' + i + ')">↩️ Reopen listing</button>'
+              : '<button class="btn mm-publish" onclick="editMateListing(' + i + ')">✏️ Edit my listing</button>' +
+                '<button class="btn secondary" onclick="closeMateListing(' + i + ')">✅ Found a match — close listing</button>') +
+            '<button class="btn secondary" onclick="deleteMateListing(' + (Number(m.cloudId) || 0) + ')">🗑 Remove my listing</button>'
           : (m.ownerId
               ? '<button class="btn mm-publish" onclick="openCloudDM(\'' + jsStr(m.ownerId) + '\')">💬 Message the owner</button>'
               : '<div class="note">This listing only exists on this device.</div>') +
@@ -5619,10 +6393,66 @@
       cloud.from('mate_listings').delete().eq('id', id)
         .then(({ error }) => { toast(error ? '⚠️ Could not remove it' : 'Listing removed 🗑'); });
     }
+    // The row's jsonb `content`, without the client-only fields we bolt on in
+    // loadMatesAndAds — those come from trusted columns and must not be stored.
+    function mateContent(m) {
+      const c = Object.assign({}, m);
+      ['cloudId', 'ownerId', 'createdAt', 'mine', '_d'].forEach(k => { delete c[k]; });
+      return c;
+    }
+    // Owner-only edit. Until petfi-listing-edit.sql is applied there is no
+    // UPDATE policy on mate_listings, so the update is either rejected (42501)
+    // or silently matches no row — either way we relist: insert the new
+    // content, then delete the old row. Returns { id, relisted }.
+    async function updateMateRow(cloudId, listing) {
+      const { data, error } = await cloud.from('mate_listings').update({ content: listing }).eq('id', cloudId).select('id');
+      if (!error && data && data.length) return { id: cloudId, relisted: false };
+      if (error && !(error.code === '42501' || /row-level security/i.test(error.message || ''))) throw error;
+      const ins = await cloud.from('mate_listings').insert({ owner_id: cloudUser.id, content: listing }).select('id').single();
+      if (ins.error) throw ins.error;
+      await cloud.from('mate_listings').delete().eq('id', cloudId);
+      return { id: ins.data.id, relisted: true };
+    }
+    function myMateListing(i) {
+      const m = MATES_VIEW[i];
+      if (!m) return null;
+      if (!(cloud && cloudUser && m.cloudId && m.ownerId === cloudUser.id)) { toast('⚠️ Only the owner can change this listing'); return null; }
+      return m;
+    }
+    function editMateListing(i) {
+      const m = myMateListing(i); if (!m) return;
+      closeSheet();
+      openBreedingForm(null, m);
+    }
+    function closeMateListing(i) { setMateListingStatus(i, 'closed'); }
+    function reopenMateListing(i) { setMateListingStatus(i, 'NEW'); }
+    async function setMateListingStatus(i, status) {
+      const m = myMateListing(i); if (!m) return;
+      const closing = status === 'closed';
+      const listing = mateContent(m);
+      listing.status = closing ? 'closed' : 'NEW';
+      listing.updatedAt = new Date().toISOString();
+      if (closing) listing.closedAt = listing.updatedAt; else delete listing.closedAt;
+      try {
+        const res = await updateMateRow(m.cloudId, listing);
+        // MATES_VIEW holds the very same objects as CLOUD_MATES — update in place
+        if (!closing) delete m.closedAt;
+        Object.assign(m, listing, { cloudId: res.id, ownerId: m.ownerId, createdAt: m.createdAt, mine: true });
+        if (res.relisted) { state.mateSeenMax = Math.max(state.mateSeenMax || 0, res.id); saveState(); }
+        visibleMates();
+        closeSheet(); openTab('mate');
+        toast(res.relisted ? 'Saved (relisted)' : closing ? 'Listing closed ✅ — hidden from other members' : 'Listing is live again 💘');
+      } catch (e) {
+        console.warn('mate status:', e.message);
+        toast('⚠️ Couldn\'t update the listing — check your connection');
+      }
+    }
 
     // ---- Listing an animal: one numbered form, big tiles, nothing clever ----
     let brForm = { species: 'dog', sex: '', intent: 'offering' };
-    let brPhotos = [];
+    let brPhotos = [];        // newly picked photos, as data URLs
+    let brKeptPhotos = [];    // already-uploaded photos kept while editing
+    let brEdit = null;        // the CLOUD_MATES entry being edited, or null when creating
     function startMateListing() {
       if (!requireSeller('list an animal for breeding')) return;
       const pets = state.pets || [];
@@ -5641,13 +6471,20 @@
     }
     function listMyPet() { startMateListing(); }          // older buttons still work
     function petMateFlow() { closeSheet(); openTab('mate'); }
-    function openBreedingForm(prefill) {
+    // `listing` set → edit mode: same form, prefilled, saving back to the row.
+    function openBreedingForm(prefill, listing) {
       if (!requireSeller('list an animal for breeding')) return;
       brPhotos = [];
-      const sp0 = prefill && prefill.species ? String(prefill.species).toLowerCase() : 'dog';
-      brForm = { species: SPECIES_EMO[sp0] ? sp0 : 'other', sex: '', intent: 'offering' };
+      brEdit = listing || null;
+      brKeptPhotos = listing ? safePhotos(listing.photos) : [];
+      const src = listing || prefill;
+      const sp0 = src && src.species ? String(src.species).toLowerCase() : 'dog';
+      brForm = { species: SPECIES_EMO[sp0] ? sp0 : 'other', sex: listing ? String(listing.sex || '') : '', intent: listing ? listingIntent(listing) : 'offering' };
       const tile = s => '<div class="mm-tile' + (brForm.species === s[0] ? ' on' : '') + '" onclick="brPick(\'species\',\'' + s[0] + '\',this)"><span class="e">' + SPECIES_EMO[s[0]] + '</span>' + s[1] + '</div>';
-      openSheet('💘 List my animal',
+      const segOn = (k, v) => brForm[k] === v ? ' class="on"' : '';
+      const PURITY = ['Registered · papers 📄', 'Purebred · no papers', 'Mixed / commercial'];
+      const purity = listing ? String(listing.purity || '') : '';
+      openSheet(listing ? '✏️ Edit my listing' : '💘 List my animal',
         '<div class="mm-form">' +
         '<div class="mm-step"><span class="n">1</span>What kind of animal?</div>' +
         '<div class="mm-tiles">' + PET_SPECIES.concat(FARM_SPECIES).map(tile).join('') + '</div>' +
@@ -5655,14 +6492,16 @@
         '<label>Name <small style="color:var(--muted);font-weight:400;">(or herd / kennel name)</small></label><input type="text" id="br-name" placeholder="e.g. Tank">' +
         '<label>Breed</label><input type="text" id="br-breed" placeholder="e.g. Rottweiler · Boer · Angus">' +
         '<label>Male or female?</label><div class="mm-seg">' +
-          '<div onclick="brPick(\'sex\',\'male\',this)">♂ Male</div><div onclick="brPick(\'sex\',\'female\',this)">♀ Female</div><div onclick="brPick(\'sex\',\'group\',this)">Pair / herd</div></div>' +
+          '<div' + segOn('sex', 'male') + ' onclick="brPick(\'sex\',\'male\',this)">♂ Male</div><div' + segOn('sex', 'female') + ' onclick="brPick(\'sex\',\'female\',this)">♀ Female</div><div' + segOn('sex', 'group') + ' onclick="brPick(\'sex\',\'group\',this)">Pair / herd</div></div>' +
         '<div class="mm-two"><div><label>Age</label><input type="text" id="br-age" placeholder="e.g. 3 yrs"></div><div><label>How many</label><input type="number" id="br-count" min="1" value="1"></div></div>' +
         '<div class="mm-step"><span class="n">3</span>What are you after?</div>' +
         '<div class="mm-seg big">' +
-          '<div class="on" onclick="brPick(\'intent\',\'offering\',this)">✅ My animal is <b>available</b> to breed</div>' +
-          '<div onclick="brPick(\'intent\',\'seeking\',this)">🔍 I\'m <b>looking for</b> a mate for my animal</div></div>' +
+          '<div' + segOn('intent', 'offering') + ' onclick="brPick(\'intent\',\'offering\',this)">✅ My animal is <b>available</b> to breed</div>' +
+          '<div' + segOn('intent', 'seeking') + ' onclick="brPick(\'intent\',\'seeking\',this)">🔍 I\'m <b>looking for</b> a mate for my animal</div></div>' +
         '<label>Terms — fee or trade</label><input type="text" id="br-comp" placeholder="e.g. $500 stud fee · pick of the litter · trade">' +
-        '<label>Papers &amp; registration</label><select id="br-purity"><option>Registered · papers 📄</option><option>Purebred · no papers</option><option>Mixed / commercial</option></select>' +
+        '<label>Papers &amp; registration</label><select id="br-purity">' +
+          PURITY.map(p => '<option' + (p === purity ? ' selected' : '') + '>' + esc(p) + '</option>').join('') +
+          (purity && PURITY.indexOf(purity) < 0 ? '<option selected>' + esc(purity) + '</option>' : '') + '</select>' +
         '<label>Health — anything a partner should know</label><input type="text" id="br-health" placeholder="None">' +
         '<div class="mm-step"><span class="n">4</span>Photos <small>(optional, up to 3)</small></div>' +
         '<button class="pill-btn ghost" style="font-size:0.98rem;padding:0.75rem 1.2rem;" onclick="document.getElementById(\'br-photos\').click()">📷 Add photos</button>' +
@@ -5673,9 +6512,19 @@
         '<p class="sub" style="font-size:0.85rem;margin:0.35rem 0 0;">Others see only your <b>town and distance</b> — never your ZIP or address.</p>' +
         '<label>Farm, kennel or business name <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="text" id="br-biz" placeholder="e.g. Reyes Family Farm">' +
         '<div class="note" style="font-size:0.9rem;">Your listing shows your business name — or just your first name marked “Private breeder”. Interested owners message you inside Petfi.</div>' +
-        '<button class="btn mm-publish" id="br-btn" onclick="saveBreedingListing()">Publish my listing 💘</button>' +
+        '<button class="btn mm-publish" id="br-btn" onclick="saveBreedingListing()">' + (listing ? 'Save changes' : 'Publish my listing 💘') + '</button>' +
         '</div>');
-      if (prefill) {
+      if (listing) {
+        const set = (id, v) => { const e = document.getElementById(id); if (e) e.value = v == null ? '' : String(v); };
+        set('br-name', listing.name);
+        set('br-breed', listing.breed);
+        set('br-age', listing.age);
+        set('br-count', Math.max(1, parseInt(listing.count, 10) || 1));
+        set('br-comp', listing.comp);
+        set('br-health', listing.health);
+        set('br-biz', listing.business);
+        renderBrPreviews();
+      } else if (prefill) {
         document.getElementById('br-name').value = prefill.name || '';
         document.getElementById('br-breed').value = prefill.breed || '';
       }
@@ -5686,7 +6535,7 @@
       haptic(8);
     }
     function brPhotosPicked(input) {
-      const files = Array.from(input.files).slice(0, 3 - brPhotos.length);
+      const files = Array.from(input.files).slice(0, Math.max(0, 3 - brPhotos.length - brKeptPhotos.length));
       if (input.files.length > files.length) toast('Up to 3 photos per listing');
       files.forEach(f => {
         const img = new Image(), url = URL.createObjectURL(f);
@@ -5705,11 +6554,15 @@
     }
     function renderBrPreviews() {
       const d = document.getElementById('br-photo-previews'); if (!d) return;
-      d.innerHTML = brPhotos.map((p, i) =>
-        '<div style="position:relative;"><img src="' + p + '" style="width:84px;height:84px;object-fit:cover;border-radius:12px;border:2px solid var(--line);display:block;">' +
-        '<span onclick="brPhotos.splice(' + i + ',1);renderBrPreviews()" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:22px;height:22px;font-size:0.8rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>').join('');
+      const thumb = (src, arr, i) =>
+        '<div style="position:relative;"><img src="' + esc(src) + '" style="width:84px;height:84px;object-fit:cover;border-radius:12px;border:2px solid var(--line);display:block;">' +
+        '<span onclick="' + arr + '.splice(' + i + ',1);renderBrPreviews()" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:22px;height:22px;font-size:0.8rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>';
+      d.innerHTML = safePhotos(brKeptPhotos).map((p, i) => thumb(p, 'brKeptPhotos', i)).join('') +
+        brPhotos.map((p, i) => thumb(p, 'brPhotos', i)).join('');
     }
     async function saveBreedingListing() {
+      const editing = brEdit;
+      const btnLabel = editing ? 'Save changes' : 'Publish my listing 💘';
       const name = val('br-name'), breed = val('br-breed'), age = val('br-age'), comp = val('br-comp'), zip = val('br-zip');
       const missing = [];
       if (!name) missing.push('a name'); if (!breed) missing.push('the breed'); if (!brForm.sex) missing.push('male or female'); if (!age) missing.push('the age'); if (!comp) missing.push('your terms');
@@ -5717,14 +6570,17 @@
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP code should be 5 digits'); return; }
       const btn = document.getElementById('br-btn');
       if (btn && btn.disabled) return;
-      if (btn) { btn.disabled = true; btn.textContent = 'Publishing…'; }
+      if (btn) { btn.disabled = true; btn.textContent = editing ? 'Saving…' : 'Publishing…'; }
       const firstName = (state.displayName || 'Owner').split(' ')[0];
       const listing = {
         name, species: brForm.species, breed, sex: brForm.sex, intent: brForm.intent, age,
         count: Math.max(1, parseInt(val('br-count'), 10) || 1),
         purity: val('br-purity') || 'Registered · papers 📄', comp, health: val('br-health') || 'None reported',
-        owner: firstName, business: val('br-biz') || '', status: 'NEW', mi: 'Near you',
+        owner: (editing && editing.owner) || firstName, business: val('br-biz') || '',
+        status: editing && editing.status ? editing.status : 'NEW', mi: 'Near you',
+        updatedAt: new Date().toISOString(),
       };
+      if (editing && editing.closedAt) listing.closedAt = editing.closedAt;
       if (zip) {
         const g = await geocodeZip(zip);
         // Rounded to ~1 km — town-level, never an address
@@ -5734,7 +6590,10 @@
       state.interests = state.interests || [];
       if (state.interests.indexOf('Find a mate') < 0) state.interests.push('Find a mate');
       saveState();
-      if (!(cloud && cloudUser)) { LOCAL_MATES.unshift(listing); closeSheet(); openTab('mate'); toast('Listed on this device 💘 (no connection)'); return; }
+      if (!(cloud && cloudUser)) {
+        if (editing) { if (btn) { btn.disabled = false; btn.textContent = btnLabel; } toast('⚠️ You need to be online to save changes'); return; }
+        LOCAL_MATES.unshift(listing); closeSheet(); openTab('mate'); toast('Listed on this device 💘 (no connection)'); return;
+      }
       try {
         if (brPhotos.length) {
           const urls = [];
@@ -5746,8 +6605,11 @@
             if (up.error) throw up.error;
             urls.push(cloud.storage.from('photos').getPublicUrl(path).data.publicUrl);
           }
-          listing.photos = urls;
+          listing.photos = editing ? safePhotos(brKeptPhotos).concat(urls) : urls;
+        } else if (editing) {
+          listing.photos = safePhotos(brKeptPhotos);   // kept ones only — removals have to stick
         }
+        if (editing) { await saveMateEdit(editing, listing, btn); return; }
         const { data, error } = await cloud.from('mate_listings').insert({ owner_id: cloudUser.id, content: listing }).select('id').single();
         if (error) throw error;
         listing.cloudId = data.id; listing.ownerId = cloudUser.id; listing.mine = true; listing.createdAt = new Date().toISOString();
@@ -5762,9 +6624,22 @@
         n.slice(0, 12).forEach(x => { if (x.ownerId && !told[x.ownerId]) { told[x.ownerId] = 1; livePing(x.ownerId, { type: 'mate_listing', species: listing.species, id: data.id }); } });
       } catch (e) {
         console.warn('mate listing:', e.message);
-        if (btn) { btn.disabled = false; btn.textContent = 'Publish my listing 💘'; }
-        toast('⚠️ Couldn\'t publish — check your connection and try again');
+        if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
+        toast(editing ? '⚠️ Couldn\'t save your changes — check your connection and try again' : '⚠️ Couldn\'t publish — check your connection and try again');
       }
+    }
+    // Edit mode tail of saveBreedingListing: write the row back, then patch the
+    // CLOUD_MATES entry in place so the tab re-renders without a refetch.
+    async function saveMateEdit(editing, listing, btn) {
+      const res = await updateMateRow(editing.cloudId, listing);
+      if (!listing.closedAt) delete editing.closedAt;
+      Object.assign(editing, listing, { cloudId: res.id, ownerId: editing.ownerId || cloudUser.id, createdAt: editing.createdAt, mine: true });
+      if (res.relisted) { state.mateSeenMax = Math.max(state.mateSeenMax || 0, res.id); saveState(); }
+      brPhotos = []; brKeptPhotos = []; brEdit = null;
+      visibleMates();
+      if (btn) { btn.disabled = false; btn.textContent = 'Save changes'; }
+      closeSheet(); openTab('mate'); uiSound('post'); haptic([10, 30, 10]);
+      toast(res.relisted ? 'Saved (relisted)' : 'Changes saved ✏️');
     }
 
     // ======================= MATE MATCH — pets AND people =======================
@@ -6504,7 +7379,7 @@
           favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: f.url })),
           sugg: (state.suggestions || []).slice(0, 10),
           age: state.accountType === 'pet' ? petAge(state.bday) : '', // a person's age stays private
-          look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null },
+          look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null, p: state.avatarUrl || null },
         },
       }).then(({ error }) => { if (error) console.warn('profile save:', error.message); });
     }
@@ -6634,7 +7509,10 @@
           species: c.species, breed: c.breed, text: String(c.text || ''),
           kind: VOICE_PLAYERS[c.kind] ? c.kind : 'like',
           variant: c.variant || null, accessories: c.accessories || null,
+          photo: safeAvatarUrl(c.photo),
           photoUrls: safePhotos(c.photoUrls), subBase: c.subBase,
+          videoUrl: safeVideo(c.videoUrl), posterUrl: safePoster(c.posterUrl),
+          videoDur: Number(c.videoDur) > 0 ? Math.min(MAX_VIDEO_SECS, Number(c.videoDur)) : 0,
           scope: c.scope === 'local' ? 'local' : 'national',
           loc: (c.loc && isFinite(+c.loc.lat) && isFinite(+c.loc.lon)) ? { lat: +c.loc.lat, lon: +c.loc.lon, area: String(c.loc.area || '').slice(0, 60) } : null,
         };
@@ -6642,8 +7520,10 @@
         const prof = PROFILE_BY_ID[row.author_id];
         if (prof) {
           p.type = prof.kind === 'owner' ? 'owner' : 'pet';
-          if (p.type === 'pet') { p.species = prof.species || p.species; p.breed = prof.breed || p.breed; const look = pubExtras(prof).look; if (look) { p.variant = look.v || null; p.accessories = look.a || null; } }
-          else { const look = pubExtras(prof).look; p.emoji = (look && look.e) || null; }
+          const look = pubExtras(prof).look;
+          if (p.type === 'pet') { p.species = prof.species || p.species; p.breed = prof.breed || p.breed; if (look) { p.variant = look.v || null; p.accessories = look.a || null; } }
+          else { p.emoji = (look && look.e) || null; }
+          if (look) p.photo = safeAvatarUrl(look.p); // their photo avatar, as it is right now
           p.kind = p.type === 'owner' ? 'like' : speciesVoice(p.species);
         }
         const meta = p.type === 'owner' ? 'Owner' : (p.breed || p.species || 'Pet');
@@ -6685,6 +7565,7 @@
       const c = document.getElementById('tab-content'); if (!c) return;
       const ae = document.activeElement;
       if (ae && c.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { pendingRerender = renderFn; return; }
+      pvidStopAll();
       c.innerHTML = renderFn();
       pendingRerender = null;
     }
