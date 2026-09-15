@@ -9,11 +9,11 @@
   <meta property="og:description" content="Make pet friends, find parks & vets nearby, shop the pet store, and never miss a feeding time." />
   <meta property="og:type" content="website" />
   <link rel="manifest" href="manifest.webmanifest" />
-  <link rel="apple-touch-icon" href="petfi-icon.svg" />
+  <link rel="apple-touch-icon" href="brand/apple-touch-180.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-title" content="Petfi" />
   <title>Petfi — Social for Pets & Their People</title>
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐾</text></svg>" />
+  <link rel="icon" href="brand/favicon-32.png" />
   <style>
     :root {
       --brand: #ff7a59;
@@ -71,6 +71,10 @@
 
     .logo { font-size: 1.5rem; font-weight: 800; color: var(--brand); letter-spacing: -0.5px; }
     .logo span { color: var(--ink); }
+    .logo-img { height: 26px; width: auto; display: block; }
+    .logo-img.dark-only { display: none; }
+    body.dark .logo-img.light-only { display: none; }
+    body.dark .logo-img.dark-only { display: block; }
 
     h1 { font-size: 1.9rem; font-weight: 800; letter-spacing: -0.5px; margin-bottom: 0.4rem; }
     h2 { font-size: 1.4rem; font-weight: 800; margin-bottom: 0.3rem; }
@@ -969,7 +973,8 @@
     <!-- ================= MAIN APP ================= -->
     <section class="screen" id="s-app">
       <div class="app-topbar">
-        <div class="logo">Pet<span>fi</span></div>
+        <img src="brand/petfi-wordmark.png" alt="Petfi" class="logo-img light-only" />
+        <img src="brand/petfi-wordmark-white.png" alt="" aria-hidden="true" class="logo-img dark-only" />
         <div class="spacer"></div>
         <div class="top-icon" onclick="openSearch()" role="button" aria-label="Search" title="Search"><span>🔍</span></div>
         <div class="top-icon" onclick="openChats()" role="button" aria-label="Messages" title="Messages"><span>💬</span><span class="dot-badge" id="dm-dot" style="display:none;"></span></div>
