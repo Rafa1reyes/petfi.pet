@@ -630,6 +630,12 @@
     .welcome-foot a { color: var(--muted); text-decoration: none; font-weight: 600; }
     .welcome-foot a:hover { color: var(--brand); }
 
+    /* ---- Age confirmation (sign-up checkbox) ---- */
+    .age-ok { display: flex; align-items: flex-start; gap: 0.6rem; margin: 1.2rem 0 0; cursor: pointer; }
+    .age-ok input { width: 22px; height: 22px; flex-shrink: 0; margin-top: 0.1rem; accent-color: var(--brand); cursor: pointer; }
+    .age-ok input:focus-visible { outline: 3px solid var(--brand); outline-offset: 2px; }
+    .age-err { color: #d33; font-weight: 600; font-size: 0.9rem; }
+
     /* ---- Dark mode 🌙 ---- */
     body.dark {
       --bg: #1c1a20;
@@ -928,7 +934,7 @@
       <input type="text" id="owner-name" placeholder="e.g. Jordan" />
       <label>ZIP code</label>
       <input type="text" id="owner-zip" inputmode="numeric" maxlength="5" placeholder="e.g. 33101" />
-      <label>Age <small style="color:var(--muted);font-weight:400;">(18+ to sell or use Mate Match)</small></label>
+      <label>Age <small style="color:var(--muted);font-weight:400;">(<span class="min-age">18</span> or older)</small></label>
       <input type="number" id="owner-age" inputmode="numeric" placeholder="e.g. 34" />
 
       <div class="note">🔒 Your ZIP and age are never shown to other members. ID verification is coming later — nothing is uploaded today.</div>
@@ -964,10 +970,23 @@
       <label>Password</label>
       <input type="password" id="acct-pass" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')createLogin()" />
       <p id="acct-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>
-      <p class="sub" style="font-size:0.78rem;margin:1rem 0 -0.8rem;">By creating an account you confirm you're <b>13 or older</b> and agree to our
+      <label class="age-ok"><input type="checkbox" id="acct-age" aria-describedby="acct-age-err" onchange="if(this.checked)document.getElementById('acct-age-err').textContent=''" /><span>I am <span class="min-age">18</span> or older</span></label>
+      <p id="acct-age-err" class="age-err" role="alert"></p>
+      <p class="sub" style="font-size:0.78rem;margin:1rem 0 -0.8rem;">By creating an account you agree to our
         <a href="#" onclick="openTerms();return false;" style="color:var(--brand);font-weight:600;">Terms of Service</a> and
         <a href="#" onclick="openPrivacy();return false;" style="color:var(--brand);font-weight:600;">Privacy Policy</a>.</p>
       <button class="btn" id="acct-btn" onclick="createLogin()">Create my account ☁️</button>
+    </section>
+
+    <!-- ================= AGE CHECK (once per login on each device) ================= -->
+    <section class="screen" id="s-agecheck" aria-labelledby="agecheck-title">
+      <div style="text-align:center; padding-top:2rem;">
+        <div style="font-size:3.5rem;">🐾</div>
+        <h1 id="agecheck-title" tabindex="-1" style="margin-top:0.5rem;outline:none;">Petfi is for adults</h1>
+        <p class="sub">Please confirm you are <span class="min-age">18</span> or older to keep using it.</p>
+      </div>
+      <button class="btn" onclick="ageYes()">I am <span class="min-age">18</span> or older</button>
+      <button class="btn secondary" onclick="ageNo()">I'm under <span class="min-age">18</span></button>
     </section>
 
     <!-- ================= MAIN APP ================= -->
@@ -2057,6 +2076,8 @@
       if (!name) { toast('What should we call you?'); return; }
       const zip = val('owner-zip');
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP should be 5 digits'); return; }
+      const age = parseInt(val('owner-age'), 10);
+      if (age && age < MIN_AGE) { toast('Petfi is for adults ' + MIN_AGE + ' and older'); return; }
       show('s-owner-interests');
     }
 
@@ -2146,6 +2167,8 @@
 
     // ---- App entry ----
     function enterApp() {
+      // Adults only: nobody gets in until this login has confirmed MIN_AGE+ on this device
+      if (ageStatus() !== 'adult') { askAge(); return; }
       if (!state.favorites) state.favorites = DEFAULT_FAVS.map(f => Object.assign({}, f));
       if (!state.favsCleaned) {
         // Placeholder favorites seeded by an older version: only drop the exact
@@ -5061,9 +5084,15 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.2.1';
+    const APP_VERSION = '1.3.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
-    const LEGAL_UPDATED = 'July 12, 2026';
+    const LEGAL_UPDATED = 'October 5, 2026';
+    // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
+    // the app keeps it: the sign-up checkbox, the returning-member check and
+    // the in-app Terms/Privacy all read it. Changing it is more than this line
+    // (site pages, Play target audience, laws) — read PETFI-AGE-POLICY.md first.
+    // Mate Match for people keeps its own fixed 18 (openDatingPrefs/saveDatingPrefs).
+    const MIN_AGE = 18;
 
     function legalFoot() {
       return '<p class="lu" style="margin-top:1.2rem;">Last updated: ' + LEGAL_UPDATED + ' · Questions? <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a></p>';
@@ -5076,8 +5105,7 @@
         '<h3>1. What Petfi is</h3>' +
         '<p>Petfi is a social app for pets and their people: pet profiles, friends, groups, a marketplace, breeding listings, and care tools. Petfi is currently in an early-access period; features may change.</p>' +
         '<h3>2. Who can use Petfi</h3>' +
-        '<ul><li>You must be <b>13 or older</b> to have an account.</li>' +
-        '<li>You must be <b>18 or older</b> to buy, sell, advertise, list a pet for breeding, or use Mate Match for people.</li>' +
+        '<ul><li>You must be <b>' + MIN_AGE + ' or older</b> to have a Petfi account, Pet or Owner. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. To report an account that belongs to someone under ' + MIN_AGE + ', email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</li>' +
         '<li>One person per account. Keep your password private — you\'re responsible for what happens on your account.</li></ul>' +
         '<h3>3. Your content</h3>' +
         '<p>You own what you post. By posting, you give Petfi permission to show your content inside the app to other users. Don\'t post anything you don\'t have the right to share.</p>' +
@@ -5130,7 +5158,7 @@
         '<li>You can delete individual posts and listings anytime.</li>' +
         '<li><b>Delete your account</b> in Settings → Account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
         '<h3>Children</h3>' +
-        '<p>Petfi is not for children under 13. If we learn an account belongs to a child under 13, we\'ll remove it.</p>' +
+        '<p>Petfi is for adults: you must be <b>' + MIN_AGE + ' or older</b> to have an account. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. The app asks you to confirm your age and remembers the answer on your device only. If we learn an account belongs to someone under ' + MIN_AGE + ', we\'ll remove it. To report one, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p>' +
         legalFoot() + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
@@ -5153,12 +5181,12 @@
     function openHelp() {
       openSheet('❓ Help & FAQ',
         '<div class="faq" style="margin-top:0.4rem;">' +
-        '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. You can have one of each!</p></details>' +
+        '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. Both kinds are for adults ' + MIN_AGE + ' and older, and you can have one of each!</p></details>' +
         '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Open ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody else wears a badge untilit\'s real. Owners can join the waitlist from their profile.</p></details>' +
         '<details><summary>🎬 Can I post videos?</summary><p>Yes \u2014 one video per post, <b>under a minute</b> long and up to <b>45 MB</b>. Tap <b>🎬 Add a video</b> in the composer. In the feed videos start playing <b>muted</b> when they scroll into view; tap <b>🔇</b> for sound, or tap the video itself to pause it.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
-        '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners 18+ set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
+        '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi with a bark. If they bark back, it\'s a match and messaging opens. No mutual bark, no DMs — so strangers can\'t slide in uninvited.</p></details>' +
         '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
         '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and subscriptions — goes back to animals: <b>adoption fees</b> so shelter pets find homes faster and more of them make it out, <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through the Petfi store costs you nothing extra and funds this. The Donate page also lists real shelters near you to give to directly.</p></details>' +
         '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores, groomers and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
@@ -6289,7 +6317,7 @@
     function requireSeller(what) {
       if (state.accountType !== 'owner') {
         openSheet('🧑 Owner account needed',
-          '<div class="note">Pet accounts are anonymous fun accounts. To ' + what + ' you need an <b>Owner account</b> (18+) so buyers know there\'s a real person behind the listing.</div>' +
+          '<div class="note">Pet accounts are anonymous fun accounts. To ' + what + ' you need an <b>Owner account</b> so buyers know there\'s a real person behind the listing.</div>' +
           '<p class="sub" style="font-size:0.85rem;">Log out and choose “I\'m an Owner” to create one — you can keep this pet account too.</p>' +
           '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
         return false;
@@ -7021,7 +7049,7 @@
     function humanMateFlow() {
       if (state.accountType !== 'owner') {
         openSheet('💘 Mate Match for people',
-          '<div class="note">Finding a mate for <b>you</b> needs an <b>Owner account</b> (18+) — pet accounts are anonymous fun accounts. Log out and choose "I\'m an Owner" to join Mate Match.</div>' +
+          '<div class="note">Finding a mate for <b>you</b> needs an <b>Owner account</b> — pet accounts are anonymous fun accounts. Log out and choose "I\'m an Owner" to join Mate Match.</div>' +
           '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
         return;
       }
@@ -7551,6 +7579,70 @@
       return yrs + (yrs === 1 ? ' yr old' : ' yrs old');
     }
 
+    // ======================= AGE CHECK (adults only) =======================
+    // Every login confirms it's MIN_AGE+ once on each device: new members tick
+    // the box at sign-up (kept even while email confirmation holds back the
+    // session, but only in the browser they signed up in), everyone else
+    // answers the s-agecheck screen the next time they come in. Answers stay on
+    // this device (never the cloud), keyed by login. The saved copy carries its
+    // login's id (state.ageId) so the answer still holds when it's resumed with
+    // no connection; 'local' is only for profiles made with no connection: each
+    // new one is asked, and a normal log out clears it.
+    const AGE_KEY = 'petfi-age';
+    let AGE_ANSWERS = null, ageThen = null;
+    function ageAnswers() {
+      if (!AGE_ANSWERS) {
+        try { const a = JSON.parse(localStorage.getItem(AGE_KEY)); AGE_ANSWERS = a && typeof a === 'object' ? a : {}; } catch (e) { AGE_ANSWERS = {}; }
+      }
+      return AGE_ANSWERS;
+    }
+    function ageWho() { return cloudUser ? cloudUser.id : (state.ageId || 'local'); }
+    function rememberAge(adult, who = ageWho()) {
+      ageAnswers()[who] = { min: MIN_AGE, adult: !!adult };
+      try { localStorage.setItem(AGE_KEY, JSON.stringify(AGE_ANSWERS)); } catch (e) {}
+    }
+    function forgetAge(who) {
+      if (!ageAnswers()[who]) return;
+      delete AGE_ANSWERS[who];
+      try { localStorage.setItem(AGE_KEY, JSON.stringify(AGE_ANSWERS)); } catch (e) {}
+    }
+    // 'adult' = confirmed at or above today's minimum; 'under' = said they're
+    // below it; '' = never asked, or the minimum went up since they answered.
+    function ageStatus() {
+      const a = ageAnswers()[ageWho()];
+      if (!a) return '';
+      if (a.adult && a.min >= MIN_AGE) return 'adult';
+      if (!a.adult && a.min <= MIN_AGE) return 'under';
+      return '';
+    }
+    // A full screen, not a sheet — sheets close with × or a backdrop tap
+    function askAge(then) {
+      if (ageStatus() === 'under') { ageSignOut(); return; }
+      ageThen = then || null;
+      delete state.tab; // background refreshes re-open state.tab; none may pull the app up behind this screen
+      show('s-agecheck');
+      const h = document.getElementById('agecheck-title'); if (h) h.focus();
+    }
+    function ageYes() {
+      rememberAge(true);
+      const then = ageThen || enterApp; ageThen = null;
+      then();
+    }
+    function ageNo() {
+      rememberAge(false); ageThen = null;
+      ageSignOut();
+    }
+    // Under age: sign out on this device only and delete nothing — the
+    // account, its cloud data and this device's saved copy all stay put.
+    async function ageSignOut() {
+      await logOut({ ageBlock: true });
+      openSheet('💛 Thanks for telling us',
+        '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">🐾</div>' +
+        '<p class="sub" style="margin-top:0.6rem;">Petfi is just for adults ' + MIN_AGE + ' and older, so you\'ve been signed out on this device. Nothing was deleted.</p>' +
+        '<p class="sub" style="font-size:0.85rem;">Questions, or tapped the wrong button? Email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p></div>' +
+        '<button class="btn" onclick="closeSheet()">OK</button>');
+    }
+
     // ======================= CLOUD ACCOUNTS =======================
     // Sign-up happens at the end of onboarding; the whole app state is
     // mirrored to the cloud so logging in anywhere brings everything back.
@@ -7558,7 +7650,10 @@
 
     function goAccount(kind) {
       pendingFinish = kind;
-      if (!cloud) { finishOnboard(); return; } // offline → old local-only behavior
+      // The two ways in that skip the sign-up screen (no connection, or already
+      // logged in) never see its age box — ask before anything is saved.
+      if (!cloud) { askAge(finishOnboard); return; } // offline → old local-only behavior; each offline profile answers for itself
+      if (cloudUser && ageStatus() !== 'adult') { askAge(() => goAccount(kind)); return; }
       if (cloudUser) {
         // Already logged in (rebuilding a profile) — no second signup needed
         finishOnboard();
@@ -7566,6 +7661,8 @@
         syncCloud();
         return;
       }
+      document.getElementById('acct-age').checked = false; // never pre-ticked, even on a second sign-up
+      document.getElementById('acct-age-err').textContent = '';
       show('s-account');
     }
     function accountBack() { show(pendingFinish === 'owner' ? 's-owner-interests' : 's-invite'); }
@@ -7578,9 +7675,13 @@
       const pass = document.getElementById('acct-pass').value;
       const err = document.getElementById('acct-err');
       const btn = document.getElementById('acct-btn');
+      const ageBox = document.getElementById('acct-age');
+      const ageErr = document.getElementById('acct-age-err');
       err.style.display = 'none';
+      ageErr.textContent = '';
       if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return; }
       if (pass.length < 6) { err.textContent = 'Password needs at least 6 characters.'; err.style.display = 'block'; return; }
+      if (!ageBox.checked) { ageErr.textContent = 'Please confirm you\'re ' + MIN_AGE + ' or older — Petfi accounts are for adults only.'; ageBox.focus(); return; }
       btn.disabled = true; btn.textContent = 'Creating your account…';
       const { data, error } = await cloud.auth.signUp({ email: email, password: pass });
       btn.disabled = false; btn.textContent = 'Create my account ☁️';
@@ -7593,6 +7694,7 @@
       }
       if (!data.session) {
         // Email confirmation is on: no session until they click the link
+        if (data.user && data.user.id) rememberAge(true, data.user.id); // ticked here; keyed to the new login so confirming the email doesn't ask again
         err.style.display = 'none';
         openSheet('📬 Confirm your email',
           '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">📬</div>' +
@@ -7601,6 +7703,7 @@
         return;
       }
       cloudUser = data.user;
+      rememberAge(true);          // they ticked the box — no second question on the way in
       state.lastEmail = email;
       finishOnboard();            // builds state + enters the app (also saves)
       cloudSaveProfile();
@@ -7669,10 +7772,11 @@
       const { data: row } = await cloud.from('account_data').select('data, updated_at').eq('id', cloudUser.id).maybeSingle();
       resetState();
       if (row && row.data) { Object.assign(state, row.data); state.savedAt = row.updated_at || state.savedAt; }
+      state.ageId = cloudUser.id;
       closeSheet();
-      if (state.accountType) { try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {} syncCloud(); enterApp(); }
-      else show('s-welcome');
-      toast('Password updated — welcome back 🐾');
+      // Only say "welcome back" if they actually got in (the age check may still stand in the way)
+      if (state.accountType) { try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {} syncCloud(); enterApp(); if (appActive()) toast('Password updated — welcome back 🐾'); }
+      else { show('s-welcome'); toast('Password updated — welcome back 🐾'); }
     }
     async function doLogin() {
       const email = val('li-email');
@@ -7701,6 +7805,7 @@
       resetState();
       if (row && row.data) { Object.assign(state, row.data); state.savedAt = row.updated_at || state.savedAt; }
       state.lastEmail = email;
+      state.ageId = cloudUser.id; // this device's age answer follows the saved copy
       closeSheet();
       if (!state.accountType) {
         // Login exists but there's no saved world (e.g. a deleted account
@@ -7712,7 +7817,7 @@
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       syncCloud();
       enterApp();
-      toast('Welcome back 🐾');
+      if (appActive()) toast('Welcome back 🐾'); // not to someone the age check kept out
     }
 
     function cloudSaveProfile() {
@@ -7748,8 +7853,8 @@
     // Mirror the whole app state to the cloud (debounced so rapid taps
     // become one network call).
     let cloudSaveTimer = null, cloudSaveWarned = false;
-    // Keys that are pure screen state — they never need to travel to the cloud
-    const EPHEMERAL_KEYS = ['tab', 'homeTab', 'storeCat', 'storeType', 'storeSeen', 'vStep', 'spotsLoading', 'spotsFailed', 'spots', 'cart', 'orders', 'pendingReports', 'outbox'];
+    // Keys that are pure screen state (or this device's own, like ageId) — they never need to travel to the cloud
+    const EPHEMERAL_KEYS = ['tab', 'homeTab', 'storeCat', 'storeType', 'storeSeen', 'vStep', 'spotsLoading', 'spotsFailed', 'spots', 'cart', 'orders', 'pendingReports', 'outbox', 'ageId'];
     function cloudSnapshot() {
       const copy = {};
       Object.keys(state).forEach(k => { if (EPHEMERAL_KEYS.indexOf(k) < 0) copy[k] = state[k]; });
@@ -7784,6 +7889,7 @@
         EPHEMERAL_KEYS.forEach(k => { if (state[k] !== undefined) keep[k] = state[k]; });
         resetState(); Object.assign(state, row.data, keep);
         state.savedAt = row.updated_at || state.savedAt;
+        state.ageId = cloudUser.id;
         try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
         return true;
       }
@@ -8506,14 +8612,18 @@
       // protects a saved account from being overwritten from the welcome screen.
       if (!state.accountType) return;
       state.savedAt = new Date().toISOString();
+      if (cloudUser) state.ageId = cloudUser.id; // the age answer follows the saved copy (see AGE CHECK)
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSaveState();
     }
-    async function logOut() {
+    // opts.ageBlock (the under-age answer): end only THIS device's session,
+    // keep this device's saved copy, and skip the goodbye toast.
+    async function logOut(opts) {
+      const ageBlock = !!(opts && opts.ageBlock);
       // Push the last change before the session goes away
       if (cloudSaveTimer) { try { await flushCloudSave(); } catch (e) {} }
-      try { localStorage.removeItem('petfi-account'); } catch (e) {}
-      if (cloud) { try { await cloud.auth.signOut(); } catch (e) {} }
+      if (!ageBlock) { try { localStorage.removeItem('petfi-account'); } catch (e) {} forgetAge('local'); } // the next offline profile answers for itself
+      if (cloud) { try { await (ageBlock ? cloud.auth.signOut({ scope: 'local' }) : cloud.auth.signOut()); } catch (e) {} }
       liveDisconnect();
       cloudUser = null;
       resetState(); // factory-fresh state so nothing leaks to the next user
@@ -8527,7 +8637,7 @@
       updateBadges();
       renderResume();
       show('s-welcome');
-      toast('Logged out — see you soon 🐾');
+      if (!ageBlock) toast('Logged out — see you soon 🐾');
     }
     async function resumeSession() {
       let saved = null;
@@ -8544,6 +8654,11 @@
         const e = document.getElementById('li-email'); if (e && saved.lastEmail) e.value = saved.lastEmail;
         toast('Please log in again to continue');
         return;
+      }
+      if (cloudUser && saved.ageId !== cloudUser.id) {
+        // Tie this device's copy to its login before the age check, so the answer still holds with no connection
+        saved.ageId = cloudUser.id;
+        try { localStorage.setItem('petfi-account', JSON.stringify(saved)); } catch (e) {}
       }
       resetState(); Object.assign(state, saved);
       await adoptNewerCloudState();
@@ -8564,6 +8679,7 @@
           '<div><h3 style="font-size:1.05rem;margin:0;">Continue as ' + esc(saved.displayName || 'you') + '</h3>' +
           '<p style="margin:0;">Pick up right where you left off</p></div></div>';
     }
+    document.querySelectorAll('.min-age').forEach(e => { e.textContent = MIN_AGE; }); // static age text follows MIN_AGE
     renderResume();
     cloudRestore(); // reconnect to the cloud if a session is still alive
 
