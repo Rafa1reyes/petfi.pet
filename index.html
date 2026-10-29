@@ -4,19 +4,31 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Petfi — Social for Pets & Their People</title>
-<meta name="description" content="Petfi is where pet owners and farmers find a breeding partner nearby — dogs, cats, goats, cattle, horses, chickens — plus living pet profiles, a pack feed with real barks & meows, dog parks near you and a pet store. Half of all profit goes back to animals. Free to join.">
+<meta name="description" content="Petfi is where pet owners and farmers find a breeding partner nearby — dogs, cats, goats, cattle, horses, chickens — plus living pet profiles, a pack feed with real barks & meows, dog parks near you and a pet store. Half of all profit, and 100% of donations, go back to animals. Free to join.">
 <meta name="theme-color" content="#ff7a59">
 <meta name='impact-site-verification' value='d08859d3-c44f-4f37-be7f-983e3e7d952e'>
-<meta property="og:title" content="Petfi — Social for Pets & Their People">
-<meta property="og:description" content="Give your pet their own profile, make friends, find dog parks, shop, and never miss a feeding time. Free to join.">
+<link rel="canonical" href="https://petfi.pet/">
 <meta property="og:type" content="website">
-<meta property="og:url" content="https://petfi.pet">
+<meta property="og:site_name" content="Petfi">
+<meta property="og:title" content="Petfi — Social for Pets &amp; Their People">
+<meta property="og:description" content="Find a breeding partner near you for dogs, cats, goats, cattle, horses and chickens — plus living pet profiles, a pack feed with real barks &amp; meows and dog parks nearby. Free to join.">
+<meta property="og:url" content="https://petfi.pet/">
+<meta property="og:image" content="https://petfi.pet/brand/og-image.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="Petfi — the social world for pets and their people">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Petfi — Social for Pets &amp; Their People">
+<meta name="twitter:description" content="Find a breeding partner near you for dogs, cats, goats, cattle, horses and chickens — plus living pet profiles, a pack feed with real barks &amp; meows and dog parks nearby. Free to join.">
+<meta name="twitter:image" content="https://petfi.pet/brand/og-image.png">
 <link rel="icon" href="brand/favicon-32.png">
 <link rel="apple-touch-icon" href="brand/apple-touch-180.png">
 <style>
   :root{
     --bg:#fff8f4; --card:#ffffff; --cream:#fff1ec; --line:#f0e6e0;
-    --brand:#ff7a59; --brand-dark:#e85c3a; --blue:#5b8def; --ok:#2ecc71;
+    --brand:#c8401f; --brand-dark:#a8351a; --brand-lg:#eb6848; --blue:#5b8def; --ok:#2ecc71;
+    /* WCAG AA: --brand #c8401f = 4.99:1 with white, 4.75:1 on --bg, 4.52:1 on --cream;
+       --brand-lg #eb6848 = 3.03:1 on --bg, for the 40px+ headline accent only */
     --ink:#2d2a32; --dim:#6b6772;
   }
   *{margin:0;padding:0;box-sizing:border-box}
@@ -39,13 +51,15 @@
   .btn.big{padding:15px 30px;font-size:17px}
   .btn.ghost{background:transparent;color:var(--brand);border:2px solid var(--brand);box-shadow:none}
   .btn.ghost:hover{background:var(--cream)}
-  .hero{padding:76px 0 66px;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
+  .hero{padding:76px 24px 66px;display:grid;grid-template-columns:1.05fr .95fr;gap:52px;align-items:center}
   .kicker{display:inline-block;background:var(--cream);color:var(--brand-dark);font-size:12.5px;font-weight:800;letter-spacing:.07em;text-transform:uppercase;padding:6px 14px;border-radius:999px;margin-bottom:20px;border:1px solid #f6d9cd}
   h1{font-size:53px;line-height:1.07;font-weight:900;letter-spacing:-.02em}
-  h1 em{font-style:normal;color:var(--brand)}
+  h1 em{font-style:normal;color:var(--brand-lg)}
   .sub{font-size:19px;color:var(--dim);margin:22px 0 30px;max-width:31em}
   .cta-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
-  .fineprint{font-size:12.5px;color:#a89a90;margin-top:14px}
+  .fineprint{font-size:12.5px;color:#7d7067;margin-top:14px}
+  .play-badge{display:inline-block;line-height:0;border-radius:10px}
+  .play-badge img{height:60px;width:auto;display:block}
   /* phone mockup */
   .phone{background:var(--card);border:1px solid var(--line);border-radius:30px;box-shadow:0 30px 60px rgba(90,50,40,.15);overflow:hidden;max-width:340px;margin:0 auto}
   .cover{height:96px;background:linear-gradient(120deg,#ffd9c8,#ffc2d4 55%,#ffe9b8)}
@@ -88,16 +102,16 @@
   .pledge p{max-width:38em;margin:8px auto 0;font-size:16px}
   .band{background:var(--brand);border-radius:28px;padding:58px 44px;text-align:center;margin:16px 0 8px;color:#fff}
   .band h2{color:#fff;margin-bottom:10px}
-  .band p{color:#ffe3d8;margin-bottom:26px}
+  .band p{color:#fff4ef;margin-bottom:26px}
   .band .btn{background:#fff;color:var(--brand-dark);box-shadow:none}
   .band .btn:hover{background:#fff1ec}
-  footer{border-top:1px solid var(--line);padding:36px 0 46px;font-size:13.5px;color:#a89a90}
+  footer{border-top:1px solid var(--line);padding:36px 0 46px;font-size:13.5px;color:#7d7067}
   .f-in{display:flex;justify-content:space-between;align-items:center;gap:20px;flex-wrap:wrap}
   .f-links{display:flex;gap:18px;flex-wrap:wrap}
   .f-links a{color:var(--brand);text-decoration:none;font-weight:700}
   @media(max-width:900px){
     .hero,.mm{grid-template-columns:1fr}
-    .hero{padding:52px 0 44px}
+    .hero{padding:52px 24px 44px}
     h1{font-size:40px}
     h2{font-size:31px}
     .feats{grid-template-columns:1fr 1fr}
@@ -111,7 +125,7 @@
 <body>
 
 <nav><div class="wrap nav-in">
-  <a class="logo" href="#" aria-label="Petfi"><img class="tile" src="brand/favicon-192.png" alt=""><img class="mark" src="brand/petfi-wordmark.png" alt="Petfi"></a>
+  <a class="logo" href="#" aria-label="Petfi"><img class="tile" src="brand/favicon-192.png" alt=""><picture><source type="image/webp" srcset="brand/petfi-wordmark-sm.webp"><img class="mark" src="brand/petfi-wordmark-sm.png" alt="Petfi" width="204" height="78"></picture></a>
   <div class="nav-links">
     <a href="#features">Features</a><a href="#matematch">Mate Match</a><a href="#nearby">Nearby</a><a href="#safety">Safety</a>
   </div>
@@ -120,12 +134,17 @@
 
 <header class="wrap hero">
   <div>
-    <img class="hero-lockup" src="brand/petfi-lockup.png" alt="Petfi" width="1600" height="495">
+    <picture>
+      <source type="image/webp" srcset="brand/petfi-lockup-800.webp 800w, brand/petfi-lockup-1200.webp 1200w" sizes="(max-width: 498px) calc(80vw - 39px), 360px">
+      <source type="image/png" srcset="brand/petfi-lockup-800.png 800w, brand/petfi-lockup-1200.png 1200w" sizes="(max-width: 498px) calc(80vw - 39px), 360px">
+      <img class="hero-lockup" src="brand/petfi-lockup.png" alt="Petfi" width="1600" height="495" loading="eager" decoding="async">
+    </picture>
     <span class="kicker">🐾 Now in beta — join free</span>
     <h1>The social world for <em>pets</em> and their people.</h1>
-    <p class="sub">Petfi started with one question: <em>where do I find a mate for my dog?</em> Now it's the easiest place to list your dog, cat, goat, cattle or chickens for breeding and find a partner <b>near you</b> — plus a living profile for every pet, a feed with real barks &amp; meows, and dog parks nearby. And half of everything Petfi earns goes back to animals.</p>
+    <p class="sub">Petfi started with one question: <em>where do I find a mate for my dog?</em> Now it's the easiest place to list your dog, cat, goat, cattle or chickens for breeding and find a partner <b>near you</b> — plus a living profile for every pet, a feed with real barks &amp; meows, and dog parks nearby. And half of all Petfi profit — plus 100% of donations — goes back to animals.</p>
     <div class="cta-row">
       <a class="btn big" href="app/">🐾 Open Petfi</a>
+      <a class="play-badge" href="https://play.google.com/store/apps/details?id=com.petfi.app"><img src="brand/google-play-badge.png" alt="Get it on Google Play" width="155" height="60"></a>
       <a class="btn big ghost" href="#features">See what's inside</a>
     </div>
     <p class="fineprint">Free for every pet · For adults 18 and older · Works right in your browser · Add it to your home screen like a real app.</p>
@@ -188,9 +207,9 @@
 </div></section>
 
 <section style="padding-top:8px"><div class="wrap"><div class="pledge">
-  <span class="sec-k" style="color:#c23a62">💖 The Petfi pledge</span>
-  <h2>Half of all Petfi profit goes back to animals</h2>
-  <p>Every purchase through the Petfi store, every ad and subscription helps pay <b>adoption fees</b> so shelter pets find their family faster and more of them make it out the door, <b>emergency vet bills</b> when a family can't cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through Petfi costs you nothing extra. The app also finds real shelters near you so you can give directly.</p>
+  <span class="sec-k" style="color:#b8305a">💖 The Petfi pledge</span>
+  <h2>Half of all Petfi profit — and 100% of donations — goes back to animals</h2>
+  <p><b>Profit</b> is what Petfi makes from store commissions, ads and subscriptions — half of it goes to the pledge. <b>Donations</b> are different: every dollar members give through Petfi reaches the shelters and families, and Petfi keeps none of it. Together they pay <b>adoption fees</b> so shelter pets find their family faster and more of them make it out the door, <b>emergency vet bills</b> when a family can't cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through Petfi costs you nothing extra. Today the Donate page sends you straight to real shelters near you.</p>
 </div></div></section>
 
 <section id="safety"><div class="wrap">
@@ -211,6 +230,7 @@
 
 <footer><div class="wrap f-in">
   <span>© 2026 Spindola Software · Petfi™</span>
+  <a class="play-badge" href="https://play.google.com/store/apps/details?id=com.petfi.app"><img src="brand/google-play-badge.png" alt="Get it on Google Play" width="155" height="60" loading="lazy"></a>
   <span class="f-links">
     <a href="app/">Open app</a>
     <a href="privacy.html">Privacy</a>
