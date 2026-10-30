@@ -2231,6 +2231,7 @@
       if (!state.welcomed) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
       celebrateBirthday();
       setTimeout(maybeOfferInstall, 10000); // gentle "add to home screen" once settled
+      setTimeout(handleVerifyReturn, 300);  // back from Stripe into a login that needed the resume screen first
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -4170,9 +4171,13 @@
           '<p style="color:#a05a3a;">Put your litter, product or service on every member\'s home feed. Free while Petfi is in early access.</p>' +
           '<button class="pill-btn" onclick="openPromote()">Create an ad</button></div>';
 
-        // Verification is coming; until it's real, nobody wears a badge
+        // The badge is granted by the server after a real ID check (startVerify)
         h += '<div class="settings-card" style="margin-bottom:0.8rem;">' +
-          '<div class="link-row" onclick="startVerify()"><span class="li">🪪</span><div>ID verification<small>' + (state.verifyWaitlist ? 'You\'re on the list — we\'ll email you when it opens' : 'Coming soon — earn a trust badge for selling &amp; breeding') + '</small></div><span class="chev">›</span></div>' +
+          '<div class="link-row" onclick="startVerify()"><span class="li">🪪</span><div>ID verification<small>' +
+          (state.verified ? 'Verified ✔︎ — your trust badge is live'
+            : state.verifyWaitlist ? 'You\'re on the list — tap to check if it\'s open'
+            : 'Earn a trust badge for selling &amp; breeding — government ID + selfie, one-time $3') +
+          '</small></div><span class="chev">›</span></div>' +
         '</div>';
       }
 
@@ -4617,7 +4622,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.4.0';
+    const APP_VERSION = '1.5.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -4715,7 +4720,7 @@
       openSheet('❓ Help & FAQ',
         '<div class="faq" style="margin-top:0.4rem;">' +
         '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. Both kinds are for adults ' + MIN_AGE + ' and older, and you can have one of each!</p></details>' +
-        '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Open ID verification (government ID + selfie, one-time $3) is coming for Owner accounts, and nobody else wears a badge until it\'s real. Owners can join the waitlist from their profile.</p></details>' +
+        '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Owners verify from their profile with a government ID and a quick selfie (one-time $3; in the Android app the charge goes through Google Play). The check runs on Stripe Identity\'s own page: Petfi never sees the ID or selfie, only pass or fail and whether the person is 18 or older. A failed check can be retried at no extra charge.</p></details>' +
         '<details><summary>🎬 Can I post videos?</summary><p>Yes \u2014 one video per post, <b>under a minute</b> long and up to <b>45 MB</b>. Tap <b>🎬 Add a video</b> in the composer. In the feed videos start playing <b>muted</b> when they scroll into view; tap <b>🔇</b> for sound, or tap the video itself to pause it.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
@@ -7004,15 +7009,91 @@
     }
 
     // ======================= VERIFICATION =======================
-    // Real ID verification (Stripe Identity) isn't wired up yet. Until it is,
-    // Petfi doesn't pretend: no fake review, no self-granted badge — just an
-    // honest preview and a waitlist.
-    function startVerify() {
+    // The $3 trust badge. Payment: Play Billing inside the Android app (Play's
+    // rule for anything sold in the app), Stripe Checkout on petfi.pet. Then a
+    // Stripe Identity check (government ID + selfie) on Stripe's own page.
+    // The server (petfi-verify) owns every step and the webhook sets
+    // profiles.verified; this file only asks, redirects and shows results.
+    const PLAY_BILLING = 'https://play.google.com/billing';
+    const PLAY_VERIFY_SKU = 'verify_badge';
+    // The Android app announces itself through the referrer on its first load.
+    const IS_PLAY_APP = (() => { try { return /^android-app:\/\/com\.petfi\.app/.test(document.referrer) || sessionStorage.getItem('petfi-play-app') === '1'; } catch (e) { return false; } })();
+    try { if (IS_PLAY_APP) sessionStorage.setItem('petfi-play-app', '1'); } catch (e) {}
+    // ?verify=paid&cs=…  back from Stripe Checkout    ?verify=done  back from the ID check
+    // ?verify=cancel     left Checkout without paying
+    const VERIFY_RETURN = (() => {
+      try {
+        const q = new URLSearchParams(location.search);
+        const what = q.get('verify');
+        if (!what) return null;
+        const r = { what, cs: q.get('cs') || '' };
+        q.delete('verify'); q.delete('cs');
+        const rest = q.toString();
+        history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+        return r;
+      } catch (e) { return null; }
+    })();
+    let verifyReturnHandled = false;
+
+    async function verifyCall(action, extra) {
+      if (!cloud || !cloudUser) return { error: 'offline' };
+      try {
+        const { data, error } = await cloud.functions.invoke('petfi-verify', { method: 'POST', body: Object.assign({ action }, extra || {}) });
+        if (error) {
+          let body = null;
+          try { if (error.context && typeof error.context.json === 'function') body = await error.context.json(); } catch (e) {}
+          return Object.assign({ error: 'server' }, body || {});
+        }
+        return (data && typeof data === 'object') ? data : { error: 'server' };
+      } catch (e) { return { error: 'network' }; }
+    }
+    async function playBillingService() {
+      if (typeof window.getDigitalGoodsService !== 'function') return null;
+      try { return await window.getDigitalGoodsService(PLAY_BILLING); } catch (e) { return null; }
+    }
+    function verifyStepsHtml() {
+      return '<div class="vstep"><div class="vn">1</div><div><b>Photo of your government ID</b><br><span style="color:var(--muted);">Driver\'s license, passport or ID card</span></div></div>' +
+        '<div class="vstep"><div class="vn">2</div><div><b>Quick selfie</b><br><span style="color:var(--muted);">Matched to your ID by Stripe Identity — Petfi never sees the photos</span></div></div>' +
+        '<div class="vstep"><div class="vn">3</div><div><b>Badge on your profile</b><br><span style="color:var(--muted);">Shown on everything you post, sell or list</span></div></div>';
+    }
+    const VERIFY_FAIL_TEXT = {
+      under_18: 'the ID shows you are under 18, and Petfi is for adults only',
+      under_supported_age: 'the ID shows you are under 18, and Petfi is for adults only',
+      document_expired: 'the ID had expired',
+      document_type_not_supported: 'that kind of document isn\'t accepted — use a driver\'s license, passport or ID card',
+      document_unverified_other: 'the ID couldn\'t be read — try better light and a flat, glare-free shot',
+      selfie_face_mismatch: 'the selfie didn\'t match the ID photo',
+      selfie_unverified_other: 'the selfie couldn\'t be checked — face the camera in good light',
+      selfie_document_missing_photo: 'the ID has no photo to compare the selfie with',
+      selfie_manipulated: 'the selfie looked edited',
+      consent_declined: 'you declined the consent on Stripe\'s page',
+      country_not_supported: 'IDs from that country aren\'t supported yet',
+      abandoned: 'the check was left unfinished',
+      canceled: 'the check was cancelled',
+    };
+    function verifyFailText(code) { return VERIFY_FAIL_TEXT[code] || 'the last check didn\'t pass'; }
+
+    async function startVerify() {
+      if (!cloud || !cloudUser) { toast('Log in to verify your ID'); return; }
+      if (state.verified) {
+        openSheet('🪪 Verified',
+          '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Your ID is verified — the ' + vbadge() + ' badge shows on everything you post, sell or list.</div>' +
+          '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+        return;
+      }
+      openSheet('🪪 ID verification', '<div class="note">⏳ One moment…</div>');
+      const mySeq = sheetSeq;
+      const info = await verifyCall('status');
+      if (sheetSeq !== mySeq) return;
+      if (info.verified) { markVerifiedLocally(); return; }
+      if (info.error || !info.ready) { renderVerifyWaitlist(); return; }
+      renderVerifyOffer(info);
+    }
+    // Before Identity is switched on server-side: an honest preview and a waitlist.
+    function renderVerifyWaitlist() {
       openSheet('🪪 ID verification',
         '<p class="sub">Soon, owners will be able to verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
-        '<div class="vstep"><div class="vn">1</div><div><b>Photo of your government ID</b><br><span style="color:var(--muted);">Driver\'s license or passport</span></div></div>' +
-        '<div class="vstep"><div class="vn">2</div><div><b>Quick selfie</b><br><span style="color:var(--muted);">Matched to your ID by a secure identity service</span></div></div>' +
-        '<div class="vstep"><div class="vn">3</div><div><b>Badge on your profile</b><br><span style="color:var(--muted);">Shown on everything you post, sell or list</span></div></div>' +
+        verifyStepsHtml() +
         '<div class="note">💳 Verification will be a <b>one-time $3 fee</b>. Nothing is charged, uploaded or stored today.</div>' +
         (state.verifyWaitlist
           ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ You\'re on the list — we\'ll email <b>' + esc(cloudUser ? cloudUser.email : 'you') + '</b> when it opens.</div>' +
@@ -7024,6 +7105,130 @@
       state.verifyWaitlist = true; saveState();
       closeSheet(); if (state.tab === 'profile') openTab('profile');
       toast('You\'re on the list 🔔');
+    }
+    function renderVerifyOffer(info) {
+      const row = info.row || null;
+      const price = '$' + ((info.price_cents || 300) / 100).toFixed(2).replace(/\.00$/, '');
+      let h = '';
+      if (row && row.paid && (row.status === 'paid' || row.status === 'failed')) {
+        h += row.status === 'failed'
+          ? '<div class="note" style="background:#fdeef0;color:#a03a5a;">Last time ' + esc(verifyFailText(row.fail_reason)) + '. You can try again — <b>no extra charge</b>.</div>'
+          : '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Paid. Finish the ID check to get your badge.</div>';
+        h += verifyStepsHtml() +
+          '<button class="btn blue" id="vf-btn" onclick="continueVerify()">🪪 ' + (row.status === 'failed' ? 'Try the ID check again' : 'Finish my ID check') + '</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
+      } else {
+        h += '<p class="sub">Verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
+          verifyStepsHtml() +
+          '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
+          '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
+          '<button class="btn blue" id="vf-btn" onclick="beginVerifyPayment()">🪪 Verify now · ' + esc(price) + '</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
+      }
+      openSheet('🪪 ID verification', h);
+    }
+    function verifyBusy(label) {
+      const btn = document.getElementById('vf-btn');
+      if (btn) { btn.disabled = true; btn.textContent = label; }
+    }
+    function verifyFail(code) {
+      const text = {
+        cancelled: 'No charge — you cancelled.',
+        play_pending: 'Your Google Play payment is still pending. Once it clears, come back here to finish the ID check.',
+        not_paid: 'We couldn\'t find your payment yet. If you did pay, reopen this in a minute — nothing is charged twice.',
+        identity_unavailable: 'ID checks are briefly unavailable. Your payment is saved; finish any time from your profile.',
+        other_account: 'That Google Play purchase belongs to another Petfi account.',
+        needs_update: 'Update Petfi from Google Play to verify your ID in the app.',
+        offline: 'No internet connection right now.',
+        network: 'No internet connection right now.',
+      }[code] || 'Something went wrong. Nothing extra is charged — try again from your profile.';
+      openSheet('🪪 ID verification', '<div class="note">' + esc(text) + '</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
+    }
+    function markVerifiedLocally() {
+      state.verified = true; state.verifiedBy = 'petfi'; saveState();
+      closeSheet(); if (state.tab === 'profile') openTab('profile');
+      confetti(); toast('Verified ✔︎ — your trust badge is live');
+    }
+    async function beginVerifyPayment() {
+      verifyBusy('Opening…');
+      const svc = await playBillingService();
+      if (svc) { payWithPlay(svc); return; }
+      // Inside the Play app nothing may be sold outside Play Billing; an older
+      // build without it gets pointed at the update instead of Stripe.
+      if (IS_PLAY_APP) { verifyFail('needs_update'); return; }
+      const r = await verifyCall('checkout');
+      if (r.verified) { markVerifiedLocally(); return; }
+      if (r.paid) { continueVerify(); return; }
+      if (r.url) { location.href = r.url; return; }
+      verifyFail(r.error);
+    }
+    async function payWithPlay(svc) {
+      let token = null, resp = null;
+      try {
+        const details = await svc.getDetails([PLAY_VERIFY_SKU]);
+        if (!details || !details.length) { verifyFail('server'); return; }
+        const item = details[0];
+        const price = item.price && item.price.currency ? { currency: item.price.currency, value: item.price.value } : { currency: 'USD', value: '3.00' };
+        const req = new PaymentRequest([{ supportedMethods: PLAY_BILLING, data: { sku: PLAY_VERIFY_SKU } }],
+          { total: { label: item.title || 'Petfi ID verification', amount: price } });
+        try { resp = await req.show(); }
+        catch (e) {
+          // "Already owned": bought before (an earlier account on this Google
+          // account, or a check that never finished) — that purchase still counts.
+          try {
+            const owned = await svc.listPurchases();
+            const mine = (owned || []).find(p => p && p.itemId === PLAY_VERIFY_SKU && p.purchaseToken);
+            if (mine) token = mine.purchaseToken;
+          } catch (e2) {}
+          if (!token) { verifyFail('cancelled'); return; }
+        }
+        if (resp) token = resp.details && (resp.details.purchaseToken || resp.details.token);
+        if (!token) { try { await resp.complete('unknown'); } catch (e) {} verifyFail('server'); return; }
+        const v = await verifyCall('play', { purchaseToken: token, productId: PLAY_VERIFY_SKU });
+        if (resp) { try { await resp.complete(v.ok ? 'success' : (v.error === 'cancelled' || v.error === 'invalid_purchase') ? 'fail' : 'unknown'); } catch (e) {} }
+        if (!v.ok) { verifyFail(v.error === 'pending' ? 'play_pending' : v.error || 'server'); return; }
+        if (v.verified) { markVerifiedLocally(); return; }
+        continueVerify();
+      } catch (e) {
+        reportClientError('play billing: ' + ((e && e.message) || e), e && e.stack);
+        if (resp) { try { await resp.complete('unknown'); } catch (e2) {} }
+        verifyFail('server');
+      }
+    }
+    // Paid (either rail): hand them to Stripe's ID page. The server reuses an
+    // unfinished session, so a retry after a failed check costs nothing.
+    async function continueVerify() {
+      openSheet('🪪 ID verification', '<div class="note">⏳ Opening the secure ID check…</div>');
+      const r = await verifyCall('identity', VERIFY_RETURN && VERIFY_RETURN.cs ? { cs: VERIFY_RETURN.cs } : {});
+      if (r.verified) { markVerifiedLocally(); return; }
+      if (r.url) { location.href = r.url; return; }
+      if (r.processing) {
+        openSheet('🪪 Checking your ID', '<div class="note">Stripe is still processing your ID. Your badge appears by itself once it clears — usually within a few minutes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
+        return;
+      }
+      verifyFail(r.error);
+    }
+    // Back in the app after Checkout or the ID page (called once a login is live).
+    async function handleVerifyReturn() {
+      if (!VERIFY_RETURN || verifyReturnHandled || !cloud || !cloudUser || !appActive()) return;
+      verifyReturnHandled = true;
+      const r = VERIFY_RETURN;
+      if (r.what === 'cancel') { toast('Verification cancelled — nothing was charged'); return; }
+      openTab('profile');
+      if (r.what === 'paid') { continueVerify(); return; }
+      if (r.what !== 'done') return;
+      openSheet('🪪 Checking your ID', '<div class="note">⏳ Checking with Stripe…</div>');
+      const mySeq = sheetSeq;
+      for (let i = 0; i < 6; i++) {
+        const info = await verifyCall('status');
+        if (sheetSeq !== mySeq) return;
+        if (info.verified) { markVerifiedLocally(); return; }
+        if (info.row && info.row.status === 'failed') { renderVerifyOffer(info); return; }
+        if (info.error) break;
+        await new Promise(res => setTimeout(res, 2500));
+      }
+      if (sheetSeq !== mySeq) return;
+      openSheet('🪪 Checking your ID', '<div class="note">Stripe is still processing your ID. Your badge appears by itself once it clears — usually within a few minutes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
     }
 
     // ======================= PRIVATE REMINDERS =======================
@@ -7608,6 +7813,7 @@
       if (adopted && appActive()) { applyTheme(); refreshTopAvatar(); openTab(state.tab || 'home'); }
       else if (!appActive()) renderResume(); // the welcome button follows whoever the surviving login is
       syncCloud();
+      handleVerifyReturn(); // back from Stripe (Checkout or the ID page)?
     }
     // Coming back to the tab after a while: re-check for a newer copy
     document.addEventListener('visibilitychange', async () => {
