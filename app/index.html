@@ -2231,7 +2231,7 @@
       if (!state.welcomed) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
       celebrateBirthday();
       setTimeout(maybeOfferInstall, 10000); // gentle "add to home screen" once settled
-      setTimeout(handleVerifyReturn, 300);  // back from Stripe into a login that needed the resume screen first
+      setTimeout(handlePayReturn, 300);  // back from Stripe into a login that needed the resume screen first
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -3013,7 +3013,21 @@
     // Ad type → label is looked up client-side (never trusted from the row)
     const AD_TYPE_LABEL = { breeder: '🐕 Breeder', product: '🛒 Product', service: '🔧 Service' };
     function adTypeLabel(ad) { return AD_TYPE_LABEL[ad && ad.adType] || AD_TYPE_LABEL.breeder; }
-    function liveAd() { return CLOUD_ADS.find(a => new Date(a.expiresAt).getTime() > Date.now()) || null; }
+    // The first running ad that reaches this viewer: app-wide ads reach
+    // everyone; statewide and local (50 mi) ones need the viewer's ZIP.
+    function liveAd() {
+      const me = state.zip && GEO_CACHE[state.zip] ? GEO_CACHE[state.zip] : null;
+      const myState = me ? zipState(me) : null;
+      return CLOUD_ADS.find(a => {
+        if (!(new Date(a.expiresAt).getTime() > Date.now())) return false;
+        if (a.mine) return true;
+        const reach = a.reach || 'app';
+        if (reach === 'app') return true;
+        if (!me) return false;
+        if (reach === 'state') return !!(myState && a.st === myState);
+        return isFinite(+a.lat) && isFinite(+a.lon) && haversineMi(me.lat, me.lon, +a.lat, +a.lon) <= LOCAL_RADIUS_MI;
+      }) || null;
+    }
     let SPOTLIGHT_AD = null; // the ad currently on screen (for tap-to-open)
     function spotlightCard() {
       // Only a real ad from a real member — no placeholder ads, ever
@@ -3733,21 +3747,234 @@
       return '🛒';
     }
 
-    // ======================= SHELTER DONATIONS =======================
-    // The Petfi Pledge: half of all Petfi profit (store commissions, ads and
-    // subscriptions) and 100% of donations go back to animals. Payments are
-    // demo until Stripe lands; PLEDGE_SHARE (below) is the profit share.
+    // ======================= THE PETFI PLEDGE & GIFTS =======================
+    // Half of all Petfi profit (store commissions, ads, the badge) and 100% of
+    // gifts go to the Pledge fund. Half of the fund helps members with vet
+    // bills, cremation and adoption fees (members who give are first in line);
+    // the other half goes to shelters and animal organizations.
+    // Gifts: Play Billing inside the Android app (Play's rule for anything
+    // paid in the app), Stripe Checkout on petfi.pet. The server (petfi-donate)
+    // records every gift in pledge_donations; admins write every dollar given
+    // away into pledge_ledger, which everyone can read — that is the proof.
+    const DONATE_PRESETS = [500, 1000, 2000];
+    const PLAY_DONATE_SKUS = { 500: 'donate_5', 1000: 'donate_10', 2000: 'donate_20', 5000: 'donate_50', 10000: 'donate_100' };
+    const LEDGER_KIND = {
+      vet: ['🚑', 'Vet bill'], cremation: ['🕊️', 'Cremation'], adoption: ['🏡', 'Adoption fee'],
+      shelter: ['🏠', 'Shelter'], organization: ['🤝', 'Organization'], other: ['🐾', 'Other'],
+    };
     let donateShelters = null; // shelters near the user's ZIP, cached
 
-    // Petfi can't take money yet, so it doesn't pretend to: this finds real
-    // shelters near you and sends you straight to them.
+    function pledgeMoney(cents) { const d = (+cents || 0) / 100; return '$' + (Number.isInteger(d) ? d.toLocaleString('en-US') : d.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
+    function pledgeDate(d) { try { return new Date(String(d).length === 10 ? d + 'T12:00:00' : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return esc(d); } }
+
     function openDonate() {
       openSheet('💖 The Petfi Pledge',
         pledgeCard() +
-        '<p class="sub" style="font-size:0.9rem;margin:0.9rem 0 0.6rem;"><b>Want to give directly?</b> 100% of every donation goes to animals — Petfi keeps nothing. Real shelters near you are listed below; every dollar goes straight to them.</p>' +
+        '<div class="sec"><h3>💝 Give to the Pledge fund</h3></div>' +
+        '<div id="donate-give">' + donateGiveHtml() + '</div>' +
+        '<div class="sec"><h3>📒 Where the money went</h3></div>' +
+        '<div id="donate-ledger"><div class="note">⏳ Loading…</div></div>' +
+        (isAdmin() ? '<button class="btn secondary" onclick="openLedgerEntry()">➕ Record a gift given (admin)</button>' +
+          '<button class="btn secondary" onclick="openTopDonors()">🏆 Top supporters (admin)</button>' : '') +
+        '<div class="sec"><h3>🆘 A vet bill or a goodbye you can\'t cover?</h3></div>' +
+        '<div class="note">Members who give are first in line for help. Email <a href="mailto:support@petfi.pet?subject=Petfi%20Pledge%20help">support@petfi.pet</a> from the email on your account with what happened and the bill. Petfi\'s treasurer decides each case; the fund is finite, so no promise is made in advance.</div>' +
+        '<div class="sec"><h3>🏠 Or give straight to a shelter</h3></div>' +
         '<div id="donate-list"><div class="note">⏳ Finding real shelters near you…</div></div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+      loadLedger();
+      loadMyGiving();
       loadDonateShelters();
+    }
+    function donateGiveHtml() {
+      if (!(cloud && cloudUser)) return '<div class="note">Sign in to give — every gift is recorded to your account, and members who give are first in line for help.</div>';
+      const chip = (c, ghost) => '<button class="pill-btn' + (ghost ? ' ghost' : '') + '" style="' + (ghost ? '' : 'background:#e0527a;') + 'font-size:0.95rem;padding:0.55rem 1rem;" onclick="beginDonation(' + c + ')">' + pledgeMoney(c) + '</button>';
+      // Play has no free-form amount, so the Android app offers two bigger fixed gifts instead of "custom".
+      const more = IS_PLAY_APP ? chip(5000, true) + chip(10000, true)
+        : '<button class="pill-btn ghost" style="font-size:0.95rem;padding:0.55rem 1rem;" onclick="customDonation()">Custom amount</button>';
+      return '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin:0.3rem 0 0.5rem;">' + DONATE_PRESETS.map(c => chip(c)).join('') + more + '</div>' +
+        '<p class="sub" style="font-size:0.78rem;text-align:center;">100% of your gift goes to the Pledge fund — Petfi pays the card and app-store fees itself. Gifts are not tax-deductible.</p>' +
+        '<div id="donate-mine" class="sub" style="font-size:0.84rem;text-align:center;"></div>';
+    }
+    function customDonation() {
+      openSheet('💝 Custom gift',
+        '<label>Amount in US dollars <small style="color:var(--muted);font-weight:400;">($1 to $1,000)</small></label>' +
+        '<input id="donate-custom" type="number" inputmode="decimal" min="1" max="1000" step="1" placeholder="e.g. 25">' +
+        '<button class="btn" onclick="beginDonation(Math.round(parseFloat(val(\'donate-custom\') || 0) * 100))">Give 💖</button>' +
+        '<button class="btn secondary" onclick="openDonate()">Back</button>');
+      setTimeout(() => { const i = document.getElementById('donate-custom'); if (i) i.focus(); }, 50);
+    }
+    async function beginDonation(cents) {
+      if (!(cloud && cloudUser)) { toast('Sign in to give'); return; }
+      if (!isFinite(cents) || cents < 100 || cents > 100000) { toast('Gifts are $1 to $1,000'); return; }
+      const svc = await playBillingService();
+      if (svc) {
+        const sku = PLAY_DONATE_SKUS[cents];
+        if (!sku) { donateFail('bad_amount'); return; }
+        giveWithPlay(svc, sku, cents);
+        return;
+      }
+      // Inside the Play app nothing may be paid outside Play Billing; an older
+      // build without it gets pointed at the update instead of Stripe.
+      if (IS_PLAY_APP) { donateFail('needs_update'); return; }
+      openSheet('💝 Thank you', '<div class="note">⏳ Opening secure checkout…</div>');
+      const r = await donateCall('checkout', { amount_cents: cents });
+      if (r.url) { location.href = r.url; return; }
+      donateFail(r.error);
+    }
+    async function giveWithPlay(svc, sku, cents) {
+      let token = null, resp = null;
+      try {
+        const details = await svc.getDetails([sku]);
+        if (!details || !details.length) { donateFail('server'); return; }
+        const item = details[0];
+        const price = item.price && item.price.currency ? { currency: item.price.currency, value: item.price.value } : { currency: 'USD', value: (cents / 100).toFixed(2) };
+        const req = new PaymentRequest([{ supportedMethods: PLAY_BILLING, data: { sku } }],
+          { total: { label: item.title || 'Gift to the Petfi Pledge fund', amount: price } });
+        try { resp = await req.show(); }
+        catch (e) {
+          // "Already owned": a gift that was paid but never recorded (the app
+          // closed first). Hand that purchase to the server now.
+          try {
+            const owned = await svc.listPurchases();
+            const mine = (owned || []).find(p => p && p.itemId === sku && p.purchaseToken);
+            if (mine) token = mine.purchaseToken;
+          } catch (e2) {}
+          if (!token) { donateFail('cancelled'); return; }
+        }
+        if (resp) token = resp.details && (resp.details.purchaseToken || resp.details.token);
+        if (!token) { try { await resp.complete('unknown'); } catch (e) {} donateFail('server'); return; }
+        const v = await donateCall('play', { purchaseToken: token, productId: sku });
+        if (resp) { try { await resp.complete(v.ok ? 'success' : (v.error === 'cancelled' || v.error === 'invalid_purchase') ? 'fail' : 'unknown'); } catch (e) {} }
+        if (!v.ok) { donateFail(v.error === 'pending' ? 'play_pending' : v.error || 'server'); return; }
+        thankDonor(v.amount_cents != null ? v.amount_cents : cents);
+      } catch (e) {
+        reportClientError('play billing gift: ' + ((e && e.message) || e), e && e.stack);
+        if (resp) { try { await resp.complete('unknown'); } catch (e2) {} }
+        donateFail('server');
+      }
+    }
+    function thankDonor(cents) {
+      confetti();
+      openSheet('💖 Thank you',
+        '<div class="pledge-hero"><div class="big">' + pledgeMoney(cents) + '</div><h3>is in the Pledge fund</h3><p>Half of it helps a member with a vet bill, a cremation or an adoption fee; half goes to a shelter or animal organization. Every dollar given away is listed on the Pledge page with the date and who received it.</p></div>' +
+        '<button class="btn" onclick="openDonate()">See where the money goes</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    function donateFail(code) {
+      const text = {
+        cancelled: 'No charge — you cancelled.',
+        not_ready: 'Gifts open in a few days, once the payment setup finishes. Thank you for wanting to give — the shelters below take gifts right now.',
+        play_pending: 'Your Google Play payment is still pending. It is recorded as soon as it clears.',
+        needs_update: 'Update Petfi from Google Play to give from the app.',
+        bad_amount: 'Gifts are $1 to $1,000.',
+        other_account: 'That Google Play purchase belongs to another Petfi account.',
+        offline: 'No internet connection right now.',
+        network: 'No internet connection right now.',
+      }[code] || 'Something went wrong and nothing was charged. Please try again in a minute.';
+      openSheet('💝 Gift', '<div class="note">' + esc(text) + '</div><button class="btn secondary" onclick="openDonate()">Back</button>');
+    }
+    async function loadMyGiving() {
+      if (!(cloud && cloudUser)) return;
+      const mySeq = sheetSeq;
+      const r = await donateCall('status');
+      const box = document.getElementById('donate-mine');
+      if (sheetSeq !== mySeq || !box) return;
+      const m = r.mine;
+      if (m && m.gifts) box.innerHTML = '💖 You\'ve given <b>' + pledgeMoney(m.total_cents) + '</b> across ' + m.gifts + ' gift' + (m.gifts > 1 ? 's' : '') + ' — thank you.';
+      else if (r.ready === false && !IS_PLAY_APP) box.innerHTML = '<span style="color:var(--muted);">Card gifts open in a few days.</span>';
+    }
+    function ledgerTotalsHtml(t) {
+      const cell = (big, small) => '<div style="flex:1;min-width:95px;"><div style="font-weight:900;font-size:1.05rem;">' + big + '</div><div style="font-size:0.72rem;color:var(--muted);line-height:1.25;">' + small + '</div></div>';
+      return '<div class="note" style="display:flex;gap:0.6rem;text-align:center;flex-wrap:wrap;">' +
+        cell(pledgeMoney(t.given_cents), 'given away<br>' + (t.gifts || 0) + ' gift' + (t.gifts === 1 ? '' : 's')) +
+        cell(pledgeMoney(t.given_members_cents), 'to members<br>vet · cremation · adoption') +
+        cell(pledgeMoney(t.given_orgs_cents), 'to shelters &amp;<br>organizations') +
+        '</div>' +
+        '<p class="sub" style="font-size:0.74rem;text-align:center;margin:-0.3rem 0 0.6rem;">Received so far: <b>' + pledgeMoney(t.donated_cents) + '</b> from ' + (t.donors || 0) + ' supporter' + (t.donors === 1 ? '' : 's') + (t.last_given_on ? ' · last gift given ' + pledgeDate(t.last_given_on) : '') + '</p>';
+    }
+    function ledgerRowHtml(r) {
+      const k = LEDGER_KIND[r.kind] || LEDGER_KIND.other;
+      return '<div class="row"><div class="ricon">' + k[0] + '</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(r.recipient) + '</div>' +
+        '<div class="rmeta">' + pledgeDate(r.given_on) + ' · ' + k[1] + (r.note ? ' · ' + esc(r.note) : '') + '</div></div>' +
+        '<div class="raction" style="text-align:right;"><b>' + pledgeMoney(r.amount_cents) + '</b>' +
+        (r.link ? '<br><a href="#" onclick="event.preventDefault();openLink(\'' + jsStr(r.link) + '\')" style="font-size:0.72rem;">receipt ↗</a>' : '') +
+        (isAdmin() ? '<br><a href="#" onclick="event.preventDefault();deleteLedgerEntry(' + (+r.id) + ')" style="font-size:0.72rem;color:#c8401f;">remove</a>' : '') +
+        '</div></div>';
+    }
+    async function loadLedger() {
+      const box = () => document.getElementById('donate-ledger');
+      if (!cloud) { if (box()) box().innerHTML = '<div class="note">Connect to see the ledger.</div>'; return; }
+      const mySeq = sheetSeq;
+      try {
+        const [t, l] = await Promise.all([
+          cloud.rpc('petfi_pledge_totals'),
+          cloud.from('pledge_ledger').select('id, given_on, recipient, kind, amount_cents, note, link').order('given_on', { ascending: false }).order('id', { ascending: false }).limit(60),
+        ]);
+        if (sheetSeq !== mySeq || !box()) return;
+        if (t.error || l.error) throw (t.error || l.error);
+        const rows = l.data || [];
+        box().innerHTML = ledgerTotalsHtml(t.data || {}) +
+          (rows.length ? rows.map(ledgerRowHtml).join('')
+            : '<div class="note">Nothing given away yet — the fund is just opening. Every dollar that goes out will be listed here with the date and who received it.</div>');
+      } catch (e) {
+        if (sheetSeq !== mySeq || !box()) return;
+        box().innerHTML = '<div class="note">The ledger is unavailable right now.</div>';
+      }
+    }
+    // ---- admin: the ledger is written by hand, one gift at a time ----
+    function openLedgerEntry() {
+      if (!isAdmin()) return;
+      const today = new Date().toISOString().slice(0, 10);
+      openSheet('➕ Record a gift given',
+        '<p class="sub" style="font-size:0.84rem;">This is public. Name the organization or vet office; for a member\'s bill, never write the member\'s name — say what it paid for.</p>' +
+        '<label>Date</label><input id="lg-date" type="date" value="' + today + '" max="' + today + '">' +
+        '<label>Who received it</label><input id="lg-to" maxlength="120" placeholder="e.g. Front Street Animal Shelter · Mueller Pet Medical Center">' +
+        '<label>What kind</label><select id="lg-kind">' +
+          Object.keys(LEDGER_KIND).map(k => '<option value="' + k + '">' + LEDGER_KIND[k][0] + ' ' + LEDGER_KIND[k][1] + (k === 'vet' || k === 'cremation' || k === 'adoption' ? ' (members\' half)' : k === 'other' ? '' : ' (organizations\' half)') + '</option>').join('') + '</select>' +
+        '<label>Amount in US dollars</label><input id="lg-amt" type="number" inputmode="decimal" min="1" step="0.01" placeholder="e.g. 150">' +
+        '<label>What it paid for <small style="color:var(--muted);font-weight:400;">(optional, public)</small></label><input id="lg-note" maxlength="400" placeholder="e.g. emergency surgery for a member\'s dog">' +
+        '<label>Receipt or website link <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input id="lg-link" maxlength="300" placeholder="https://">' +
+        '<button class="btn" onclick="saveLedgerEntry()">Publish to the ledger</button>' +
+        '<button class="btn secondary" onclick="openDonate()">Cancel</button>');
+    }
+    async function saveLedgerEntry() {
+      if (!isAdmin() || !(cloud && cloudUser)) return;
+      const cents = Math.round(parseFloat(val('lg-amt') || 0) * 100);
+      const to = (val('lg-to') || '').trim(), link = (val('lg-link') || '').trim(), note = (val('lg-note') || '').trim();
+      if (to.length < 2) { toast('Who received it?'); return; }
+      if (!(cents > 0)) { toast('Enter the amount'); return; }
+      if (link && !/^https?:\/\//i.test(link)) { toast('The link must start with https://'); return; }
+      const { error } = await cloud.from('pledge_ledger').insert({
+        given_on: val('lg-date') || new Date().toISOString().slice(0, 10), recipient: to.slice(0, 120), kind: val('lg-kind') || 'other',
+        amount_cents: cents, note: note ? note.slice(0, 400) : null, link: link || null, created_by: cloudUser.id,
+      });
+      if (error) { toast('⚠️ Could not save: ' + error.message); return; }
+      toast('Published to the ledger 📒');
+      openDonate();
+    }
+    async function deleteLedgerEntry(id) {
+      if (!isAdmin() || !cloud) return;
+      if (!confirm('Remove this entry from the public ledger?')) return;
+      const { error } = await cloud.from('pledge_ledger').delete().eq('id', id);
+      toast(error ? '⚠️ Could not remove it' : 'Removed');
+      loadLedger();
+    }
+    async function openTopDonors() {
+      if (!isAdmin() || !cloud) return;
+      openSheet('🏆 Top supporters', '<div class="note">⏳ Loading…</div>');
+      const mySeq = sheetSeq;
+      const { data, error } = await cloud.rpc('petfi_pledge_donors', { lim: 100 });
+      if (sheetSeq !== mySeq) return;
+      const rows = data || [];
+      openSheet('🏆 Top supporters',
+        '<p class="sub" style="font-size:0.84rem;">Members ranked by what they have given. They are first in line when a vet bill or cremation request comes in. Admins only — never shown to members.</p>' +
+        (error ? '<div class="note">⚠️ ' + esc(error.message) + '</div>' :
+          rows.length ? rows.map((r, i) => '<div class="row"><div class="ricon">' + (i < 3 ? ['🥇', '🥈', '🥉'][i] : (i + 1)) + '</div>' +
+            '<div class="rmain"><div class="rtitle">' + esc(r.username || 'Member') + '</div><div class="rmeta">' + r.gifts + ' gift' + (r.gifts > 1 ? 's' : '') + ' · last ' + pledgeDate(r.last_at) + '</div></div>' +
+            '<div class="raction"><b>' + pledgeMoney(r.total_cents) + '</b></div></div>').join('')
+          : '<div class="note">No gifts recorded yet.</div>') +
+        '<button class="btn secondary" onclick="openDonate()">Back</button>');
     }
     async function loadDonateShelters() {
       const box = () => document.getElementById('donate-list');
@@ -4168,7 +4395,7 @@
 
         h += '<div class="get-verified" style="background:linear-gradient(135deg,#fff1ec,#ffe0d3);border-color:#ffcbb8;">' +
           '<h4>📣 Spotlight ads</h4>' +
-          '<p style="color:#a05a3a;">Put your litter, product or service on every member\'s home feed. Free while Petfi is in early access.</p>' +
+          '<p style="color:#a05a3a;">Put your litter, product or service on the home feed of members near you, in your state, or everywhere. From $5 a day; a week is 10% off, a month 30% off.</p>' +
           '<button class="pill-btn" onclick="openPromote()">Create an ad</button></div>';
 
         // The badge is granted by the server after a real ID check (startVerify)
@@ -4622,7 +4849,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.5.0';
+    const APP_VERSION = '1.6.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -4659,7 +4886,7 @@
         '<h3>5. Animal welfare</h3>' +
         '<p>Content showing or encouraging animal abuse or neglect is banned and gets an immediate, permanent ban. Knowingly selling sick animals without disclosure is banned.</p>' +
         '<h3>6. Fees, affiliate links & donations</h3>' +
-        '<p>Identity verification and Spotlight ads will become paid features; prices will always be shown before you pay, and during early access they are free. Petfi pledges <b>50% of its profit</b> (store commissions, ads and subscriptions) and <b>100% of any donations it collects</b> to the Petfi Pledge fund: adoption fees for shelter pets, emergency veterinary bills, and cremation costs for families facing a sudden loss. Until Petfi collects donations itself, the Donate page links you directly to real shelters, so every dollar you give goes straight to them.</p>' +
+        '<p>Identity verification ($3, one-time) and Spotlight ads (priced by reach and length) are paid features; the price is always shown before you pay. Petfi pledges <b>50% of its profit</b> (store commissions, ads and the badge) and <b>100% of gifts</b> to the Petfi Pledge fund. Half of the fund helps members with emergency vet bills, cremation costs and adoption fees, decided case by case by Petfi\'s treasurer, with members who have given the most first in line; the other half goes to shelters and animal organizations. Every dollar given away is listed on the Pledge page with the date and the recipient. Gifts are voluntary, go to Spindola Software, and are not tax-deductible. The Pledge page also lists real shelters near you to give to directly.</p>' +
         '<p><b>Affiliate links:</b> some products in the Pet Store link to outside retailers (such as Amazon and Chewy). If you buy through those links, Petfi may earn a commission at no extra cost to you. Prices shown in Petfi are approximate; the retailer\'s live price, shipping, returns and support govern those purchases. As an Amazon Associate, Petfi earns from qualifying purchases.</p>' +
         '<h3>7. What you can\'t do</h3>' +
         '<ul><li>Harass, threaten, or impersonate anyone.</li><li>Spam, scam, or mislead.</li><li>Post sexual, violent, or hateful content.</li><li>Scrape data or interfere with the service.</li></ul>' +
@@ -4726,7 +4953,7 @@
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi. If they say hi back, it\'s a match and you can message each other from Mate Match. Anyone can still reach you from your profile unless you turn on <b>Only friends can message</b> in Settings.</p></details>' +
         '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
-        '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and subscriptions — and <b>100% of donations</b> go back to animals: <b>adoption fees</b> so shelter pets find homes faster and more of them make it out, <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, and <b>cremation costs</b> after a sudden loss. Buying through the Petfi store costs you nothing extra and funds this. The Donate page also lists real shelters near you to give to directly.</p></details>' +
+        '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and the badge — and <b>100% of gifts</b> go into the Pledge fund. Half of the fund helps members: <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, <b>cremation costs</b> after a sudden loss, and <b>adoption fees</b> so shelter pets find homes faster. Members who give are first in line. The other half goes to <b>shelters and animal organizations</b>. Every dollar given away is listed on the Pledge page (Me → The Petfi Pledge) with the date and who received it. Buying through the Petfi store costs you nothing extra and funds this.</p></details>' +
         '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores, groomers and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
         '<details><summary>⏰ How do reminders work?</summary><p>Home tab → <b>🔒 My care</b> chip → add reminders (feeding, litter box…) or calendar entries (vet visits). Enable browser notifications and Petfi alerts you when something\'s due. This page is 100% private to you.</p></details>' +
         '<details><summary>🔊 What are barks & meows?</summary><p>A quick way to say hi! Tap 🔊 on any pet — they hear a real bark or meow. Anyone can bark at anyone; messages can be limited to friends in Settings.</p></details>' +
@@ -5944,18 +6171,54 @@
       return true;
     }
 
-    // Ad pricing: base = your city (50 mi). Wider reach costs more.
-    const AD_PRICES = {
-      local: { label:'My city · 50 mi', day: 2.99,  week: 10 },
-      state: { label:'Whole state',     day: 7.99,  week: 25 },
-      app:   { label:'Entire app',      day: 19.99, week: 60 },
+    // Ad pricing — the same table the server charges (petfi-backend/_shared/ads.ts).
+    // Per day: your area (50 mi) $5, your whole state $20, everyone $30.
+    // A week is 7 days at 10% off, a month is 30 days at 30% off.
+    // Payment: Play Billing inside the Android app, Stripe Checkout on petfi.pet;
+    // the app saves a draft, the server (petfi-ads) turns it live once paid.
+    const AD_REACH = {
+      local: { label: 'My area · 50 mi',   day: 500 },
+      state: { label: 'My whole state',    day: 2000 },
+      app:   { label: 'Everyone on Petfi', day: 3000 },
     };
+    const AD_PLAN = {
+      day:   { label: '1 day',            days: 1,  off: 0 },
+      week:  { label: '1 week',           days: 7,  off: 0.10 },
+      month: { label: '1 month (30 days)', days: 30, off: 0.30 },
+    };
+    function adPriceCents(reach, plan) { const r = AD_REACH[reach], p = AD_PLAN[plan]; return r && p ? Math.round(r.day * p.days * (1 - p.off)) : 0; }
+    function zipState(geo) { const m = /,\s*([A-Z]{2})\s*$/.exec((geo && geo.area) || ''); return m ? m[1] : null; }
     let adPhotos = [];
-    function openPromote() {
+    async function openPromote() {
       if (!requireSeller('advertise')) return;
+      // A draft that was saved but never paid for comes first.
+      if (cloud && cloudUser) {
+        openSheet('📣 Spotlight ad', '<div class="note">⏳ One moment…</div>');
+        const mySeq = sheetSeq;
+        try {
+          const { data } = await cloud.from('ads').select('id, content, plan, reach').eq('owner_id', cloudUser.id).eq('paid', false).order('created_at', { ascending: false }).limit(1);
+          if (sheetSeq !== mySeq) return;
+          const d = data && data[0];
+          if (d && AD_REACH[d.reach] && AD_PLAN[d.plan]) {
+            const head = (d.content && d.content.text) || 'your ad';
+            openSheet('📣 Spotlight ad',
+              '<div class="note"><b>' + esc(head) + '</b> is saved but not running yet.<br><small>' + AD_REACH[d.reach].label + ' · ' + AD_PLAN[d.plan].label + ' · ' + pledgeMoney(adPriceCents(d.reach, d.plan)) + '</small></div>' +
+              '<button class="btn" onclick="payForAd(' + (+d.id) + ', \'' + d.reach + '\', \'' + d.plan + '\', \'' + jsStr(head) + '\')">Pay &amp; launch · ' + pledgeMoney(adPriceCents(d.reach, d.plan)) + '</button>' +
+              '<button class="btn secondary" onclick="discardAdDraft(' + (+d.id) + ')">Discard it and start over</button>');
+            return;
+          }
+        } catch (e) {}
+      }
+      openAdComposer();
+    }
+    async function discardAdDraft(id) {
+      if (cloud) { try { await cloud.from('ads').delete().eq('id', id); } catch (e) {} }
+      openAdComposer();
+    }
+    function openAdComposer() {
       adPhotos = [];
       openSheet('📣 Spotlight ad',
-        '<p class="sub" style="font-size:0.85rem;">Your ad appears on the home pages of users in your chosen area — advertise a litter, a product, or a service.</p>' +
+        '<p class="sub" style="font-size:0.85rem;">Your ad appears on the home pages of members in your chosen area — advertise a litter, a product, or a service.</p>' +
         '<label>What are you advertising?</label>' +
         '<select id="ad-type"><option value="breeder">🐕 Breeder spotlight</option><option value="product">🛒 Product</option><option value="service">🔧 Service</option></select>' +
         '<label>Headline</label><input id="ad-title" placeholder="e.g. Rottweiler puppies — ready Aug 1">' +
@@ -5968,15 +6231,24 @@
           '<input type="file" id="ad-photos" accept="image/*" multiple style="display:none;" onchange="adPhotosPicked(this)"></div>' +
         '<div id="ad-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
         '<label>Reach</label><select id="ad-reach" onchange="updateAdPrice()">' +
-          Object.keys(AD_PRICES).map(k => '<option value="' + k + '">' + AD_PRICES[k].label + '</option>').join('') + '</select>' +
-        '<label>Duration</label><select id="ad-dur" onchange="updateAdPrice()"><option value="day">1 day</option><option value="week">1 week</option></select>' +
-        '<div class="note" style="text-align:center;" id="ad-price"><b>Free during early access</b><br><small>Will be $2.99 once payments launch</small></div>' +
-        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 When ads are paid, <b>half of Petfi\'s profit</b> from every one — and <b>100% of donations</b> — goes to adoption fees, emergency vet bills &amp; cremation costs</div>' +
-        '<button class="btn" onclick="launchAd()">Launch ad 📣</button>');
+          Object.keys(AD_REACH).map(k => '<option value="' + k + '">' + AD_REACH[k].label + ' — ' + pledgeMoney(AD_REACH[k].day) + '/day</option>').join('') + '</select>' +
+        '<label>How long</label><select id="ad-dur" onchange="updateAdPrice()">' +
+          Object.keys(AD_PLAN).map(k => '<option value="' + k + '">' + AD_PLAN[k].label + (AD_PLAN[k].off ? ' — ' + Math.round(AD_PLAN[k].off * 100) + '% off' : '') + '</option>').join('') + '</select>' +
+        '<div class="note" style="text-align:center;" id="ad-price"></div>' +
+        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 <b>Half of Petfi\'s profit</b> from every ad — and <b>100% of gifts</b> — goes back to animals: vet bills, cremation, adoption fees &amp; shelters</div>' +
+        '<button class="btn" id="ad-launch" onclick="launchAd()">Continue to payment</button>');
+      updateAdPrice();
     }
     function updateAdPrice() {
-      const p = AD_PRICES[val('ad-reach') || 'local'][val('ad-dur') || 'day'];
-      document.getElementById('ad-price').innerHTML = '<b>Free during early access</b><br><small>Will be $' + p.toFixed(2) + ' once payments launch</small>';
+      const reach = AD_REACH[val('ad-reach')] ? val('ad-reach') : 'local';
+      const plan = AD_PLAN[val('ad-dur')] ? val('ad-dur') : 'day';
+      const cents = adPriceCents(reach, plan), p = AD_PLAN[plan];
+      const el = document.getElementById('ad-price');
+      if (el) el.innerHTML = '<b style="font-size:1.25rem;">' + pledgeMoney(cents) + '</b><br><small>' + AD_REACH[reach].label + ' · ' + p.label +
+        (p.off ? ' · ' + p.days + ' days at ' + pledgeMoney(Math.round(AD_REACH[reach].day * (1 - p.off))) + '/day instead of ' + pledgeMoney(AD_REACH[reach].day) : '') +
+        (reach !== 'app' && !state.zip ? '<br>⚠️ Set your ZIP on the Nearby tab first' : '') + '</small>';
+      const b = document.getElementById('ad-launch');
+      if (b) b.textContent = 'Continue to payment · ' + pledgeMoney(cents);
     }
     function adPhotosPicked(input) {
       const files = Array.from(input.files).slice(0, 3 - adPhotos.length);
@@ -6007,41 +6279,123 @@
     function removeAdPhoto(i) { adPhotos.splice(i, 1); renderAdPreviews(); }
     async function launchAd() {
       const t = val('ad-title'); if (!t) { toast('Give your ad a headline'); return; }
-      const reach = AD_PRICES[val('ad-reach') || 'local'];
-      const durKey = val('ad-dur') || 'day';
-      const dur = durKey === 'day' ? '1 day' : '1 week';
+      const reach = AD_REACH[val('ad-reach')] ? val('ad-reach') : 'local';
+      const plan = AD_PLAN[val('ad-dur')] ? val('ad-dur') : 'day';
+      if (!(cloud && cloudUser)) { toast('⚠️ You need a connection to launch an ad'); return; }
+      // A local or statewide ad is placed by the advertiser's ZIP.
+      let geo = null;
+      if (reach !== 'app') {
+        if (!state.zip) { toast('Set your ZIP on the Nearby tab first, so the ad reaches the right area'); return; }
+        geo = await geocodeZip(state.zip);
+        if (!geo) { toast('⚠️ Couldn\'t place your ZIP — try again in a moment'); return; }
+      }
       const ad = {
         title: state.displayName,
         business: val('ad-biz') || '',
         adType: AD_TYPE_LABEL[val('ad-type')] ? val('ad-type') : 'breeder',
         species: (state.pets && state.pets[0] && state.pets[0].species) || 'dog',
         breed: (state.pets && state.pets[0] && state.pets[0].breed) || '',
-        loc: reach.label + ' · ' + dur, text: t, photos: [],
+        loc: AD_REACH[reach].label + ' · ' + AD_PLAN[plan].label, text: t, photos: [],
+        reach, plan, lat: geo ? geo.lat : null, lon: geo ? geo.lon : null, st: geo ? zipState(geo) : null, area: geo ? String(geo.area || '').slice(0, 60) : null,
       };
       const photos = adPhotos.slice(); adPhotos = [];
-      if (!(cloud && cloudUser)) { toast('⚠️ You need a connection to launch an ad'); return; }
-      closeSheet(); openTab('home');
+      openSheet('📣 Spotlight ad', '<div class="note">⏳ Saving your ad' + (photos.length ? ' and photos' : '') + '…</div>');
       try {
-        if (photos.length) {
-          toast('Uploading ad photos… 📷');
-          for (let i = 0; i < photos.length; i++) {
-            const blob = await (await fetch(photos[i])).blob();
-            const path = cloudUser.id + '/ad-' + Date.now() + '-' + i + '.jpg';
-            const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
-            if (up.error) throw up.error;
-            ad.photos.push(cloud.storage.from('photos').getPublicUrl(path).data.publicUrl);
-          }
+        for (let i = 0; i < photos.length; i++) {
+          const blob = await (await fetch(photos[i])).blob();
+          const path = cloudUser.id + '/ad-' + Date.now() + '-' + i + '.jpg';
+          const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+          if (up.error) throw up.error;
+          ad.photos.push(cloud.storage.from('photos').getPublicUrl(path).data.publicUrl);
         }
-        const expires = new Date(Date.now() + (durKey === 'day' ? 1 : 7) * 24 * 3600 * 1000).toISOString();
-        const { data, error } = await cloud.from('ads').insert({ owner_id: cloudUser.id, content: ad, expires_at: expires }).select('id').single();
+        // A draft: the petfi_guard_ads trigger keeps it unpaid until the server confirms the payment.
+        const { data, error } = await cloud.from('ads').insert({ owner_id: cloudUser.id, content: ad, plan, reach }).select('id').single();
         if (error) throw error;
-        CLOUD_ADS.unshift(Object.assign({}, ad, { cloudId: data.id, ownerId: cloudUser.id, expiresAt: expires, mine: true }));
-        toast('Your Spotlight ad is live 📣');
+        payForAd(data.id, reach, plan, t);
       } catch (e) {
         console.warn('ad:', e.message);
-        toast('⚠️ Couldn\'t launch the ad — check your connection and try again');
+        openSheet('📣 Spotlight ad', '<div class="note">⚠️ Couldn\'t save the ad — check your connection and try again. Nothing was charged.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
       }
-      if (state.tab === 'home') openTab('home');
+    }
+    // The draft is saved; now the money. Play Billing in the Android app,
+    // Stripe Checkout everywhere else; the server turns the ad live.
+    async function payForAd(adId, reach, plan, head) {
+      const cents = adPriceCents(reach, plan), sku = 'ad_' + reach + '_' + plan;
+      openSheet('📣 Spotlight ad', '<div class="note">⏳ Opening payment for <b>' + esc(head) + '</b> — ' + pledgeMoney(cents) + '…</div>');
+      const svc = await playBillingService();
+      if (svc) { payAdWithPlay(svc, adId, sku, cents, head); return; }
+      if (IS_PLAY_APP) { adFail('needs_update'); return; }
+      const r = await adCall('checkout', { ad_id: adId });
+      if (r.live) { adLive(r); return; }
+      if (r.url) { location.href = r.url; return; }
+      adFail(r.error);
+    }
+    async function payAdWithPlay(svc, adId, sku, cents, head) {
+      let token = null, resp = null;
+      try {
+        const details = await svc.getDetails([sku]);
+        if (!details || !details.length) { adFail('server'); return; }
+        const item = details[0];
+        const price = item.price && item.price.currency ? { currency: item.price.currency, value: item.price.value } : { currency: 'USD', value: (cents / 100).toFixed(2) };
+        const req = new PaymentRequest([{ supportedMethods: PLAY_BILLING, data: { sku } }],
+          { total: { label: item.title || 'Petfi Spotlight ad', amount: price } });
+        try { resp = await req.show(); }
+        catch (e) {
+          // "Already owned": paid earlier but the app closed before the server heard — use that purchase.
+          try {
+            const owned = await svc.listPurchases();
+            const mine = (owned || []).find(p => p && p.itemId === sku && p.purchaseToken);
+            if (mine) token = mine.purchaseToken;
+          } catch (e2) {}
+          if (!token) { adFail('cancelled'); return; }
+        }
+        if (resp) token = resp.details && (resp.details.purchaseToken || resp.details.token);
+        if (!token) { try { await resp.complete('unknown'); } catch (e) {} adFail('server'); return; }
+        const v = await adCall('play', { ad_id: adId, purchaseToken: token, productId: sku });
+        if (resp) { try { await resp.complete(v.live ? 'success' : (v.error === 'cancelled' || v.error === 'invalid_purchase') ? 'fail' : 'unknown'); } catch (e) {} }
+        if (!v.live) { adFail(v.error === 'pending' ? 'play_pending' : v.error || 'server'); return; }
+        adLive(v);
+      } catch (e) {
+        reportClientError('play billing ad: ' + ((e && e.message) || e), e && e.stack);
+        if (resp) { try { await resp.complete('unknown'); } catch (e2) {} }
+        adFail('server');
+      }
+    }
+    function adLive(r) {
+      lastMatesFetch = 0;   // the next home render fetches the ad from the cloud
+      closeSheet(); confetti();
+      toast('Your Spotlight ad is live 📣' + (r && r.expires_at ? ' until ' + pledgeDate(r.expires_at) : ''));
+      openTab('home');
+    }
+    function adFail(code) {
+      const text = {
+        cancelled: 'No charge. Your ad is saved — pay for it any time from 📣 Spotlight ads.',
+        not_ready: 'Ad payments open in a few days, once the payment setup finishes. Your ad is saved.',
+        play_pending: 'Your Google Play payment is still pending. Your ad goes live by itself once it clears.',
+        needs_update: 'Update Petfi from Google Play to pay for ads in the app. Your ad is saved.',
+        token_used: 'That Google Play purchase already paid for another ad.',
+        wrong_product: 'That purchase is for a different plan. Your ad is saved — try again.',
+        not_found: 'That ad draft is gone. Start a new one.',
+        offline: 'No internet connection right now. Your ad is saved.',
+        network: 'No internet connection right now. Your ad is saved.',
+      }[code] || 'Something went wrong and nothing was charged. Your ad is saved — try again from 📣 Spotlight ads.';
+      openSheet('📣 Spotlight ad', '<div class="note">' + esc(text) + '</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
+    }
+    async function handleAdReturn() {
+      const r = AD_RETURN;
+      if (r.what === 'cancel') { toast('Payment cancelled — your ad is saved, not running'); return; }
+      if (r.what !== 'paid' || !r.cs) return;
+      openSheet('📣 Spotlight ad', '<div class="note">⏳ Confirming your payment…</div>');
+      const mySeq = sheetSeq;
+      for (let i = 0; i < 4; i++) {
+        const c = await adCall('confirm', { cs: r.cs });
+        if (sheetSeq !== mySeq) return;
+        if (c.live) { adLive(c); return; }
+        if (c.error) break;
+        await new Promise(res => setTimeout(res, 2000));
+      }
+      if (sheetSeq !== mySeq) return;
+      openSheet('📣 Spotlight ad', '<div class="note">Your payment is being confirmed with Stripe; the ad goes live by itself within a few minutes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
     }
 
     // ======================= NOTIFICATIONS =======================
@@ -6134,12 +6488,13 @@
     // The Petfi Pledge — half of all Petfi profit and 100% of donations go back to animals
     const PLEDGE_SHARE = 0.5;
     function pledgeCard(compact) {
-      if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit + 100% of donations go back to pets.</b><small>Adoption fees · emergency vet bills · cremation costs — every purchase here helps. Tap to learn more.</small></div></div>';
+      if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit + 100% of gifts go back to pets.</b><small>Vet bills · cremation · adoption fees · shelters — tap to give, or to see where every dollar went.</small></div></div>';
       const row = (emo, t, s) => '<div class="row" style="margin-bottom:0.5rem;"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + t + '</div><div class="rmeta" style="font-size:0.85rem;">' + s + '</div></div></div>';
-      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and 100% of donations — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and subscription, and every dollar donated helps pay for:</p></div>' +
-        row('🏠', 'Adoption fees', 'So shelter pets find their family faster — and more of them make it out the front door.') +
-        row('🚑', 'Emergency vet bills', 'When a sudden emergency hits and a family can\'t cover it alone.') +
-        row('🕊️', 'Cremation &amp; goodbye costs', 'After a sudden loss, no family should face that bill on top of the grief.');
+      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and 100% of gifts — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and badge, and every dollar given goes into the Pledge fund. <b>Half the fund helps Petfi members</b> — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does.</p></div>' +
+        row('🚑', 'Emergency vet bills', 'For a member\'s pet, when a family can\'t cover it alone.') +
+        row('🕊️', 'Cremation &amp; goodbye costs', 'After a sudden loss, no family should face that bill on top of the grief.') +
+        row('🏡', 'Adoption fees', 'So shelter pets find their family faster — and more of them make it out the front door.') +
+        row('🤝', 'Shelters &amp; organizations', 'The other half goes straight to them — shelters, rescues, vet offices — to spend as they see fit.');
     }
     function mateBlock() {
       visibleMates();
@@ -7021,24 +7376,31 @@
     try { if (IS_PLAY_APP) sessionStorage.setItem('petfi-play-app', '1'); } catch (e) {}
     // ?verify=paid&cs=…  back from Stripe Checkout    ?verify=done  back from the ID check
     // ?verify=cancel     left Checkout without paying
-    const VERIFY_RETURN = (() => {
+    // ?donate=paid&cs=… / ?donate=cancel   the same for a Pledge gift
+    // ?ad=paid&cs=… / ?ad=cancel           the same for a Spotlight ad
+    const PAY_RETURN = (() => {
       try {
         const q = new URLSearchParams(location.search);
-        const what = q.get('verify');
-        if (!what) return null;
-        const r = { what, cs: q.get('cs') || '' };
-        q.delete('verify'); q.delete('cs');
+        const kind = ['verify', 'donate', 'ad'].find(k => q.get(k));
+        if (!kind) return null;
+        const r = { kind, what: q.get(kind), cs: q.get('cs') || '' };
+        q.delete(kind); q.delete('cs');
         const rest = q.toString();
         history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
         return r;
       } catch (e) { return null; }
     })();
-    let verifyReturnHandled = false;
+    const VERIFY_RETURN = PAY_RETURN && PAY_RETURN.kind === 'verify' ? PAY_RETURN : null;
+    const DONATE_RETURN = PAY_RETURN && PAY_RETURN.kind === 'donate' ? PAY_RETURN : null;
+    const AD_RETURN = PAY_RETURN && PAY_RETURN.kind === 'ad' ? PAY_RETURN : null;
+    let payReturnHandled = false;
 
-    async function verifyCall(action, extra) {
+    // One edge function call: { action, ...extra } with the member's JWT; a
+    // non-2xx answer comes back as its JSON body plus error:'server'.
+    async function fnCall(fn, action, extra) {
       if (!cloud || !cloudUser) return { error: 'offline' };
       try {
-        const { data, error } = await cloud.functions.invoke('petfi-verify', { method: 'POST', body: Object.assign({ action }, extra || {}) });
+        const { data, error } = await cloud.functions.invoke(fn, { method: 'POST', body: Object.assign({ action }, extra || {}) });
         if (error) {
           let body = null;
           try { if (error.context && typeof error.context.json === 'function') body = await error.context.json(); } catch (e) {}
@@ -7047,6 +7409,9 @@
         return (data && typeof data === 'object') ? data : { error: 'server' };
       } catch (e) { return { error: 'network' }; }
     }
+    function verifyCall(action, extra) { return fnCall('petfi-verify', action, extra); }
+    function donateCall(action, extra) { return fnCall('petfi-donate', action, extra); }
+    function adCall(action, extra) { return fnCall('petfi-ads', action, extra); }
     async function playBillingService() {
       if (typeof window.getDigitalGoodsService !== 'function') return null;
       try { return await window.getDigitalGoodsService(PLAY_BILLING); } catch (e) { return null; }
@@ -7209,9 +7574,31 @@
       verifyFail(r.error);
     }
     // Back in the app after Checkout or the ID page (called once a login is live).
+    // Back in the app after a payment page (called once a login is live).
+    function handlePayReturn() {
+      if (!PAY_RETURN || payReturnHandled || !cloud || !cloudUser || !appActive()) return;
+      payReturnHandled = true;
+      if (VERIFY_RETURN) handleVerifyReturn();
+      else if (DONATE_RETURN) handleDonateReturn();
+      else if (AD_RETURN) handleAdReturn();
+    }
+    async function handleDonateReturn() {
+      const r = DONATE_RETURN;
+      if (r.what === 'cancel') { toast('Gift cancelled — nothing was charged'); return; }
+      if (r.what !== 'paid' || !r.cs) return;
+      openSheet('💝 Thank you', '<div class="note">⏳ Confirming your gift…</div>');
+      const mySeq = sheetSeq;
+      for (let i = 0; i < 4; i++) {
+        const c = await donateCall('confirm', { cs: r.cs });
+        if (sheetSeq !== mySeq) return;
+        if (c.paid) { thankDonor(c.amount_cents); return; }
+        if (c.error) break;
+        await new Promise(res => setTimeout(res, 2000));
+      }
+      if (sheetSeq !== mySeq) return;
+      openSheet('💝 Thank you', '<div class="note">Your gift is being confirmed with Stripe and will show in your giving total shortly.</div><button class="btn secondary" onclick="openDonate()">OK</button>');
+    }
     async function handleVerifyReturn() {
-      if (!VERIFY_RETURN || verifyReturnHandled || !cloud || !cloudUser || !appActive()) return;
-      verifyReturnHandled = true;
       const r = VERIFY_RETURN;
       if (r.what === 'cancel') { toast('Verification cancelled — nothing was charged'); return; }
       openTab('profile');
@@ -7813,7 +8200,7 @@
       if (adopted && appActive()) { applyTheme(); refreshTopAvatar(); openTab(state.tab || 'home'); }
       else if (!appActive()) renderResume(); // the welcome button follows whoever the surviving login is
       syncCloud();
-      handleVerifyReturn(); // back from Stripe (Checkout or the ID page)?
+      handlePayReturn(); // back from Stripe (Checkout, the ID page) or a Play purchase?
     }
     // Coming back to the tab after a while: re-check for a newer copy
     document.addEventListener('visibilitychange', async () => {
