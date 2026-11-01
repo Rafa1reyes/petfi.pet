@@ -241,5 +241,18 @@
   </span>
 </div></footer>
 
+<script>
+/* A shared link that landed here (petfi.pet/?ref=... or ?u=...) keeps its
+   invite when the visitor taps through to the app. */
+(function () {
+  try {
+    var q = new URLSearchParams(location.search), p = new URLSearchParams();
+    ['u', 'ref'].forEach(function (k) { var v = q.get(k); if (v && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v)) p.set(k, v); });
+    var s = p.toString();
+    if (!s) return;
+    document.querySelectorAll('a[href="app/"]').forEach(function (a) { a.setAttribute('href', 'app/?' + s); });
+  } catch (e) {}
+})();
+</script>
 </body>
 </html>

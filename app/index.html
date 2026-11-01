@@ -173,6 +173,12 @@
       display: flex; gap: 0.5rem; margin-top: 0.5rem;
     }
     .link-box input { font-size: 0.85rem; color: var(--muted); }
+    .invite-card { display: flex; gap: 0.8rem; align-items: center; background: var(--card); border: 2px solid var(--brand); border-radius: 18px; padding: 0.8rem 0.9rem; margin: 1.1rem 0 0.4rem; }
+    .invite-card .ic-ava { width: 64px; height: 64px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--bg); border: 2px solid var(--line); }
+    .invite-card .ic-main b { display: block; font-size: 1.05rem; }
+    .invite-card .ic-main small { display: block; color: var(--muted); font-size: 0.8rem; line-height: 1.35; }
+    .invite-card .ic-main .ic-status { font-style: italic; margin-top: 0.15rem; }
+    .ic-lead { text-align: center; font-size: 0.9rem; margin: 0.3rem 0 0; }
 
     /* ---- Toggle switch ---- */
     .toggle-row {
@@ -800,6 +806,7 @@
         <div class="logo" style="font-size:2.2rem; margin-top:0.5rem;">Pet<span>fi</span></div>
         <p class="sub" style="margin-top:0.6rem;">The social world for pets<br/>and the people who love them.</p>
       </div>
+      <div id="invite-slot"></div>
       <div id="resume-slot"></div>
       <h2 style="text-align:center; margin-top:1.5rem;">How do you want to join?</h2>
       <p class="sub" style="text-align:center;">You can change this later.</p>
@@ -819,6 +826,7 @@
       <p style="text-align:center;margin-top:1.2rem;">
         <a href="#" onclick="openLogin();return false;" style="color:var(--brand);font-weight:700;text-decoration:none;">Already have an account? Log in</a>
       </p>
+      <p id="welcome-play" style="display:none;text-align:center;margin-top:0.8rem;"><a href="https://play.google.com/store/apps/details?id=com.petfi.app" target="_blank" rel="noopener" style="color:var(--brand);font-weight:700;text-decoration:none;">📲 Get the Petfi app on Google Play</a></p>
       <p class="welcome-foot">
         <a href="#" onclick="openTerms();return false;">Terms</a> ·
         <a href="#" onclick="openPrivacy();return false;">Privacy</a> ·
@@ -2228,10 +2236,12 @@
       openTab('home');
       liveConnect(); updateBadges();
       preloadSamples(); // warm the bark/meow clips so reactions are instant
-      if (!state.welcomed) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
+      const firstTime = !state.welcomed;
+      if (firstTime) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
       celebrateBirthday();
       setTimeout(maybeOfferInstall, 10000); // gentle "add to home screen" once settled
       setTimeout(handlePayReturn, 300);  // back from Stripe into a login that needed the resume screen first
+      setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2261,7 +2271,7 @@
         row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
-        '<button class="btn" onclick="closeSheet()">Let\'s go 🐾</button>');
+        '<button class="btn" onclick="tourDone()">Let\'s go 🐾</button>');
     }
 
     function openTab(name) {
@@ -2854,8 +2864,11 @@
       const p = FEED[i]; if (!p) return;
       const clip = (safeVideo(p.videoUrl) || p.videoLocal) ? '📹 ' : '';
       const text = (p.who || 'A pet') + ' on Petfi: ' + clip + (p.text || '').slice(0, 120);
-      if (navigator.share) { navigator.share({ title: 'Petfi', text, url: INVITE_URL }).catch(() => {}); return; }
-      try { navigator.clipboard.writeText(text + ' ' + INVITE_URL).then(() => toast('Copied — paste it anywhere ↗️'), () => toast('Could not copy')); }
+      // The link opens the author's profile (and carries my invite), so a shared post brings people in
+      const author = p.authorId && UUID_RE.test(p.authorId) ? p.authorId : (p.mine && cloudUser ? cloudUser.id : null);
+      const url = author ? profileUrl(author) : inviteUrl();
+      if (navigator.share) { navigator.share({ title: 'Petfi', text, url }).catch(() => {}); return; }
+      try { navigator.clipboard.writeText(text + ' ' + url).then(() => toast('Copied — paste it anywhere ↗️'), () => toast('Could not copy')); }
       catch (e) { toast('Sharing isn\'t available here'); }
     }
     // ---- Feed video: one plays at a time, muted, only while it's on screen ----
@@ -4370,6 +4383,7 @@
           '<button class="pill-btn ghost" title="' + (isPet ? 'Use a photo of your pet' : 'Use a photo of you') + '" onclick="pickAvatarPhoto()">📷 Use a photo</button>' +
           (isPet ? '<button class="pill-btn ghost" title="Turn a photo of your pet into a cartoon icon" onclick="cartoonMyPet()">✨ Cartoon my pet</button>' : '') +
           (state.avatarUrl ? '<button class="pill-btn ghost" onclick="clearAvatarPhoto()">↺ Back to my icon</button>' : '') +
+          '<button class="pill-btn" onclick="shareMyProfile()">🔗 Share my profile</button>' +
           '<button class="pill-btn ghost" onclick="sharePetCard()">📸 Share my card</button>' +
           '<input type="file" id="avatar-file" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this)">' +
         '</div>' +
@@ -4722,8 +4736,14 @@
     }
 
     // ---- Shareable pet card: render a poster to canvas → Share/Save ----
-    function sharePetCard() {
-      const W = 500, H = 640;
+    async function sharePetCard() {
+      // Signed in: the card carries a QR of my profile link, so the picture itself is a way in
+      let qr = null;
+      if (cloud && cloudUser) {
+        toast('Making your card… 📸');
+        try { qr = await qrFor(profileUrl(cloudUser.id), 3000); } catch (e) { qr = null; }
+      }
+      const W = 500, H = qr ? 820 : 640;
       const canvas = document.createElement('canvas');
       canvas.width = W; canvas.height = H;
       const ctx = canvas.getContext('2d');
@@ -4748,7 +4768,13 @@
         if ((state.streak || 0) >= 1) { ctx.fillStyle = '#e0722f'; ctx.font = '700 22px -apple-system, sans-serif'; ctx.fillText('🔥 ' + state.streak + '-day streak', W / 2, y); y += 34; }
         const held = myHeldParks();
         if (held.length) { ctx.fillStyle = '#2e9c50'; ctx.font = '700 20px -apple-system, sans-serif'; ctx.fillText('🏳️ Holding ' + clip(held[0].parkName, 22), W / 2, y); y += 32; }
+        if (qr) {
+          drawQr(ctx, qr, W / 2 - 75, 540, 150);
+          ctx.textAlign = 'center'; ctx.fillStyle = '#6b6772'; ctx.font = '600 18px -apple-system, "Segoe UI", Roboto, sans-serif';
+          ctx.fillText('Scan to meet me on Petfi', W / 2, 716);
+        }
         // Footer brand
+        ctx.textAlign = 'center';
         ctx.fillStyle = '#ff7a59'; ctx.font = '800 30px -apple-system, sans-serif';
         ctx.fillText('🐾 Petfi', W / 2, H - 66);
         ctx.fillStyle = '#a99', ctx.font = '500 18px -apple-system, sans-serif';
@@ -4819,37 +4845,238 @@
       canvas.toBlob(blob => {
         const file = new File([blob], 'my-petfi-card.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 petfi.pet' }).catch(() => {});
+          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 ' + (cloudUser ? profileUrl(cloudUser.id) : 'petfi.pet') }).catch(() => {});
         } else {
           saveCard(); // desktop: no file share → save instead
         }
       }, 'image/png');
     }
 
-    // ---- Invite friends: native share sheet, or copy the link ----
+    // ======================= SHARING & INVITES =======================
+    // Three links, all into the app itself (petfi.pet/app/), which the Android
+    // app also claims, so a tap opens Petfi when it is installed:
+    //   ?ref=<me>            invite: whoever joins gets a friend request sent to me
+    //   ?u=<id>              a member's profile: opens their sheet (signed out: a preview)
+    //   ?u=<id>&ref=<me>     someone else's profile, shared by me
+    // The ids are only ever profile UUIDs, which are public anyway.
     const INVITE_URL = 'https://petfi.pet';
+    const APP_URL = 'https://petfi.pet/app/';
+    const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.petfi.app';
     const INVITE_TEXT = 'Join me on Petfi 🐾 — the social app for pets and their people!';
-    function inviteFriends() {
-      if (navigator.share) {
-        navigator.share({ title: 'Petfi', text: INVITE_TEXT, url: INVITE_URL }).catch(() => {});
-        return;
-      }
-      openSheet('💌 Invite friends',
-        '<p class="sub">Petfi grows one happy pet at a time. Share this link with friends who have pets:</p>' +
-        '<div class="link-box"><input type="text" id="invite-link-app" readonly value="' + esc(INVITE_URL) + '">' +
-        '<button class="btn small" onclick="copyInvite()">Copy</button></div>' +
-        '<button class="btn" onclick="copyInvite()">📋 Copy invite link</button>' +
-        '<button class="btn secondary" onclick="openLink(\'mailto:?subject=' + encodeURIComponent('Come join me on Petfi 🐾') + '&body=' + encodeURIComponent(INVITE_TEXT + '\n\n' + INVITE_URL) + '\')">✉️ Invite by email</button>');
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    function inviteUrl() { return cloudUser ? APP_URL + '?ref=' + cloudUser.id : APP_URL; }
+    function profileUrl(id) {
+      const u = APP_URL + '?u=' + id;
+      return cloudUser && cloudUser.id !== id ? u + '&ref=' + cloudUser.id : u;
     }
-    function copyInvite() {
-      try { navigator.clipboard.writeText(INVITE_URL); } catch (e) {
-        const el = document.getElementById('invite-link-app'); if (el) { el.select(); try { document.execCommand('copy'); } catch (e2) {} }
+
+    // ---- QR codes (qrcode-generator, loaded on first use, pinned + SRI) ----
+    let qrLibPromise = null;
+    function loadQrLib() {
+      if (window.qrcode) return Promise.resolve(window.qrcode);
+      if (!qrLibPromise) qrLibPromise = new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js';
+        s.integrity = 'sha384-mZT2gIty7ZDdOGkxfP6joZcYdMW1Jvj9dRlfpTmaJAKKXTqzygtB22k7FLe+KZC1';
+        s.crossOrigin = 'anonymous';
+        s.onload = () => (window.qrcode ? res(window.qrcode) : rej(new Error('qr lib')));
+        s.onerror = () => { qrLibPromise = null; rej(new Error('qr lib')); };
+        document.head.appendChild(s);
+      });
+      return qrLibPromise;
+    }
+    async function qrFor(text, waitMs) {
+      const lib = await Promise.race([loadQrLib(), new Promise((_, rej) => setTimeout(() => rej(new Error('qr slow')), waitMs || 6000))]);
+      const q = lib(0, 'M'); q.addData(text); q.make();
+      return q;
+    }
+    // Dark modules on white with a 2-module quiet zone, whatever the theme (cameras need contrast)
+    function qrSvg(q, px) {
+      const n = q.getModuleCount(), m = 2, size = n + m * 2;
+      let d = '';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += 'M' + (c + m) + ' ' + (r + m) + 'h1v1h-1z';
+      return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ' + size + ' ' + size + '" width="' + px + '" height="' + px + '" shape-rendering="crispEdges" role="img" aria-label="QR code">' +
+        '<rect width="' + size + '" height="' + size + '" fill="#fff"/><path d="' + d + '" fill="#2d2a32"/></svg>';
+    }
+    function drawQr(ctx, q, x, y, px) {
+      const n = q.getModuleCount(), m = 2, cell = Math.floor(px / (n + m * 2)), size = cell * (n + m * 2);
+      const x0 = Math.round(x + (px - size) / 2), y0 = Math.round(y + (px - size) / 2);
+      ctx.fillStyle = '#fff'; ctx.fillRect(x0, y0, size, size);
+      ctx.fillStyle = '#2d2a32';
+      for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) ctx.fillRect(x0 + (c + m) * cell, y0 + (r + m) * cell, cell, cell);
+    }
+
+    // ---- The share sheet: QR, link, and one tap to each app ----
+    let SHARE_NOW = null;   // { url, text, subject } of the sheet on screen (kept out of onclick attributes)
+    const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
+    function openShareSheet(kind, id) {
+      let title, lead, text, url, subject = 'Come join me on Petfi 🐾', who = null;
+      if (kind === 'me') {
+        if (!(cloud && cloudUser)) { toast('Connect to the internet to share your profile link'); return; }
+        url = profileUrl(cloudUser.id);
+        const name = state.displayName || 'me';
+        title = '🔗 Share my profile';
+        lead = 'Anyone with this link sees ' + esc(name) + '\'s profile — even without an account — and can join Petfi in a tap. Whoever joins from it sends you a friend request automatically.';
+        text = state.accountType === 'pet' ? 'Meet ' + name + ' on Petfi 🐾' : 'Find me and my pets on Petfi 🐾';
+        subject = text;
+      } else if (kind === 'person') {
+        who = PROFILE_BY_ID[id];
+        if (!who) { toast('That member isn\'t around anymore'); return; }
+        url = profileUrl(id);
+        title = '🔗 Share ' + esc(who.username);
+        lead = 'Send ' + esc(who.username) + '\'s profile to a friend. If they join from it, they send you a friend request automatically.';
+        text = 'Check out ' + who.username + ' on Petfi 🐾';
+        subject = text;
+      } else {
+        url = inviteUrl();
+        title = '💌 Invite friends';
+        lead = cloudUser
+          ? 'Petfi grows one happy pet at a time. Friends who join from your link send you a friend request automatically, so you\'re connected from day one.'
+          : 'Petfi grows one happy pet at a time. Share this link with friends who have pets:';
+        text = INVITE_TEXT;
       }
-      toast('Invite link copied! 🔗');
+      SHARE_NOW = { url, text, subject };
+      const btn = (t, label) => '<button class="pill-btn ghost" style="flex:1 1 30%;min-width:6.5rem;padding:0.55rem 0.4rem;" onclick="shareVia(\'' + t + '\')">' + label + '</button>';
+      openSheet(title,
+        '<p class="sub" style="font-size:0.86rem;">' + lead + '</p>' +
+        '<div id="share-qr" style="display:flex;justify-content:center;margin:0.4rem 0 0.2rem;min-height:40px;"><div class="note" style="margin:0;">⏳ Making your QR code…</div></div>' +
+        '<p class="sub" style="font-size:0.74rem;text-align:center;margin:0 0 0.6rem;">Scan it with any phone camera — handy at the dog park.</p>' +
+        '<div class="link-box"><input type="text" id="share-link" readonly value="' + esc(url) + '" onclick="this.select()">' +
+        '<button class="btn small" onclick="shareVia(\'copy\')">Copy</button></div>' +
+        (navigator.share ? '<button class="btn" onclick="shareVia(\'native\')">📤 Share…</button>' : '') +
+        '<div style="display:flex;gap:0.45rem;flex-wrap:wrap;margin:0.5rem 0;">' +
+          (IS_MOBILE ? btn('sms', '💬 Text') : '') + btn('whatsapp', '🟢 WhatsApp') + btn('facebook', '📘 Facebook') + btn('email', '✉️ Email') + btn('copy', '📋 Copy link') +
+        '</div>' +
+        (kind === 'me' ? '<button class="btn secondary" onclick="sharePetCard()">📸 Share my card as a picture</button>' : '') +
+        '<button class="btn secondary" onclick="closeSheet()">Done</button>');
+      const mySeq = sheetSeq;
+      qrFor(url).then(q => {
+        const box = document.getElementById('share-qr');
+        if (sheetSeq !== mySeq || !box) return;
+        box.innerHTML = '<div style="padding:8px;background:#fff;border-radius:14px;border:1px solid var(--line);line-height:0;">' + qrSvg(q, 188) + '</div>';
+      }).catch(() => {
+        const box = document.getElementById('share-qr');
+        if (sheetSeq === mySeq && box) box.innerHTML = '<div class="note" style="margin:0;">The QR code needs a connection — the link below works the same.</div>';
+      });
+    }
+    function shareVia(t) {
+      const s = SHARE_NOW; if (!s) return;
+      const msg = s.text + ' ' + s.url;
+      if (t === 'native') { if (navigator.share) navigator.share({ title: 'Petfi', text: s.text, url: s.url }).catch(() => {}); return; }
+      if (t === 'copy') { copyShareLink(s.url); return; }
+      // Fixed templates around our own link — never another member's text in a URL scheme
+      const href = {
+        sms: 'sms:?&body=' + encodeURIComponent(msg),
+        whatsapp: 'https://wa.me/?text=' + encodeURIComponent(msg),
+        facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + encodeURIComponent(s.url),
+        email: 'mailto:?subject=' + encodeURIComponent(s.subject) + '&body=' + encodeURIComponent(s.text + '\n\n' + s.url),
+      }[t];
+      if (!href) return;
+      if (t === 'sms' || t === 'email') location.href = href;
+      else window.open(href, '_blank', 'noopener');
+    }
+    function copyShareLink(url) {
+      const done = () => toast('Link copied! 🔗 Paste it anywhere');
+      const fallback = () => {
+        const el = document.getElementById('share-link') || document.getElementById('invite-link');
+        if (el) { el.select(); try { document.execCommand('copy'); done(); return; } catch (e) {} }
+        toast('Press and hold the link to copy it');
+      };
+      try { navigator.clipboard.writeText(url).then(done, fallback); } catch (e) { fallback(); }
+    }
+    function inviteFriends() { openShareSheet('app'); }
+    function shareMyProfile() { openShareSheet('me'); }
+    function sharePerson(id) { openShareSheet('person', id); }
+
+    // ---- Arriving from a shared link ----
+    // Saved for 14 days so it survives sign-up, the confirm-email round trip,
+    // and (Android) installing the app: the Play app shares Chrome's storage.
+    const INVITE_IN = (() => {
+      try {
+        const q = new URLSearchParams(location.search);
+        const ok = x => !!(x && UUID_RE.test(x));
+        const u = q.get('u'), ref = q.get('ref');
+        if (ok(u) || ok(ref)) {
+          const saved = { u: ok(u) ? u.toLowerCase() : '', ref: ok(ref) ? ref.toLowerCase() : '', at: Date.now() };
+          try { localStorage.setItem('petfi-invite', JSON.stringify(saved)); } catch (e) {}
+          q.delete('u'); q.delete('ref');
+          const rest = q.toString();
+          history.replaceState(null, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+          return saved;
+        }
+        const saved = JSON.parse(localStorage.getItem('petfi-invite') || 'null');
+        if (!saved || !(Date.now() - saved.at < 14 * 864e5) || !(ok(saved.u) || ok(saved.ref))) { localStorage.removeItem('petfi-invite'); return null; }
+        return saved;
+      } catch (e) { return null; }
+    })();
+    let inviteHandled = false;
+    let INVITE_OPEN_AFTER_TOUR = null;
+    let TOUR_DONE = false;
+
+    // Signed out on the welcome screen: show who sent them, so the first
+    // thing a newcomer sees is a real pet, not a sales pitch.
+    async function renderInviteSlot() {
+      const slot = document.getElementById('invite-slot');
+      if (!slot || !INVITE_IN || !cloud) return;
+      const ids = [INVITE_IN.u, INVITE_IN.ref].filter(Boolean);
+      let rows = [];
+      try { const { data } = await cloud.from('profiles').select('*').in('id', ids); rows = (data || []).filter(p => !p.banned); } catch (e) { return; }
+      const byId = {}; rows.forEach(p => { byId[p.id] = p; PROFILE_BY_ID[p.id] = p; });
+      const shown = byId[INVITE_IN.u] || byId[INVITE_IN.ref];
+      if (!shown) return;
+      const inviter = INVITE_IN.ref && INVITE_IN.ref !== shown.id ? byId[INVITE_IN.ref] : null;
+      const isInviteOnly = !INVITE_IN.u || !byId[INVITE_IN.u];
+      slot.innerHTML =
+        '<div class="invite-card">' +
+          '<div class="ic-ava">' + personAvatar(shown, 64) + '</div>' +
+          '<div class="ic-main"><b>' + esc(shown.username) + (shown.verified ? ' ' + vbadge() : '') + '</b>' +
+            '<small>' + esc(personMeta(shown)) + ' · ' + (shown.kind === 'owner' ? 'Owner account' : 'Pet account') + '</small>' +
+            (shown.status ? '<small class="ic-status">“' + esc(String(shown.status).slice(0, 90)) + '”</small>' : '') +
+          '</div>' +
+        '</div>' +
+        '<p class="ic-lead">' + (isInviteOnly
+          ? '💌 <b>' + esc(shown.username) + '</b> invited you to Petfi. Join free and you\'ll be connected right away.'
+          : (inviter ? '💌 <b>' + esc(inviter.username) + '</b> shared this profile with you. ' : '') + 'Join free to say hi to <b>' + esc(shown.username) + '</b>, make friends and message.') + '</p>';
+    }
+    // Inside the app (any login): a newcomer sends the inviter a friend
+    // request and meets the shared profile after the welcome tour; a member
+    // who opens a link just lands on that profile.
+    async function handleInviteLanding(firstTime) {
+      if (inviteHandled || !INVITE_IN || !cloud || !cloudUser || !appActive()) return;
+      inviteHandled = true;
+      try { localStorage.removeItem('petfi-invite'); } catch (e) {}
+      const me = cloudUser.id;
+      const target = INVITE_IN.u && INVITE_IN.u !== me ? INVITE_IN.u : (INVITE_IN.ref && INVITE_IN.ref !== me ? INVITE_IN.ref : null);
+      if (!target) { if (INVITE_IN.u === me && !firstTime) toast('That\'s your own profile link 🐾'); return; }
+      const inviter = INVITE_IN.ref && INVITE_IN.ref !== me ? INVITE_IN.ref : (INVITE_IN.u && INVITE_IN.u !== me ? INVITE_IN.u : null);
+      await ensureProfiles([target, inviter]);
+      if (firstTime && inviter && PROFILE_BY_ID[inviter] && !PROFILE_BY_ID[inviter].banned && !isBlocked(inviter)) {
+        if (await quietFriendRequest(inviter)) toast('Friend request sent to ' + PROFILE_BY_ID[inviter].username + ' 🐾');
+      }
+      if (!PROFILE_BY_ID[target] || PROFILE_BY_ID[target].banned || isBlocked(target)) return;
+      if (PAY_RETURN) return;   // back from a payment: that screen wins
+      if (firstTime && !TOUR_DONE) { INVITE_OPEN_AFTER_TOUR = target; return; }
+      openPersonSheetById(target);
+    }
+    async function quietFriendRequest(id) {
+      if (!cloud || !cloudUser || id === cloudUser.id) return false;
+      await loadFriendships();
+      if (friendshipWith(id)) return false;
+      const { error } = await cloud.from('friendships').insert({ requester_id: cloudUser.id, addressee_id: id });
+      if (error) return false;
+      await loadFriendships();
+      livePing(id, { type: 'friend' });
+      return true;
+    }
+    function tourDone() {
+      TOUR_DONE = true;
+      closeSheet();
+      const id = INVITE_OPEN_AFTER_TOUR; INVITE_OPEN_AFTER_TOUR = null;
+      if (id) setTimeout(() => openPersonSheetById(id), 250);
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.6.0';
+    const APP_VERSION = '1.7.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -4859,8 +5086,8 @@
     // Mate Match for people keeps its own fixed 18 (openDatingPrefs/saveDatingPrefs).
     const MIN_AGE = 18;
 
-    function legalFoot() {
-      return '<p class="lu" style="margin-top:1.2rem;">Last updated: ' + LEGAL_UPDATED + ' · Questions? <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a></p>';
+    function legalFoot(updated) {
+      return '<p class="lu" style="margin-top:1.2rem;">Last updated: ' + (updated || LEGAL_UPDATED) + ' · Questions? <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a></p>';
     }
 
     function openTerms() {
@@ -4906,13 +5133,18 @@
         '<p class="lu">The short version: we collect only what the app needs, we don\'t sell your data, and you can delete everything.</p>' +
         '<h3>What we collect</h3>' +
         '<ul><li><b>Account:</b> your email and password (password is stored encrypted by our provider, never readable by us).</li>' +
-        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP and age are stored in your private account data and are not shown to other members.</li>' +
+        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members. Your age is private too, unless you publish a Mate Match for people card.</li>' +
         '<li><b>Content:</b> your posts, comments, messages, listings, groups and favorites.</li>' +
+        '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
+        '<li><b>Recent searches:</b> your last 5 in-app searches are saved with your private account data. Never shown to others.</li>' +
+        '<li><b>Crash reports:</b> when the app hits an error it sends the error message, stack trace, app version, page address, your browser\'s user agent and your user id — at most 5 per visit, readable only by Petfi admins.</li>' +
         '<li><b>Care data:</b> reminders and calendar entries — these are <b>private to you</b> and never shown to other users.</li>' +
         '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position.</li></ul>' +
         '<h3>How it\'s used</h3>' +
         '<ul><li>To run the app: show your profile to others (if visible), deliver messages, display listings.</li>' +
+        '<li>Sharing: a profile link or QR code opens that profile for anyone who has it, <b>even without a Petfi account</b> — the same public profile members see (name, picture or icon, species or breed, badge, status). A link you send carries your member id, so if someone joins from it they send you a friend request.</li>' +
         '<li>Your ZIP is used to show nearby places and, if you opt into Mate Match for people, to estimate distance to other opted-in members.</li>' +
+        '<li>Crash reports are used only to fix problems.</li>' +
         '<li>We <b>do not sell your personal data</b> and we don\'t show third-party ad trackers.</li></ul>' +
         '<h3>Who else sees data</h3>' +
         '<ul><li><b>Supabase</b> hosts our database, login, and photo storage.</li>' +
@@ -4924,7 +5156,7 @@
         '<li><b>Delete your account</b> in Settings → Account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
         '<h3>Children</h3>' +
         '<p>Petfi is for adults: you must be <b>' + MIN_AGE + ' or older</b> to have an account. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. The app asks you to confirm your age and remembers the answer on your device only. If we learn an account belongs to someone under ' + MIN_AGE + ', we\'ll remove it. To report one, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p>' +
-        legalFoot() + '</div>' +
+        legalFoot('October 31, 2026') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -8445,6 +8677,7 @@
         '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(u.id) + '\')">💬 Message</button>' +
         (u.kind === 'owner' ? '' : '<button class="btn secondary" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">' + sayHiLabel() + '</button>') +
         '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;">' +
+          '<button class="pill-btn ghost" style="flex:1;" onclick="sharePerson(\'' + jsStr(u.id) + '\')">🔗 Share</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block</button>' +
         '</div>');
@@ -9026,6 +9259,8 @@
     document.querySelectorAll('.min-age').forEach(e => { e.textContent = MIN_AGE; }); // static age text follows MIN_AGE
     renderResume();
     cloudRestore(); // reconnect to the cloud if a session is still alive
+    renderInviteSlot(); // opened from a shared profile / invite link? show who
+    if (IS_MOBILE && /Android/i.test(navigator.userAgent || '') && !IS_PLAY_APP) { const pl = document.getElementById('welcome-play'); if (pl) pl.style.display = ''; }
 
     // ======================= INSTALL AS AN APP (PWA) =======================
     // Register the service worker (offline + installable) and offer an

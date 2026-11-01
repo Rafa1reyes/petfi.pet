@@ -68,7 +68,7 @@
 <main class="wrap doc">
   <span class="kicker">🔒 Legal</span>
   <h1>Privacy Policy</h1>
-  <p class="dates">Effective July 12, 2026 · Page last revised October 5, 2026<br>Petfi is published by Spindola Software.</p>
+  <p class="dates">Effective July 12, 2026 · Page last revised November 1, 2026<br>Petfi is published by Spindola Software.</p>
 
   <div class="card tldr">
     <p><b>The short version:</b> we collect only what the app needs, we don't sell your data, we don't run third-party ad trackers, and you can delete everything yourself from inside the app.</p>
@@ -78,10 +78,12 @@
     <h2>1. What we collect</h2>
     <ul>
       <li><b>Account:</b> your email address and a password. Sign-in is handled by Supabase Auth; your password is stored only in encrypted form by our provider and is never readable by us.</li>
-      <li><b>Profile:</b> your display name, account type (pet or owner), species and breed, status, and an optional ZIP code. Your ZIP code and age are kept in your private account data and are not shown to other members.</li>
+      <li><b>Profile:</b> your display name, account type (pet or owner), species and breed, status, and an optional ZIP code. Your ZIP code itself is kept in your private account data and is never shown to other members. Your age is private too, unless you publish a Mate Match for people card (see Dating profile below).</li>
       <li><b>Pet details:</b> the names, species, breeds, ages, health notes and descriptions you choose to add for your animals.</li>
       <li><b>Photos and videos (optional):</b> anything you post to a feed, attach to a listing, or set as an avatar. These are stored in Supabase Storage and are reachable by their URL once posted, so only upload what you are happy to share.</li>
       <li><b>Content:</b> your posts, comments, likes, groups, favorites, marketplace listings and breeding (Mate Match) listings.</li>
+      <li><b>Dating profile (optional, Owner accounts, 18+):</b> if you use Mate Match for people, you give your age, your <b>gender</b>, <b>who you are interested in</b> (men, women or everyone), the age range you are looking for, whether they should have a pet, a search radius and an optional one-line bio. Saving it publishes your card: your first name, age, gender, who you are interested in, the age range you want, your bio, the kinds of pets you have, whether you are ID-verified, and your town with a point <b>rounded to about 1 km</b>. While your card is published it is <b>visible to other signed-in members</b> — it is what people browsing Mate Match for people see — so only add what you are comfortable sharing. Your ZIP code, email and exact location are never on the card. To take your card down, email <a href="mailto:support@petfi.pet">support@petfi.pet</a> and we will delete it, or delete your account, which removes it with everything else.</li>
+      <li><b>Recent searches:</b> the last 5 things you searched for in the app are saved with your private account data, so they follow you to your other devices. They are never shown to other members.</li>
       <li><b>Messages:</b> messages between you and other members are stored so they can be delivered and read.</li>
       <li><b>Care data:</b> reminders and calendar entries. These are <b>private to you</b> and are never shown to other members.</li>
       <li><b>Approximate location (optional):</b> if you give a ZIP code, we convert it to a coordinate and store it <b>rounded to about 1 km</b> — town level, never a street address. That rounded point is what powers the Local feed, nearby places, distance on breeding listings, and Mate Match. Other members see only your town and an approximate distance.</li>
@@ -90,14 +92,16 @@
       <li><b>ID verification (optional, Owner accounts):</b> if you buy the trust badge, the payment is taken by Google Play (inside the Android app) or by Stripe (on petfi.pet), and the check itself runs on Stripe Identity's own pages, where you photograph a government ID and take a selfie. Those images and the details read from the document are collected and held by <b>Stripe, not Petfi</b>. Petfi stores only the fact of payment, a reference to the Stripe session, and the outcome: passed, failed (with Stripe's reason code) or refunded. We never receive or store your ID number, address or the photos. Stripe does tell us whether the document shows you are 18 or older, because Petfi is adults only — an account whose ID shows under 18 is closed rather than verified.</li>
       <li><b>Gifts to the Petfi Pledge fund (optional):</b> if you give, the payment is taken by Google Play (inside the Android app) or by Stripe (on petfi.pet); Petfi never sees your card. We store the amount, the date, which of the two took the payment, and its reference id, against your account — that is how we know who has given the most when a member asks the fund for help. Totals shown in the app are counts and sums only; no member is named as a giver, and if a gift from the fund pays one of your bills it is listed on the public ledger by what it paid for, never by your name.</li>
       <li><b>Spotlight ads (optional, Owner accounts):</b> an ad you buy is stored with its text, photos, business name, the reach and length you chose, the amount paid, which of Google Play or Stripe took the payment and its reference id, and — for a local or statewide ad — the coordinates and state of your ZIP code, so it can be shown to the right members. Everything in the ad except the payment details is public by design.</li>
+      <li><b>Crash and error reports:</b> when something in the app breaks, it sends us a short report: the error message, the technical stack trace, the app version, the page address, your browser's user agent (which browser and device type you use) and your user id if you are signed in. No more than 5 are sent per visit, and only Petfi's admins can read them.</li>
     </ul>
 
     <h2>2. How we use it</h2>
     <ul>
       <li>To run the app: show your profile to other members (if you are visible), deliver messages, publish posts, display listings.</li>
+      <li>To let you share: a profile link or QR code (Me → Share my profile, or Share on another member's profile) opens that profile for anyone who has it, <b>including people without a Petfi account</b>. They see the same public profile members see: name, picture or icon, species or breed, account type, badge and status message. A link you send also carries your member id, so if the person joins from it, Petfi sends you a friend request from them, which you can accept or ignore.</li>
       <li>To show you what is nearby: the Local feed, dog parks, vets, groomers and pet stores around your ZIP code, and distance to breeding listings or — if you opt in — to other Mate Match members.</li>
       <li>To keep the community safe: reviewing reports, removing content that breaks the rules, and suspending accounts.</li>
-      <li>To fix problems and improve the app.</li>
+      <li>To fix problems and improve the app, including reading the crash and error reports the app sends us.</li>
     </ul>
     <p><b>We do not sell your personal data.</b> Petfi carries no advertising networks and embeds no third-party ad or analytics trackers.</p>
 
@@ -141,7 +145,7 @@
     <h2>9. Contact</h2>
     <p>Questions, data requests or privacy concerns: <a href="mailto:support@petfi.pet">support@petfi.pet</a>.</p>
 
-    <p class="lu">Last updated: October 29, 2026 · Questions? <a href="mailto:support@petfi.pet">support@petfi.pet</a></p>
+    <p class="lu">Last updated: November 1, 2026 · Questions? <a href="mailto:support@petfi.pet">support@petfi.pet</a></p>
   </div>
 
   <a class="back" href="https://petfi.pet">← Back to petfi.pet</a>
