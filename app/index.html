@@ -2242,6 +2242,7 @@
       setTimeout(maybeOfferInstall, 10000); // gentle "add to home screen" once settled
       setTimeout(handlePayReturn, 300);  // back from Stripe into a login that needed the resume screen first
       setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
+      setTimeout(syncShareAvatar, 6000);  // keep the link-preview icon current
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2866,7 +2867,7 @@
       const text = (p.who || 'A pet') + ' on Petfi: ' + clip + (p.text || '').slice(0, 120);
       // The link opens the author's profile (and carries my invite), so a shared post brings people in
       const author = p.authorId && UUID_RE.test(p.authorId) ? p.authorId : (p.mine && cloudUser ? cloudUser.id : null);
-      const url = author ? profileUrl(author) : inviteUrl();
+      const url = author ? shareProfileLink(author) : shareInviteLink();
       if (navigator.share) { navigator.share({ title: 'Petfi', text, url }).catch(() => {}); return; }
       try { navigator.clipboard.writeText(text + ' ' + url).then(() => toast('Copied — paste it anywhere ↗️'), () => toast('Could not copy')); }
       catch (e) { toast('Sharing isn\'t available here'); }
@@ -4845,7 +4846,7 @@
       canvas.toBlob(blob => {
         const file = new File([blob], 'my-petfi-card.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 ' + (cloudUser ? profileUrl(cloudUser.id) : 'petfi.pet') }).catch(() => {});
+          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 ' + (cloudUser ? shareProfileLink(cloudUser.id) : 'petfi.pet') }).catch(() => {});
         } else {
           saveCard(); // desktop: no file share → save instead
         }
@@ -4868,6 +4869,45 @@
     function profileUrl(id) {
       const u = APP_URL + '?u=' + id;
       return cloudUser && cloudUser.id !== id ? u + '&ref=' + cloudUser.id : u;
+    }
+    // Links pasted into chats go through go.petfi.pet (petfi-go on Vercel), which
+    // gives preview bots a card with the pet's name and picture and sends people
+    // on to the same app links above. It is used only once it answers, so a DNS
+    // or server problem falls back to the direct links. QR codes always use the
+    // direct link: nobody previews a QR, and it opens the Android app in one hop.
+    const SHARE_GO = 'https://go.petfi.pet';
+    let goLive = false;
+    async function probeGo() {
+      try { await fetch(SHARE_GO + '/robots.txt', { mode: 'no-cors', cache: 'no-store' }); goLive = true; }
+      catch (e) { goLive = false; }
+    }
+    function shareProfileLink(id) {
+      if (!goLive) return profileUrl(id);
+      return SHARE_GO + '/u/' + id + (cloudUser && cloudUser.id !== id ? '?ref=' + cloudUser.id : '');
+    }
+    function shareInviteLink() { return goLive && cloudUser ? SHARE_GO + '/i/' + cloudUser.id : inviteUrl(); }
+
+    // The drawn pet icon, uploaded as a PNG so link previews can show it
+    // (photos are used as they are). Re-uploaded only when the look changes.
+    function svgStamp(str) { let h = 5381; for (let i = 0; i < str.length; i++) h = ((h << 5) + h + str.charCodeAt(i)) | 0; return (h >>> 0).toString(36); }
+    async function syncShareAvatar() {
+      try {
+        if (!cloud || !cloudUser || state.accountType !== 'pet' || safeAvatarUrl(state.avatarUrl)) return;
+        const svg = petAvatar(state.species, state.breed, 512, myLook());
+        if (!svg || svg.indexOf('<svg') !== 0) return;
+        const sig = svgStamp(svg);
+        if (state.shareAvatarSig === sig) return;
+        const img = new Image();
+        const ok = await new Promise(res => { img.onload = () => res(true); img.onerror = () => res(false); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); });
+        if (!ok) return;
+        const c = document.createElement('canvas'); c.width = c.height = 512;
+        c.getContext('2d').drawImage(img, 0, 0, 512, 512);
+        const blob = await new Promise(res => c.toBlob(res, 'image/png'));
+        if (!blob) return;
+        const up = await cloud.storage.from('photos').upload(cloudUser.id + '/share-avatar.png', blob, { contentType: 'image/png', upsert: true, cacheControl: '3600' });
+        if (up.error) { console.warn('share avatar:', up.error.message); return; }
+        state.shareAvatarSig = sig; saveState(); cloudSaveProfile();
+      } catch (e) { console.warn('share avatar:', e && e.message); }
     }
 
     // ---- QR codes (qrcode-generator, loaded on first use, pinned + SRI) ----
@@ -4910,10 +4950,11 @@
     let SHARE_NOW = null;   // { url, text, subject } of the sheet on screen (kept out of onclick attributes)
     const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     function openShareSheet(kind, id) {
-      let title, lead, text, url, subject = 'Come join me on Petfi 🐾', who = null;
+      let title, lead, text, url, qrUrl, subject = 'Come join me on Petfi 🐾', who = null;
       if (kind === 'me') {
         if (!(cloud && cloudUser)) { toast('Connect to the internet to share your profile link'); return; }
-        url = profileUrl(cloudUser.id);
+        syncShareAvatar();   // so the link preview shows the current icon
+        url = shareProfileLink(cloudUser.id); qrUrl = profileUrl(cloudUser.id);
         const name = state.displayName || 'me';
         title = '🔗 Share my profile';
         lead = 'Anyone with this link sees ' + esc(name) + '\'s profile — even without an account — and can join Petfi in a tap. Whoever joins from it sends you a friend request automatically.';
@@ -4922,13 +4963,13 @@
       } else if (kind === 'person') {
         who = PROFILE_BY_ID[id];
         if (!who) { toast('That member isn\'t around anymore'); return; }
-        url = profileUrl(id);
+        url = shareProfileLink(id); qrUrl = profileUrl(id);
         title = '🔗 Share ' + esc(who.username);
         lead = 'Send ' + esc(who.username) + '\'s profile to a friend. If they join from it, they send you a friend request automatically.';
         text = 'Check out ' + who.username + ' on Petfi 🐾';
         subject = text;
       } else {
-        url = inviteUrl();
+        url = shareInviteLink(); qrUrl = inviteUrl();
         title = '💌 Invite friends';
         lead = cloudUser
           ? 'Petfi grows one happy pet at a time. Friends who join from your link send you a friend request automatically, so you\'re connected from day one.'
@@ -4950,7 +4991,7 @@
         (kind === 'me' ? '<button class="btn secondary" onclick="sharePetCard()">📸 Share my card as a picture</button>' : '') +
         '<button class="btn secondary" onclick="closeSheet()">Done</button>');
       const mySeq = sheetSeq;
-      qrFor(url).then(q => {
+      qrFor(qrUrl || url).then(q => {
         const box = document.getElementById('share-qr');
         if (sheetSeq !== mySeq || !box) return;
         box.innerHTML = '<div style="padding:8px;background:#fff;border-radius:14px;border:1px solid var(--line);line-height:0;">' + qrSvg(q, 188) + '</div>';
@@ -5076,7 +5117,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.7.0';
+    const APP_VERSION = '1.7.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8362,7 +8403,8 @@
           favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: f.url })),
           sugg: (state.suggestions || []).slice(0, 10),
           age: state.accountType === 'pet' ? petAge(state.bday) : '', // a person's age stays private
-          look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null, p: state.avatarUrl || null },
+          look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null, p: state.avatarUrl || null,
+            s: state.accountType === 'pet' && !state.avatarUrl ? (state.shareAvatarSig || null) : null },
         },
       }).then(({ error }) => { if (error) console.warn('profile save:', error.message); });
     }
@@ -9260,6 +9302,7 @@
     renderResume();
     cloudRestore(); // reconnect to the cloud if a session is still alive
     renderInviteSlot(); // opened from a shared profile / invite link? show who
+    setTimeout(probeGo, 2500); // is the link-preview server answering?
     if (IS_MOBILE && /Android/i.test(navigator.userAgent || '') && !IS_PLAY_APP) { const pl = document.getElementById('welcome-play'); if (pl) pl.style.display = ''; }
 
     // ======================= INSTALL AS AN APP (PWA) =======================
