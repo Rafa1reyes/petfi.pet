@@ -210,6 +210,7 @@
   <span class="sec-k" style="color:#b8305a">💖 The Petfi pledge</span>
   <h2>Half of all Petfi profit — and 100% of gifts — goes back to animals</h2>
   <p><b>Profit</b> is what Petfi makes from store commissions, ads and the trust badge — half of it goes to the Pledge fund. <b>Gifts</b> from members go in whole: Petfi keeps none of it and pays the processing fees itself. <b>Half of the fund helps Petfi members</b> — emergency vet bills when a family can't cover a sudden crisis, cremation costs after a sudden loss, adoption fees so shelter pets find their family faster — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does. Every dollar given away is published in the app, on the Pledge page, with the date and who received it — so you can see the money leaves. Buying through Petfi costs you nothing extra.</p>
+  <p id="pledge-live" style="display:none;margin-top:18px;font-size:15px"><span style="display:block;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase">🔴 Live · raised for pets &amp; pet owners</span><span id="pledge-live-n" style="display:block;font-size:44px;font-weight:900;line-height:1.1;margin:4px 0"></span><span id="pledge-live-sub"></span></p>
 </div></div></section>
 
 <section id="safety"><div class="wrap">
@@ -241,6 +242,27 @@
   </span>
 </div></footer>
 
+<script>
+/* The live pledge total: every gift + half of each month's profit, from the
+   public petfi_pledge_totals() function (sums only, no names). */
+(function () {
+  var URL = 'https://zddvxvjxokxtgnwqjnzm.supabase.co/rest/v1/rpc/petfi_pledge_totals';
+  var KEY = 'sb_publishable_KegUckkbv_nTuQjDwH66aQ_HCzkBpGL';
+  function money(c) { var d = (+c || 0) / 100; return '$' + d.toLocaleString('en-US', { minimumFractionDigits: d % 1 ? 2 : 0, maximumFractionDigits: 2 }); }
+  function load() {
+    fetch(URL, { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + KEY, 'Content-Type': 'application/json' }, body: '{}' })
+      .then(function (r) { return r.ok ? r.json() : null; })
+      .then(function (t) {
+        if (!t || !(+t.raised_cents > 0)) return; // shown once there is something to show
+        var box = document.getElementById('pledge-live'); if (!box) return;
+        document.getElementById('pledge-live-n').textContent = money(t.raised_cents);
+        document.getElementById('pledge-live-sub').textContent = money(t.donated_cents) + ' given by members + ' + money(t.profit_share_cents) + ', half of Petfi\'s profit · ' + money(t.given_cents) + ' given away so far';
+        box.style.display = '';
+      }).catch(function () {});
+  }
+  load(); setInterval(load, 60000);
+})();
+</script>
 <script>
 /* A shared link that landed here (petfi.pet/?ref=... or ?u=...) keeps its
    invite when the visitor taps through to the app. */

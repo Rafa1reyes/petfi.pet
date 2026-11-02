@@ -910,7 +910,7 @@
         <label class="switch"><input type="checkbox" id="tog-friendsonly"><span class="slider"></span></label>
       </div>
       <div class="toggle-row">
-        <div class="t-label">Only interact with other Pets<small>Off = interact with everyone</small></div>
+        <div class="t-label">Hide owner accounts<small>See only other pets — change it any time</small></div>
         <label class="switch"><input type="checkbox" id="tog-petsonly"><span class="slider"></span></label>
       </div>
 
@@ -955,14 +955,13 @@
       <button class="back" onclick="show('s-owner')">← Back</button>
       <div class="steps"><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div><div class="dot"></div></div>
       <h1>What brings you here?</h1>
-      <p class="sub">Pick what you're into — we'll shape your home page around it.</p>
+      <p class="sub">Pick what you're into — we'll put shortcuts to it at the top of your home page.</p>
       <div class="grid">
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">⭐</span>Reviews</div>
         <div class="pick" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
       </div>
 
@@ -2053,6 +2052,7 @@
       const sp = document.getElementById('studio-preview');
       if (sp) sp.innerHTML = petAvatar(state.species, state.breed, 110, myLook());
       refreshTopAvatar();
+      cloudSaveProfile(); // everyone else draws your icon from the profile row
     }
     function resetAvatarLook() {
       state.avatarVariant = null;
@@ -2064,6 +2064,7 @@
       const sp = document.getElementById('studio-preview');
       if (sp) sp.innerHTML = petAvatar(state.species, state.breed, 110, myLook());
       refreshTopAvatar();
+      cloudSaveProfile(); // everyone else draws your icon from the profile row
     }
     // Keep the top-bar avatar in step with look changes (only once in-app)
     function refreshTopAvatar() {
@@ -2243,6 +2244,7 @@
       setTimeout(handlePayReturn, 300);  // back from Stripe into a login that needed the resume screen first
       setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
       setTimeout(syncShareAvatar, 6000);  // keep the link-preview icon current
+      setTimeout(() => ensurePushSubscription(false), 3000); // reminders by push when notifications are allowed
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2728,6 +2730,21 @@
       list.forEach(z => geocodeZip(z).catch(() => null).then(() => { if (--geoJobs === 0 && appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome); }));
     }
 
+    const INTEREST_SHORTCUTS = {
+      'Sell products': ['🛒', 'Sell a product', 'openSell()'],
+      'Sell pets': ['🐕', 'List animals for sale', 'openSell()'],
+      'Find a mate': ['💘', 'Mate Match', "openTab('mate')"],
+      'Farm animals': ['🐄', 'Farm & ranch matches', "openTab('mate')"],
+      'Connect': ['🤝', 'Members near you', "openTab('nearby')"],
+      'Local spots': ['📍', 'Places near you', "openTab('nearby')"],
+    };
+    function interestShortcuts() {
+      if (state.accountType !== 'owner' || state.hideShortcuts) return '';
+      const list = (state.interests || []).map(x => INTEREST_SHORTCUTS[x]).filter(Boolean);
+      if (!list.length) return '';
+      return '<div class="chips" style="margin-bottom:0.8rem;">' + list.map(x => '<div class="chip" onclick="' + x[2] + '">' + x[0] + ' ' + x[1] + '</div>').join('') +
+        '<div class="chip" title="Hide these shortcuts" onclick="state.hideShortcuts=true;saveState();openTab(\'home\')">✕</div></div>';
+    }
     function renderHome() {
       let h = '';
       // Sub-tabs: the two public feeds, groups, and your private care page
@@ -2739,6 +2756,7 @@
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
 
+      h += interestShortcuts() + pledgeTrackerStrip();
       const first = esc((state.displayName || 'friend').split(' ')[0]);
       h += '<div class="composer" onclick="openCompose()">' +
              '<div class="ca">' + myAvatar(36) + '</div>' +
@@ -2833,7 +2851,9 @@
       const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink', like: '❤️ Like' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
-        '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span></div>').join('');
+        '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span>' +
+          (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) ? '<span title="Report comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
+        '</div>').join('');
       const nCmts = (p.comments || []).length;
       const likes = Number(p.likes) || 0;
       // Cloud posts get a real like counter; your own get a delete button
@@ -2984,7 +3004,7 @@
       if (!cloud || !p) return;
       const prefix = PHOTO_ORIGIN + 'photos/';
       const paths = [];
-      [p.videoUrl, p.posterUrl].forEach(u => {
+      [p.videoUrl, p.posterUrl].concat(Array.isArray(p.photoUrls) ? p.photoUrls : []).forEach(u => {
         if (typeof u === 'string' && u.indexOf(prefix) === 0) {
           try { paths.push(decodeURIComponent(u.slice(prefix.length).split('?')[0])); } catch (e) {}
         }
@@ -3032,9 +3052,11 @@
     function liveAd() {
       const me = state.zip && GEO_CACHE[state.zip] ? GEO_CACHE[state.zip] : null;
       const myState = me ? zipState(me) : null;
+      const hidden = state.hiddenAds || [];
       return CLOUD_ADS.find(a => {
         if (!(new Date(a.expiresAt).getTime() > Date.now())) return false;
         if (a.mine) return true;
+        if (hiddenUser(a.ownerId) || hidden.indexOf(a.cloudId) >= 0) return false;
         const reach = a.reach || 'app';
         if (reach === 'app') return true;
         if (!me) return false;
@@ -3064,7 +3086,7 @@
         (mine
           ? '<button class="pill-btn ghost" onclick="event.stopPropagation();endMyAd(' + Number(ad.cloudId) + ')">End my ad</button>'
           : '<button class="pill-btn" onclick="event.stopPropagation();openCloudDM(\'' + jsStr(ad.ownerId) + '\')">Contact ' + who + '</button> ' +
-            '<button class="pill-btn ghost" onclick="event.stopPropagation();this.closest(\'.spotlight\').style.display=\'none\'">Hide</button>') +
+            '<button class="pill-btn ghost" onclick="event.stopPropagation();hideAd(' + Number(ad.cloudId) + ')">Hide</button>') +
       '</div>';
     }
     // Tap the ad → the full ad page with all its photos
@@ -3082,7 +3104,8 @@
         '<p class="sub" style="font-size:0.8rem;">' + adTypeLabel(ad) + ' · ' + esc(ad.loc) + '</p>' +
         (mine
           ? '<button class="btn secondary" onclick="closeSheet();endMyAd(' + Number(ad.cloudId) + ')">End my ad</button>'
-          : '<button class="btn" onclick="openCloudDM(\'' + jsStr(ad.ownerId) + '\')">💬 Contact ' + who + '</button>'));
+          : '<button class="btn" onclick="openCloudDM(\'' + jsStr(ad.ownerId) + '\')">💬 Contact ' + who + '</button>' +
+            '<button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="reportAd()">🚩 Report ad</button>'));
     }
     function endMyAd(id) {
       const i = CLOUD_ADS.findIndex(a => a.cloudId === id);
@@ -3160,10 +3183,11 @@
         cloud.from('posts').select('id, author_id, content, created_at').eq('content->>petfiType', 'territory_spot').order('created_at', { ascending: false }).limit(500),
       ]);
       if (!c.data) return;
+      await ensureProfiles(c.data.map(r => r.author_id).concat((s.data || []).map(r => r.author_id)));
       // Trusted columns are applied LAST so row content can't override them
-      TERRITORY = c.data.map(r => Object.assign({}, r.content, { claimId: r.id, ownerId: r.author_id, createdAt: r.created_at }));
+      TERRITORY = c.data.filter(r => !hiddenUser(r.author_id)).map(r => Object.assign({}, r.content, { claimId: r.id, ownerId: r.author_id, createdAt: r.created_at }));
       // Spots members added themselves (a trail, a beach, a field the map didn't know)
-      TERRITORY_SPOTS = (s.data || []).map(r => {
+      TERRITORY_SPOTS = (s.data || []).filter(r => !hiddenUser(r.author_id)).map(r => {
         const x = r.content || {};
         const lat = +x.lat, lon = +x.lon;
         if (!isFinite(lat) || !isFinite(lon)) return null;
@@ -3315,7 +3339,7 @@
         '</div>';
       }).join('');
       h += addBtn;
-      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">🔒 Location is used only to verify you\'re at the park and is never shared or stored. Real dogs: please still use the grass responsibly.</p>';
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">🔒 Your live location is used only to check you\'re at the park — a claim saves which park, not your position. A spot you add is pinned to within about a block. Real dogs: please still use the grass responsibly.</p>';
       box.innerHTML = h;
     }
     // ---- Members add the spots the map doesn't know. GPS pins it where they
@@ -3324,10 +3348,10 @@
     function openAddSpot() {
       if (!cloudUser) { toast('Log in to add a spot 🐾'); return; }
       openSheet('➕ Add this spot',
-        '<p class="sub" style="font-size:0.9rem;">Petfi pins it <b>exactly where you\'re standing</b> (GPS), so stand in it first. It goes on the map for every member near here.</p>' +
+        '<p class="sub" style="font-size:0.9rem;">Petfi pins it <b>where you\'re standing</b> (GPS, rounded to about a block), so stand in it first. It goes on the map for every member near here.</p>' +
         '<label>What\'s it called?</label><input type="text" id="spot-name" maxlength="40" placeholder="e.g. Riverside Trail, Miller\'s back field">' +
         '<label>What kind of place?</label><select id="spot-kind">' + Object.keys(SPOT_KINDS).map(k => '<option value="' + k + '">' + SPOT_KINDS[k] + ' ' + ({ park: 'Park', dogpark: 'Dog park', trail: 'Trail', beach: 'Beach', field: 'Field / pasture', ranch: 'Farm / ranch', other: 'Somewhere else' })[k] + '</option>').join('') + '</select>' +
-        '<div class="note" style="font-size:0.85rem;">Public places only — no home addresses, and keep the name family-friendly. Members see the name and the pin, never who added it.</div>' +
+        '<div class="note" style="font-size:0.85rem;">Public places only — no home addresses, and keep the name family-friendly. Members see the name and the pin. The spot is saved with your account; the map doesn\'t show who added it.</div>' +
         '<button class="btn" id="spot-btn" onclick="saveSpot()">💦 Add it and pee on it</button>' +
         '<button class="btn secondary" onclick="closeSheet();openTerritory()">Cancel</button>');
     }
@@ -3342,7 +3366,7 @@
       try { pos = await getGPS(); }
       catch (e) { if (btn) { btn.disabled = false; btn.textContent = '💦 Add it and pee on it'; } toast('📍 Petfi needs live GPS to pin the spot'); return; }
       if (pos.accuracy && pos.accuracy > 250) { if (btn) { btn.disabled = false; btn.textContent = '💦 Add it and pee on it'; } toast('📍 GPS is fuzzy (~' + Math.round(pos.accuracy) + ' m) — step outside and try again'); return; }
-      const lat = +pos.lat.toFixed(5), lon = +pos.lon.toFixed(5);
+      const lat = +pos.lat.toFixed(3), lon = +pos.lon.toFixed(3); // ~100 m: the place, not the person
       // Already on the list (a park or a member spot within ~100 m with the same name)? Use that one.
       const norm = s => String(s).toLowerCase().replace(/[^a-z]/g, '');
       const existing = TERRITORY_PARKS.find(p => haversineMi(p.lat, p.lon, lat, lon) < 0.06 && norm(p.name) === norm(name));
@@ -3410,7 +3434,8 @@
       const zip = state.zip || '';
       let h = '';
       // Members first — the people (and pets) you can actually talk to
-      h += '<div class="sec"><h3>🐾 Petfi members</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
+      h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
+      if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
       if (!cloudUser) {
         h += '<div class="note">Log in to see members and make friends.</div>';
       } else if (!PEOPLE.length && !lastPeopleFetch) {
@@ -3424,7 +3449,7 @@
             (u.status ? '<div class="status-bubble">' + esc(u.status) + '</div>' : '') +
             '<div class="u-avatar" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + personAvatar(u, 62) + '</div>' +
             '<div class="u-name" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + '</div>' +
-            '<div class="u-meta">' + esc(personMeta(u)) + '</div>' +
+            '<div class="u-meta">' + esc(personMeta(u)) + (u._mi != null ? ' · ' + Number(u._mi) + ' mi' : '') + '</div>' +
             '<div class="u-actions">' +
               '<button class="btn-friend" onclick="openPersonSheet(' + i + ')">👤 View</button>' +
               '<button class="btn-sound" onclick="sendCloudBark(' + i + ')" title="Say hi">🔊</button>' +
@@ -3568,9 +3593,18 @@
       });
       return out;
     }
+    // Posts, listings and groups exist only in the cloud: without it, say so
+    // up front instead of showing something that vanishes on the next reload.
+    function canSaveToCloud(what) {
+      if (cloud && cloudUser) return true;
+      toast(!cloud ? '📡 You\'re offline — connect to ' + what + ', so nothing gets lost' : '🔑 Create a free login to ' + what + ' — it\'s saved to your account');
+      return false;
+    }
     function addFavFromSpot(name) {
       const cat = /vet|care/i.test(name) ? 'vet' : /park|run|green/i.test(name) ? 'park' : 'store';
+      state.favorites = state.favorites || [];
       state.favorites.push({ cat, label: name, url: 'https://www.google.com/maps/search/' + encodeURIComponent(name) });
+      saveState(); cloudSaveProfile();
       toast('Added ' + name + ' to favorites ⭐');
     }
 
@@ -3781,15 +3815,97 @@
     function pledgeMoney(cents) { const d = (+cents || 0) / 100; return '$' + (Number.isInteger(d) ? d.toLocaleString('en-US') : d.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
     function pledgeDate(d) { try { return new Date(String(d).length === 10 ? d + 'T12:00:00' : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return esc(d); } }
 
+    // ---- The live tracker: every paid gift + half of each month's profit ----
+    // Totals come from petfi_pledge_totals() (public, sums only). Profit is
+    // entered by an admin once a month (pledge_profit_months, admin-only).
+    let PLEDGE_TOTALS = null, pledgeTotalsAt = 0;
+    async function loadPledgeTotals(force) {
+      if (!cloud) return PLEDGE_TOTALS;
+      if (!force && PLEDGE_TOTALS && Date.now() - pledgeTotalsAt < 120000) return PLEDGE_TOTALS;
+      try {
+        const { data, error } = await cloud.rpc('petfi_pledge_totals');
+        if (!error && data) { PLEDGE_TOTALS = data; pledgeTotalsAt = Date.now(); }
+      } catch (e) {}
+      const el = document.getElementById('pledge-strip-home');
+      if (el) el.outerHTML = pledgeTrackerStrip(true);
+      return PLEDGE_TOTALS;
+    }
+    function monthLabel(d) {
+      try { return new Date(String(d).slice(0, 7) + '-15T12:00:00').toLocaleDateString('en-US', { month: 'long', year: 'numeric' }); } catch (e) { return String(d); }
+    }
+    // Home-feed strip: the running total, one tap from giving
+    function pledgeTrackerStrip(noFetch) {
+      if (!noFetch && (!PLEDGE_TOTALS || Date.now() - pledgeTotalsAt > 120000)) setTimeout(() => loadPledgeTotals(), 0);
+      const t = PLEDGE_TOTALS, raised = t ? (+t.raised_cents || 0) : 0;
+      return '<div id="pledge-strip-home" class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>' +
+        (raised > 0 ? pledgeMoney(raised) + ' raised for pets &amp; pet owners' : 'Help pets &amp; pet owners in need') + '</b><small>' +
+        (raised > 0 ? 'Live total: every gift + half of Petfi\'s profit. Tap to give or see where it went.' : '100% of gifts + half of Petfi\'s profit go to vet bills, cremation, adoptions and shelters. Tap to give.') +
+        '</small></div></div>';
+    }
+    function trackerHtml(t) {
+      t = t || {};
+      const known = t.raised_cents != null;
+      return '<div class="pledge-hero" style="margin-bottom:0.9rem;">' +
+        '<div style="font-size:0.74rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;">🔴 Live · raised for pets &amp; pet owners</div>' +
+        '<div class="big" style="margin:0.35rem 0;">' + (known ? pledgeMoney(+t.raised_cents || 0) : '…') + '</div>' +
+        (known
+          ? '<p style="font-size:0.84rem;">' + pledgeMoney(t.donated_cents) + ' given by ' + (t.donors || 0) + ' member' + (t.donors === 1 ? '' : 's') + ' + ' + pledgeMoney(t.profit_share_cents) + ', half of Petfi\'s profit' + (t.last_profit_month ? ' through ' + esc(monthLabel(t.last_profit_month)) : '') + '</p>' +
+            '<p style="font-size:0.84rem;margin-top:0.3rem;"><b>' + pledgeMoney(t.given_cents) + '</b> given away so far · <b>' + pledgeMoney(Math.max(0, +t.fund_balance_cents || 0)) + '</b> in the fund now</p>'
+          : '<p style="font-size:0.84rem;">Loading the live total…</p>') +
+      '</div>';
+    }
+    async function openProfitEntry() {
+      if (!isAdmin() || !cloud) return;
+      const now = new Date(), prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      const ym = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+      openSheet('📅 Monthly profit', '<div class="note">⏳ Loading…</div>');
+      const mySeq = sheetSeq;
+      const { data, error } = await cloud.from('pledge_profit_months').select('month, profit_cents, note').order('month', { ascending: false }).limit(24);
+      if (sheetSeq !== mySeq) return;
+      openSheet('📅 Monthly profit',
+        '<p class="sub" style="font-size:0.84rem;">Enter what Petfi made in a month after every expense: wages, servers, travel to shelters and vets, and so on. Half of it is added to the live total. A month with a loss adds nothing. Only admins see this list; members see only the total.</p>' +
+        '<label>Month</label><input id="pf-month" type="month" value="' + ym(prev) + '" max="' + ym(now) + '">' +
+        '<label>Total profit for that month (US dollars)</label><input id="pf-amt" type="number" inputmode="decimal" step="0.01" placeholder="e.g. 1250.00">' +
+        '<label>Note <small style="color:var(--muted);font-weight:400;">(optional, admins only)</small></label><input id="pf-note" maxlength="300" placeholder="e.g. after payroll and hosting">' +
+        '<button class="btn" onclick="saveProfitMonth()">Save — adds half to the tracker</button>' +
+        (error ? '<div class="note">⚠️ ' + esc(error.message) + '</div>' : '') +
+        (data && data.length ? '<div class="sec" style="margin-top:0.8rem;"><h3>Entered so far</h3></div>' + data.map(r =>
+          '<div class="row"><div class="ricon">📅</div><div class="rmain"><div class="rtitle">' + esc(monthLabel(r.month)) + '</div>' +
+          '<div class="rmeta">Profit ' + pledgeMoney(r.profit_cents) + ' · ' + pledgeMoney(Math.max(0, +r.profit_cents) / 2) + ' to pets' + (r.note ? ' · ' + esc(r.note) : '') + '</div></div>' +
+          '<div class="raction"><button class="pill-btn ghost" onclick="editProfitMonth(\'' + esc(String(r.month).slice(0, 7)) + '\',' + Number(r.profit_cents) + ')">Edit</button></div></div>').join('') : '') +
+        '<button class="btn secondary" onclick="openDonate()">Back</button>');
+    }
+    function editProfitMonth(month, cents) {
+      const m = document.getElementById('pf-month'), a = document.getElementById('pf-amt');
+      if (m) m.value = month;
+      if (a) { a.value = (Number(cents) / 100).toFixed(2); a.focus(); }
+    }
+    async function saveProfitMonth() {
+      if (!isAdmin() || !(cloud && cloudUser)) return;
+      const month = val('pf-month'), amt = parseFloat(val('pf-amt'));
+      if (!/^\d{4}-\d{2}$/.test(month)) { toast('Pick the month'); return; }
+      if (!isFinite(amt)) { toast('Enter the profit (a loss can be negative)'); return; }
+      const note = (val('pf-note') || '').trim();
+      const { error } = await cloud.from('pledge_profit_months').upsert({
+        month: month + '-01', profit_cents: Math.round(amt * 100), note: note ? note.slice(0, 300) : null,
+        entered_by: cloudUser.id, updated_at: new Date().toISOString(),
+      });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      const t = await loadPledgeTotals(true);
+      toast('Saved ✓ The tracker shows ' + pledgeMoney(t ? t.raised_cents : 0));
+      openProfitEntry();
+    }
     function openDonate() {
       openSheet('💖 The Petfi Pledge',
+        '<div id="pledge-tracker">' + trackerHtml(PLEDGE_TOTALS) + '</div>' +
         pledgeCard() +
         '<div class="sec"><h3>💝 Give to the Pledge fund</h3></div>' +
         '<div id="donate-give">' + donateGiveHtml() + '</div>' +
         '<div class="sec"><h3>📒 Where the money went</h3></div>' +
         '<div id="donate-ledger"><div class="note">⏳ Loading…</div></div>' +
         (isAdmin() ? '<button class="btn secondary" onclick="openLedgerEntry()">➕ Record a gift given (admin)</button>' +
-          '<button class="btn secondary" onclick="openTopDonors()">🏆 Top supporters (admin)</button>' : '') +
+          '<button class="btn secondary" onclick="openTopDonors()">🏆 Top supporters (admin)</button>' +
+          '<button class="btn secondary" onclick="openProfitEntry()">📅 Record monthly profit (admin)</button>' : '') +
         '<div class="sec"><h3>🆘 A vet bill or a goodbye you can\'t cover?</h3></div>' +
         '<div class="note">Members who give are first in line for help. Email <a href="mailto:support@petfi.pet?subject=Petfi%20Pledge%20help">support@petfi.pet</a> from the email on your account with what happened and the bill. Petfi\'s treasurer decides each case; the fund is finite, so no promise is made in advance.</div>' +
         '<div class="sec"><h3>🏠 Or give straight to a shelter</h3></div>' +
@@ -3798,6 +3914,12 @@
       loadLedger();
       loadMyGiving();
       loadDonateShelters();
+      // Live: the total refreshes while the page is open
+      const seq = sheetSeq;
+      const tick = setInterval(() => {
+        if (sheetSeq !== seq || !document.getElementById('pledge-tracker')) { clearInterval(tick); return; }
+        loadPledgeTotals(true).then(t => { const tr = document.getElementById('pledge-tracker'); if (tr && t) tr.innerHTML = trackerHtml(t); });
+      }, 30000);
     }
     function donateGiveHtml() {
       if (!(cloud && cloudUser)) return '<div class="note">Sign in to give — every gift is recorded to your account, and members who give are first in line for help.</div>';
@@ -3904,7 +4026,7 @@
         cell(pledgeMoney(t.given_members_cents), 'to members<br>vet · cremation · adoption') +
         cell(pledgeMoney(t.given_orgs_cents), 'to shelters &amp;<br>organizations') +
         '</div>' +
-        '<p class="sub" style="font-size:0.74rem;text-align:center;margin:-0.3rem 0 0.6rem;">Received so far: <b>' + pledgeMoney(t.donated_cents) + '</b> from ' + (t.donors || 0) + ' supporter' + (t.donors === 1 ? '' : 's') + (t.last_given_on ? ' · last gift given ' + pledgeDate(t.last_given_on) : '') + '</p>';
+        (t.last_given_on ? '<p class="sub" style="font-size:0.74rem;text-align:center;margin:-0.3rem 0 0.6rem;">Last gift given ' + pledgeDate(t.last_given_on) + '</p>' : '');
     }
     function ledgerRowHtml(r) {
       const k = LEDGER_KIND[r.kind] || LEDGER_KIND.other;
@@ -3928,6 +4050,8 @@
         if (sheetSeq !== mySeq || !box()) return;
         if (t.error || l.error) throw (t.error || l.error);
         const rows = l.data || [];
+        if (t.data) { PLEDGE_TOTALS = t.data; pledgeTotalsAt = Date.now(); }
+        const tr = document.getElementById('pledge-tracker'); if (tr) tr.innerHTML = trackerHtml(PLEDGE_TOTALS);
         box().innerHTML = ledgerTotalsHtml(t.data || {}) +
           (rows.length ? rows.map(ledgerRowHtml).join('')
             : '<div class="note">Nothing given away yet — the fund is just opening. Every dollar that goes out will be listed here with the date and who received it.</div>');
@@ -4091,6 +4215,7 @@
     function inCat(p, c) {
       if (c === 'All') return true;
       if (c === 'Members') return !p.affiliate;
+      if (!p.affiliate) return true; // member listings show under every animal chip
       return (p.cats && p.cats.indexOf(c) >= 0) || p.cat === c;
     }
     function inType(p, t) {
@@ -4283,6 +4408,7 @@
           : p.mine
             ? '<button class="btn secondary" onclick="deleteListing(' + i + ')">🗑 Remove my listing</button>'
             : '<button class="btn" onclick="closeSheet();inquireListing(' + i + ')">💬 Message seller</button>' +
+              '<button class="pill-btn ghost" style="margin:0.2rem 0 0.4rem;" onclick="reportListing(' + i + ')">🚩 Report listing</button>' +
               (p.url && p.url !== '#' ? '<button class="btn secondary" onclick="openLink(\'' + jsStr(p.url) + '\')">🔗 Seller\'s link</button>' : '') +
               '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">You arrange payment, pickup or shipping directly with the seller. Petfi doesn\'t handle payments yet — never pay a seller you haven\'t talked to, and see the Terms of Service.</p>'));
     }
@@ -4347,11 +4473,10 @@
         if (!error) { g.joined = false; g.members = Math.max(0, g.members - 1); g.memberIds = (g.memberIds || []).filter(x => x !== cloudUser.id); g.meta = groupMeta(g); toast('Left ' + g.title); }
         else toast('⚠️ Couldn\'t leave the group');
       } else if (g.isPrivate && g.creatorId !== cloudUser.id) {
-        // Private: the request goes to the owner as a message
-        state.groupRequests = state.groupRequests || {};
-        if (state.groupRequests['c:' + g.cloudId]) { toast('Request already sent ⏳'); g.joinBusy = false; return; }
-        const { error } = await cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: g.creatorId, text: '🙋 Hi! I\'d like to join your group "' + g.title + '". Can you add me?' });
-        if (!error) { state.groupRequests['c:' + g.cloudId] = 1; saveState(); toast('🔒 Request sent to the group owner'); }
+        // Private: a join request the owner approves on the group page
+        if (g.requested) { toast('Request already sent ⏳'); g.joinBusy = false; return; }
+        const { error } = await cloud.from('group_requests').insert({ group_id: g.cloudId, user_id: cloudUser.id });
+        if (!error || /duplicate/i.test(error.message)) { g.requested = true; livePing(g.creatorId, { type: 'group' }); toast('🔒 Request sent — the owner approves it from the group page'); }
         else toast('⚠️ Couldn\'t send the request');
       } else {
         const { error } = await cloud.from('group_members').insert({ group_id: g.cloudId, user_id: cloudUser.id });
@@ -4456,14 +4581,14 @@
 
       // Reminders & calendar live in the private "My Care" tab on Home
       h += '<button class="btn secondary" style="margin-top:0.4rem;" onclick="refreshCare()">🔒 My reminders &amp; pet calendar →</button>';
-      h += '<button class="btn secondary" onclick="openDonate()">💖 The Petfi Pledge &amp; donate</button>';
+      h += '<button class="btn secondary" onclick="openDonate()">💖 Give &amp; see the live total</button>';
 
       // Settings
       h += '<div class="sec"><h3>⚙️ Settings</h3></div>';
       h += '<div class="settings-card">';
       h += settingToggle('visible', 'Show me nearby', 'Let users in your area find you', state.visible);
       h += settingToggle('friendsOnly', 'Only friends can message', 'Strangers can still bark/meow at you', state.friendsOnly);
-      if (isPet) h += settingToggle('petsOnly', 'Only interact with other pets', 'Off = interact with everyone', state.petsOnly);
+      if (isPet) h += settingToggle('petsOnly', 'Hide owner accounts', 'Pets only: owners\' posts, comments, messages and barks are hidden from you', state.petsOnly);
       if (!isPet) h += settingToggle('showMates', 'Show my breeding picks', 'On = the pets you\'ve saved as breeding picks appear on your public profile', state.showMates);
       h += settingToggle('soundsSend', 'Play my bark/meow when I say hi', 'Hear your own voice when you tap 🔊', state.soundsSend !== false);
       h += settingToggle('soundsReceive', 'Sound when someone barks at me', 'Hear their bark or meow arrive', state.soundsReceive !== false);
@@ -4536,7 +4661,7 @@
       state.accessories = state.accessories || {};
       if (value === null || value === 'null' || value === 'none') delete state.accessories[key];
       else state.accessories[key] = value;
-      saveState();
+      saveState(); cloudSaveProfile();
       document.getElementById('top-avatar').innerHTML = myAvatar(40);
       openAvatarStudio(); // re-render chips + preview
     }
@@ -5117,7 +5242,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.7.1';
+    const APP_VERSION = '1.8.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5174,13 +5299,13 @@
         '<p class="lu">The short version: we collect only what the app needs, we don\'t sell your data, and you can delete everything.</p>' +
         '<h3>What we collect</h3>' +
         '<ul><li><b>Account:</b> your email and password (password is stored encrypted by our provider, never readable by us).</li>' +
-        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members. Your age is private too, unless you publish a Mate Match for people card.</li>' +
+        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members; its approximate centre is stored privately too, to find members near you, and they see only a distance in whole miles. Your age is private too, unless you publish a Mate Match for people card.</li>' +
         '<li><b>Content:</b> your posts, comments, messages, listings, groups and favorites.</li>' +
         '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
         '<li><b>Recent searches:</b> your last 5 in-app searches are saved with your private account data. Never shown to others.</li>' +
         '<li><b>Crash reports:</b> when the app hits an error it sends the error message, stack trace, app version, page address, your browser\'s user agent and your user id — at most 5 per visit, readable only by Petfi admins.</li>' +
         '<li><b>Care data:</b> reminders and calendar entries — these are <b>private to you</b> and never shown to other users.</li>' +
-        '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position.</li></ul>' +
+        '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position. A new spot you add is saved with a pin rounded to about 100 m and your account.</li></ul>' +
         '<h3>How it\'s used</h3>' +
         '<ul><li>To run the app: show your profile to others (if visible), deliver messages, display listings.</li>' +
         '<li>Sharing: a profile link or QR code opens that profile for anyone who has it, <b>even without a Petfi account</b> — the same public profile members see (name, picture or icon, species or breed, badge, status). A link you send carries your member id, so if someone joins from it they send you a friend request.</li>' +
@@ -5227,7 +5352,7 @@
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi. If they say hi back, it\'s a match and you can message each other from Mate Match. Anyone can still reach you from your profile unless you turn on <b>Only friends can message</b> in Settings.</p></details>' +
         '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
         '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and the badge — and <b>100% of gifts</b> go into the Pledge fund. Half of the fund helps members: <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, <b>cremation costs</b> after a sudden loss, and <b>adoption fees</b> so shelter pets find homes faster. Members who give are first in line. The other half goes to <b>shelters and animal organizations</b>. Every dollar given away is listed on the Pledge page (Me → The Petfi Pledge) with the date and who received it. Buying through the Petfi store costs you nothing extra and funds this.</p></details>' +
-        '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores, groomers and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
+        '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
         '<details><summary>⏰ How do reminders work?</summary><p>Home tab → <b>🔒 My care</b> chip → add reminders (feeding, litter box…) or calendar entries (vet visits). Enable browser notifications and Petfi alerts you when something\'s due. This page is 100% private to you.</p></details>' +
         '<details><summary>🔊 What are barks & meows?</summary><p>A quick way to say hi! Tap 🔊 on any pet — they hear a real bark or meow. Anyone can bark at anyone; messages can be limited to friends in Settings.</p></details>' +
         '<details><summary>🔒 Who can see my stuff?</summary><p>Posts and your profile card are visible to Petfi members. Your reminders, calendar, and mate picks are private by default. You can hide yourself from Nearby and limit messages to friends in Settings.</p></details>' +
@@ -5291,8 +5416,8 @@
     // ---- Reporting: anonymous, cloud first with graceful fallback ----
     const REPORT_REASONS = ['🐾 Animal welfare concern', '🚫 Harassment or bullying', '🛒 Scam or dishonest listing', '🔞 Inappropriate content', '👤 Fake or impersonating account', '📣 Spam', 'Something else'];
     let reportTarget = null;
-    function openReport(kind, label, refId) {
-      reportTarget = { kind, label, refId: refId || null };
+    function openReport(kind, label, refId, extra) {
+      reportTarget = Object.assign({ kind, label, refId: refId || null }, extra || {});
       openSheet('🚩 Report ' + esc(label),
         '<p class="sub" style="font-size:0.85rem;">Reports are anonymous — ' + esc(label) + ' won\'t know it was you.</p>' +
         '<label>What\'s wrong?</label>' +
@@ -5304,6 +5429,11 @@
     async function submitReport() {
       if (!reportTarget) { closeSheet(); return; }
       const entry = { kind: reportTarget.kind, target: reportTarget.label, refId: reportTarget.refId, reason: val('rp-reason'), details: val('rp-text') };
+      // Who and what, so the admin card can suspend the author or remove the row
+      if (reportTarget.authorId) entry.authorId = reportTarget.authorId;
+      if (entry.kind === 'user' && !entry.authorId) entry.authorId = entry.refId;
+      if (reportTarget.table && reportTarget.rowId) { entry.table = reportTarget.table; entry.rowId = reportTarget.rowId; }
+      if (reportTarget.text) entry.text = String(reportTarget.text).slice(0, 600);
       // Snapshot the post so the report still makes sense if it's edited or gone
       if (entry.kind === 'post' && entry.refId) { const p = FEED.find(x => x.cloudId === entry.refId); if (p) { entry.text = String(p.text || '').slice(0, 600); entry.authorId = p.authorId || null; entry.scope = postScope(p); if (p.videoUrl || p.videoLocal) entry.hasVideo = true; } }
       reportTarget = null;
@@ -5384,7 +5514,7 @@
       const c = r.content || {};
       const post = MOD_POSTS[Number(c.refId)] || null;
       const gone = c.kind === 'post' && !post;
-      const authorId = c.authorId || (post && post.author_id) || null;
+      const authorId = c.authorId || (post && post.author_id) || (c.kind === 'user' && c.refId) || null;
       const shown = authorId ? authorName(authorId, c.target) : (c.target || 'Unknown');
       const prof = authorId && PROFILE_BY_ID[authorId];
       const text = post ? String((post.content || {}).text || '') : String(c.text || '');
@@ -5399,6 +5529,7 @@
         '</div>' +
         '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;">' +
           (post ? '<button class="pill-btn" style="background:#c0392b;" onclick="modRemovePost(' + post.id + ',' + r.id + ')">🗑 Remove post</button>' : '') +
+          (!post && c.table && c.rowId && MOD_TABLES[c.table] ? '<button class="pill-btn" style="background:#c0392b;" onclick="modRemoveRow(\'' + c.table + '\',' + Number(c.rowId) + ',' + r.id + ')">🗑 Remove ' + MOD_TABLES[c.table] + '</button>' : '') +
           (authorId && !(prof && prof.banned) ? '<button class="pill-btn" style="background:var(--ink);" onclick="modBan(\'' + jsStr(authorId) + '\',' + r.id + ')">⛔ Suspend account</button>' : '') +
           '<button class="pill-btn ghost" onclick="modResolve(' + r.id + ',\'dismissed\')">✓ Dismiss</button>' +
         '</div></div>';
@@ -5417,6 +5548,44 @@
       const idx = FEED.findIndex(p => p.cloudId === postId); if (idx >= 0) FEED.splice(idx, 1);
       await modResolve(reportId, 'post removed', true);
       renderModeration(); toast('Post removed 🗑');
+    }
+    // Admins may delete these (an "admin delete" policy on each table)
+    const MOD_TABLES = { post_comments: 'comment', group_posts: 'group post', listings: 'listing', mate_listings: 'breeding listing', ads: 'ad' };
+    async function modRemoveRow(table, rowId, reportId) {
+      if (!MOD_TABLES[table]) return;
+      const { error } = await cloud.from(table).delete().eq('id', rowId);
+      if (error) { toast('⚠️ ' + error.message); return; }
+      await modResolve(reportId, MOD_TABLES[table] + ' removed', true);
+      renderModeration(); toast('Removed 🗑');
+    }
+    // Report buttons on every surface: each carries the author and the row
+    function reportComment(cid) {
+      for (const p of FEED) {
+        const c = (p.comments || []).find(x => x.cid === cid);
+        if (c) { openReport('comment', 'this comment', cid, { authorId: c.authorId, table: 'post_comments', rowId: cid, text: c.text }); return; }
+      }
+    }
+    function reportGroupPost(i, gid) {
+      const g = GROUPS_VIEW[i]; const gp = g && (g.posts || []).find(x => x.gid === gid);
+      if (gp) openReport('group post', 'this group post', gid, { authorId: gp.authorId, table: 'group_posts', rowId: gid, text: gp.text });
+    }
+    function reportListing(i) {
+      const p = STORE_VIEW[i];
+      if (p && p.cloudId) openReport('listing', '"' + String(p.title || 'this listing').slice(0, 40) + '"', p.cloudId, { authorId: p.sellerId, table: 'listings', rowId: p.cloudId, text: (p.title || '') + ' — ' + (p.desc || '') });
+    }
+    function reportMate(i) {
+      const m = MATES_VIEW[i];
+      if (m && m.cloudId) openReport('breeding listing', String(m.name || 'this listing').slice(0, 40), m.cloudId, { authorId: m.ownerId, table: 'mate_listings', rowId: m.cloudId, text: (m.name || '') + ' (' + (m.breed || '') + ') ' + (m.notes || m.desc || '') });
+    }
+    function reportAd() {
+      const ad = SPOTLIGHT_AD;
+      if (ad && ad.cloudId) openReport('ad', 'this ad', ad.cloudId, { authorId: ad.ownerId, table: 'ads', rowId: ad.cloudId, text: ad.text || '' });
+    }
+    function hideAd(id) {
+      state.hiddenAds = (state.hiddenAds || []).concat([id]).slice(-50);
+      saveState();
+      if (state.tab === 'home') openTab('home');
+      toast('Ad hidden');
     }
     function modBan(userId, reportId) {
       openSheet('⛔ Suspend ' + esc(authorName(userId, 'this member')) + '?',
@@ -5711,9 +5880,33 @@
 
     // ---- Blocking: blocked users vanish from feed, nearby & messages ----
     function isBlocked(id) { return !!id && (state.blocked || []).some(b => b.id === id); }
+    // Whose content this member doesn't see: people they blocked, accounts
+    // Petfi suspended, and (for a pet account that chose it) owner accounts.
+    function hiddenUser(id) {
+      if (!id || (cloudUser && id === cloudUser.id)) return false;
+      if (isBlocked(id) || isBannedUser(id)) return true;
+      const p = PROFILE_BY_ID[id];
+      return !!(state.petsOnly && state.accountType === 'pet' && p && p.kind === 'owner');
+    }
+    // Blocks live in the database too (petfi-fixes-2026-11-01.sql): they stop
+    // messages and friend requests, and hide your profile from that person.
+    async function loadBlocks() {
+      if (!cloud || !cloudUser) return;
+      const { data, error } = await cloud.from('blocks').select('blocked_id');
+      if (error || !data) return;
+      state.blocked = state.blocked || [];
+      const inCloud = {};
+      let added = false;
+      data.forEach(r => { inCloud[r.blocked_id] = 1; if (!isBlocked(r.blocked_id)) { state.blocked.push({ id: r.blocked_id, name: authorName(r.blocked_id, 'A member') }); added = true; } });
+      // Blocks made on this device before the table existed go up now
+      state.blocked.filter(b => !inCloud[b.id] && UUID_RE.test(b.id || '')).forEach(b => {
+        cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: b.id }).then(() => {});
+      });
+      if (added) saveState();
+    }
     function blockUser(id, name) {
       openSheet('🚫 Block ' + esc(name) + '?',
-        '<p class="sub">' + esc(name) + ' won\'t be able to message you, and you won\'t see their posts or profile anymore. They aren\'t told they\'ve been blocked.</p>' +
+        '<p class="sub">' + esc(name) + ' won\'t be able to message you, send you a friend request or see your profile, and you won\'t see their posts, comments, listings or ads. They aren\'t told they\'ve been blocked.</p>' +
         '<button class="btn" onclick="reallyBlock(\'' + jsStr(id) + '\',\'' + jsStr(name) + '\')">🚫 Yes, block them</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Cancel</button>');
     }
@@ -5721,6 +5914,8 @@
       state.blocked = state.blocked || [];
       if (!isBlocked(id)) state.blocked.push({ id, name });
       saveState();
+      if (cloud && cloudUser && UUID_RE.test(id)) cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: id })
+        .then(({ error }) => { if (error && !/duplicate/i.test(error.message)) console.warn('block:', error.message); });
       // Scrub them from everything already on screen
       for (let i = FEED.length - 1; i >= 0; i--) if (FEED[i].authorId === id) FEED.splice(i, 1);
       PEOPLE = PEOPLE.filter(p => p.id !== id);
@@ -5734,7 +5929,7 @@
         (list.length
           ? list.map((b, i) =>
               '<div class="row"><div class="ricon">🚫</div>' +
-              '<div class="rmain"><div class="rtitle">' + esc(b.name) + '</div><div class="rmeta">Can\'t message you or see you nearby</div></div>' +
+              '<div class="rmain"><div class="rtitle">' + esc(b.name) + '</div><div class="rmeta">Can\'t message you, add you or see your profile</div></div>' +
               '<div class="raction"><button class="pill-btn ghost" onclick="unblockUser(' + i + ')">Unblock</button></div></div>').join('')
           : '<div class="note">You haven\'t blocked anyone. If someone bothers you, open their profile and tap 🚫 Block.</div>') +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
@@ -5742,6 +5937,7 @@
     function unblockUser(i) {
       const b = (state.blocked || []).splice(i, 1)[0];
       saveState();
+      if (b && cloud && cloudUser) cloud.from('blocks').delete().eq('blocker_id', cloudUser.id).eq('blocked_id', b.id).then(() => {});
       lastPeopleFetch = 0; lastPostsFetch = 0; // let them reappear on next refresh
       openBlockedList();
       if (b) toast(b.name + ' unblocked');
@@ -5853,7 +6049,7 @@
     function setHomeTab(t) { state.homeTab = t; openTab('home'); }
     function refreshCare() { state.homeTab = 'care'; openTab('home'); }
     function renderCare() {
-      let h = '<div class="note" style="margin-top:0;">🔒 This page is <b>private</b> — only you can ever see what\'s on it.</div>';
+      let h = '<div class="note" style="margin-top:0;">🔒 Your reminders and calendar are <b>private</b> — only you can see them.</div>';
 
       // Your breeding listings (the full Mate Match lives in its own tab)
       if (state.accountType === 'owner') h += mateBlock();
@@ -6140,6 +6336,7 @@
       if (announce) toast('Video removed');
     }
     async function submitPost() {
+      if (!canSaveToCloud('post')) return;
       let t = val('cmp-text');
       if (!t && !postPhotos.length && !postVideo) { toast('Write something, or add a photo or video first'); return; }
       if (composeMood) { t = (t ? t + ' ' : '') + '— feeling ' + composeMood; composeMood = ''; }
@@ -6324,6 +6521,7 @@
     }
     function removeSellPhoto(i) { sellPhotos.splice(i, 1); renderSellPreviews(); }
     async function saveListing() {
+      if (!canSaveToCloud('list something')) return;
       const title = val('sell-title'); if (!title) { toast('Add a title'); return; }
       const cat = val('sell-cat') || 'Products';
       const desc = val('sell-desc');
@@ -6378,10 +6576,11 @@
     function grpVisNote() {
       const n = document.getElementById('grp-vis-note'); if (!n) return;
       n.innerHTML = (val('grp-vis') === 'Private')
-        ? '🔒 <b>Private</b> — people must <b>request</b> to join, and you (or admins you appoint once the group passes 10 members) approve each one.'
+        ? '🔒 <b>Private</b> — people must <b>request</b> to join, and you approve each one from the group page. Only members see the posts.'
         : '🌍 <b>Public</b> — anyone can join instantly, and everyone can see the posts.';
     }
     async function saveGroup() {
+      if (!canSaveToCloud('create a group')) return;
       const name = val('grp-name'); if (!name) { toast('Name your group'); return; }
       const desc = val('grp-desc');
       const isPrivate = (val('grp-vis') || 'Public') === 'Private';
@@ -6721,7 +6920,7 @@
       // Barks at you — bark back and it's a match 💘
       if (cloudUser) {
         const seenSender = {};
-        MY_MESSAGES.filter(m => m.recipient_id === cloudUser.id && m.kind === 'bark' && !isBlocked(m.sender_id))
+        MY_MESSAGES.filter(m => m.recipient_id === cloudUser.id && m.kind === 'bark' && !hiddenUser(m.sender_id))
           .slice(0, 12).forEach(m => {
             if (seenSender[m.sender_id]) return;
             seenSender[m.sender_id] = true;
@@ -6807,7 +7006,7 @@
     function isClosedListing(m) { return !!(m && m.status === 'closed'); }
     // Sort: nearest first (unknown distance last), then newest
     function visibleMates() {
-      const all = CLOUD_MATES.filter(m => !isBlocked(m.ownerId) && !isBannedUser(m.ownerId) && (m.mine || !isClosedListing(m))).concat(LOCAL_MATES);
+      const all = CLOUD_MATES.filter(m => !hiddenUser(m.ownerId) && (m.mine || !isClosedListing(m))).concat(LOCAL_MATES);
       all.forEach(m => { m._d = mateDistance(m); });
       all.sort((a, b) => {
         if (a._d != null && b._d != null && a._d !== b._d) return a._d - b._d;
@@ -6841,7 +7040,7 @@
     function matchesFor(m) {
       if (isClosedListing(m)) return [];
       const pool = MATES_VIEW.length ? MATES_VIEW : visibleMates();
-      return pool.filter(x => { if (isClosedListing(x) || !complementary(m, x)) return false; const mi = pairMiles(m, x); return mi == null || mi <= MATCH_RADIUS_MI; });
+      return pool.filter(x => { if (isClosedListing(x) || !complementary(m, x)) return false; const mi = pairMiles(m, x); return mi != null && mi <= MATCH_RADIUS_MI; });
     }
     // A listing that appeared since your last look and pairs with one of yours → say so
     function noteNewMatches() {
@@ -6889,6 +7088,7 @@
         h += '<div class="sec" style="margin-top:0.4rem;"><h3>🐾 My listings</h3></div>';
         mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), isClosedListing(m) ? 'Closed — only you can see this one. Tap to reopen.' : n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — you\'ll be told the moment one appears'); });
       }
+      if ((state.matePicks || []).length) h += '<div class="link-row" style="margin:0.4rem 0;" onclick="openMyPicks()"><span class="li">⭐</span><div>My picks<small>' + state.matePicks.length + ' saved listing' + (state.matePicks.length === 1 ? '' : 's') + '</small></div><span class="chev">›</span></div>';
       const me = myGeo();
       h += '<div class="sec" id="mm-browse"><h3>🔍 Listings near you</h3>' +
         (state.zip ? '<span class="link" onclick="openTab(\'nearby\')">📍 ' + esc(me && me.area ? me.area : 'ZIP ' + state.zip) + '</span>' : '<span class="link" onclick="openTab(\'nearby\')">Set my ZIP ›</span>') + '</div>';
@@ -7006,7 +7206,8 @@
           : (m.ownerId
               ? '<button class="btn mm-publish" onclick="openCloudDM(\'' + jsStr(m.ownerId) + '\')">💬 Message the owner</button>'
               : '<div class="note">This listing only exists on this device.</div>') +
-            '<button class="btn secondary" onclick="saveMatePick(' + i + ')">⭐ Save to my picks</button>'));
+            '<button class="btn secondary" onclick="saveMatePick(' + i + ')">⭐ Save to my picks</button>' +
+            (m.ownerId ? '<button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="reportMate(' + i + ')">🚩 Report listing</button>' : '')));
     }
     // Your picks are PRIVATE unless "Show my breeding activity" is on —
     // then they appear on your public profile card.
@@ -7014,10 +7215,27 @@
       const m = MATES_VIEW[i]; if (!m) return;
       state.matePicks = state.matePicks || [];
       if (state.matePicks.some(p => p.name === m.name && p.breed === m.breed)) { toast('Already in your picks ⭐'); return; }
-      state.matePicks.push({ name: m.name, breed: m.breed });
+      state.matePicks.push({ name: m.name, breed: m.breed, id: m.cloudId || null });
       saveState();
       if (state.showMates) cloudSaveProfile(); // the public profile shows picks only when that's on
-      toast('Saved to your picks ⭐' + (state.showMates ? ' (shown on your profile)' : ' (private)'));
+      toast('Saved to ⭐ My picks on Mate Match' + (state.showMates ? ' (shown on your profile)' : ''));
+    }
+    function openMyPicks() {
+      visibleMates();
+      const picks = state.matePicks || [];
+      openSheet('⭐ My picks',
+        (picks.length ? picks.map((p, k) => {
+          const m = p.id ? MATES_VIEW.find(x => x.cloudId === p.id) : null;
+          return '<div class="row"><div class="ricon">💘</div><div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(p.breed || '') + (m ? '' : ' · no longer listed') + '</div></div>' +
+            '<div class="raction" style="display:flex;gap:0.3rem;">' + (m ? '<button class="pill-btn" onclick="openMateDetail(' + MATES_VIEW.indexOf(m) + ')">Open</button>' : '') +
+            '<button class="pill-btn ghost" onclick="removeMatePick(' + k + ')">Remove</button></div></div>';
+        }).join('') : '<div class="note">Tap ⭐ Save to my picks on any listing to keep it here.</div>') +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    function removeMatePick(k) {
+      (state.matePicks || []).splice(k, 1);
+      saveState(); if (state.showMates) cloudSaveProfile();
+      openMyPicks();
     }
     function deleteMateListing(id) {
       if (!id) return;
@@ -7203,6 +7421,7 @@
         brPhotos.map((p, i) => thumb(p, 'brPhotos', i)).join('');
     }
     async function saveBreedingListing() {
+      if (!canSaveToCloud('list an animal')) return;
       const editing = brEdit;
       const btnLabel = editing ? 'Save changes' : 'Publish my listing 💘';
       const name = val('br-name'), breed = val('br-breed'), age = val('br-age'), comp = val('br-comp'), zip = val('br-zip');
@@ -7338,6 +7557,7 @@
       const zip = val('dp-zip');
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP should be 5 digits'); return; }
       if (zip) state.zip = zip;
+      if (!state.zip && (val('dp-radius') || '50') !== 'app') { toast('Add your ZIP so people near you can find you — or pick App-wide'); return; }
       state.dating = {
         age, gender: val('dp-gender') || 'Other', interestedIn: val('dp-interest') || 'Everyone',
         ageMin: parseInt(val('dp-agemin'), 10) || 18, ageMax: parseInt(val('dp-agemax'), 10) || 99,
@@ -7365,8 +7585,10 @@
       };
       try {
         await cloud.from('posts').delete().eq('author_id', cloudUser.id).eq('content->>petfiType', 'mate_profile');
-        await cloud.from('posts').insert({ author_id: cloudUser.id, content: card });
-      } catch (e) { console.warn('dating card:', e.message); }
+        const { error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content: card });
+        if (error) throw error;
+        if (!card.loc) toast('Your card is live app-wide — add a ZIP so people near you see it too');
+      } catch (e) { console.warn('dating card:', e && e.message); toast('⚠️ Your Mate Match card didn\'t publish — try again'); }
     }
     async function loadHumanMates() {
       if (!cloud || !cloudUser) return;
@@ -7374,9 +7596,10 @@
         .eq('content->>petfiType', 'mate_profile')
         .order('created_at', { ascending: false }).limit(60);
       if (!data) return;
+      await ensureProfiles(data.map(r => r.author_id));
       const seen = {};
       CLOUD_HUMANS = data.filter(r => {
-        if (r.author_id === cloudUser.id || isBlocked(r.author_id) || seen[r.author_id]) return false;
+        if (r.author_id === cloudUser.id || hiddenUser(r.author_id) || seen[r.author_id]) return false;
         seen[r.author_id] = true;
         return true;
       }).map(r => {
@@ -7398,6 +7621,7 @@
       if (pref === 'any') return pets.length > 0;
       return pets.indexOf(pref) >= 0;
     }
+    let HM_HAVE_GEO = false; // without my own location a radius can't be applied, so it isn't
     function humanFits(c) {
       const d = state.dating || {};
       if (!genderMatches(d.interestedIn, c.gender)) return false;
@@ -7408,7 +7632,7 @@
       if (c.ageMin && d.age && (d.age < c.ageMin || d.age > c.ageMax)) return false;
       // Radius: honest best effort — needs both ZIPs geocoded (done in showHumanMatches)
       const rad = (RADIUS_OPTS.find(r => r.key === d.radius) || {}).mi || Infinity;
-      if (rad !== Infinity && (c.mi == null || c.mi > rad)) return false; // a radius means "near me" — unknown distance doesn't qualify
+      if (rad !== Infinity && HM_HAVE_GEO && (c.mi == null || c.mi > rad)) return false; // a radius means "near me" — unknown distance doesn't qualify
       return true;
     }
     // ZIP → { lat, lon, area:"Town, ST" }. Zippopotam knows every US ZIP and
@@ -7450,6 +7674,7 @@
       await loadHumanMates();
       // Distances: my ZIP once, then every card's own rounded point — no per-card lookups, no cap
       const mine = await geocodeZip(state.zip);
+      HM_HAVE_GEO = !!mine;
       CLOUD_HUMANS.forEach(c => { c.mi = (mine && c.loc) ? Math.round(haversineMi(mine.lat, mine.lon, c.loc.lat, c.loc.lon)) : null; });
       renderHumanMatches();
     }
@@ -7568,26 +7793,50 @@
     }
 
     // ======================= GROUP DETAIL =======================
+    function groupRequestsHtml(g, i) {
+      if (!g.mine || !(g.requests || []).length) return '';
+      return '<div class="sec" style="margin:0.4rem 0;"><h3>🙋 Join requests (' + g.requests.length + ')</h3></div>' +
+        g.requests.map(uid => '<div class="row"><div class="ricon" style="overflow:hidden;">' + (PROFILE_BY_ID[uid] ? personAvatar(PROFILE_BY_ID[uid], 40) : '🐾') + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(authorName(uid, 'A member')) + '</div></div>' +
+          '<div class="raction" style="display:flex;gap:0.3rem;"><button class="pill-btn" onclick="approveGroupRequest(' + i + ',\'' + jsStr(uid) + '\')">Approve</button>' +
+          '<button class="pill-btn ghost" onclick="declineGroupRequest(' + i + ',\'' + jsStr(uid) + '\')">Decline</button></div></div>').join('');
+    }
+    async function approveGroupRequest(i, uid) {
+      const g = GROUPS_VIEW[i]; if (!g || !cloud) return;
+      const { data, error } = await cloud.rpc('petfi_group_approve', { gid: g.cloudId, uid });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      g.requests = (g.requests || []).filter(x => x !== uid);
+      if (data) { g.members++; (g.memberIds = g.memberIds || []).push(uid); g.meta = groupMeta(g); livePing(uid, { type: 'group' }); toast('Approved ✓ ' + authorName(uid, 'They') + ' can see and post now'); }
+      openGroupDetail(i);
+    }
+    async function declineGroupRequest(i, uid) {
+      const g = GROUPS_VIEW[i]; if (!g || !cloud) return;
+      const { error } = await cloud.from('group_requests').delete().eq('group_id', g.cloudId).eq('user_id', uid);
+      if (error) { toast('⚠️ Couldn\'t decline'); return; }
+      g.requests = (g.requests || []).filter(x => x !== uid);
+      openGroupDetail(i);
+    }
     function groupSheetBody(g, i, posts) {
       const canPost = g.joined || !g.cloudId;
       return '<p class="sub" style="margin-bottom:0.4rem;">' + esc(g.meta) + (g.creatorId ? ' · started by ' + esc(authorName(g.creatorId, 'a member')) : '') + '</p>' +
         (g.desc ? '<p style="font-size:0.88rem;margin-bottom:0.7rem;">' + esc(g.desc) + '</p>' : '') +
-        '<div id="grp-posts">' + (posts.length ? posts.map(p =>
-          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
+        groupRequestsHtml(g, i) +
+        '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
+          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
           : '<div class="note">No posts yet — start the conversation! 🐾</div>') + '</div>' +
         (canPost
           ? '<div class="cmt-input-row"><input id="grp-post-in" type="text" placeholder="Post to the group..." onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
             '<button class="pill-btn" onclick="postToGroup(' + i + ')">Post</button></div>'
-          : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? '🔒 Request to join' : '👥 Join to post') + '</button>');
+          : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? (g.requested ? '⏳ Request sent' : '🔒 Request to join') : '👥 Join to post') + '</button>');
     }
     async function openGroupDetail(i) {
       const g = GROUPS_VIEW[i]; if (!g) return;
       if (g.cloudId) {
         openSheet(esc(g.emo) + ' ' + esc(g.title), '<p class="sub">Loading posts…</p>');
         const mySeq = sheetSeq;
-        const { data } = await cloud.from('group_posts').select('author_id, content, created_at').eq('group_id', g.cloudId).order('created_at', { ascending: false }).limit(30);
-        await ensureProfiles((data || []).map(r => r.author_id));
-        g.posts = (data || []).map(r => ({ who: authorName(r.author_id, r.content && r.content.who), text: String((r.content && r.content.text) || ''), at: r.created_at }));
+        const { data } = await cloud.from('group_posts').select('id, author_id, content, created_at').eq('group_id', g.cloudId).order('created_at', { ascending: false }).limit(30);
+        await ensureProfiles((data || []).map(r => r.author_id).concat(g.requests || []));
+        g.posts = (data || []).filter(r => !hiddenUser(r.author_id)).map(r => ({ who: authorName(r.author_id, r.content && r.content.who), text: String((r.content && r.content.text) || ''), at: r.created_at, authorId: r.author_id, gid: r.id }));
         if (sheetSeq !== mySeq) return; // user closed/switched sheets while loading
         openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
         return;
@@ -7604,9 +7853,7 @@
         const { error } = await cloud.from('group_posts').insert({ group_id: g.cloudId, author_id: cloudUser.id, content: post });
         if (error) { toast('⚠️ Post didn\'t send — try again'); return; }
         toast('Posted to the group 👥');
-      } else {
-        toast('Posted on this device 👥');
-      }
+      } else { canSaveToCloud('post'); return; }
       g.posts.unshift(post);
       openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
     }
@@ -7922,16 +8169,19 @@
     }
     function notifStatusLine() {
       if (!('Notification' in window)) return '<div class="note">🔕 This browser doesn\'t support notifications — reminders will show inside the app only.</div>';
-      if (Notification.permission === 'granted') return '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications enabled — we\'ll alert you when a reminder is due.</div>';
+      if (Notification.permission === 'granted') return PUSH_ACTIVE
+        ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications on — reminders reach this device even when Petfi is closed.</div>'
+        : '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications on — reminders alert you while Petfi is open' + (pushSupported() && cloudUser ? '. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="turnOnClosedAlerts()">Get them with the app closed too</span>' : ' (this browser can\'t receive them closed; add Petfi to your home screen or use the Android app)') + '.</div>';
       if (Notification.permission === 'denied') return '<div class="note">🔕 Notifications are blocked in your browser settings — reminders will only appear while the app is open. Unblock them to get alerts.</div>';
       return '<div class="note">🔔 <b>Enable notifications</b> so we can alert you when a reminder is due — otherwise you won\'t get alerts. ' +
              '<span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="askNotifPermission()">Enable now</span></div>';
     }
     function askNotifPermission() {
       if (!('Notification' in window)) { toast('Notifications not supported here'); return; }
-      Notification.requestPermission().then(p => {
+      Notification.requestPermission().then(async p => {
+        if (p === 'granted') await ensurePushSubscription(true);
         if (state.tab === 'home') openTab('home');
-        toast(p === 'granted' ? '🔔 Notifications enabled!' : 'You can enable them later in browser settings');
+        toast(p === 'granted' ? (PUSH_ACTIVE ? '🔔 Notifications on — they reach you even when Petfi is closed' : '🔔 Notifications enabled!') : 'You can enable them later in browser settings');
       });
     }
     function openAddReminder() {
@@ -7980,8 +8230,89 @@
     }
     function fireReminder(rm) {
       if (!notifPref('reminders')) return; // silenced in notification settings
-      const shown = showNotif('🐾 Petfi reminder', rm.what);
+      // With push on, the server sends this one (to every device, app open or
+      // not); showing it here too would make it ring twice.
+      const shown = PUSH_ACTIVE ? true : showNotif('🐾 Petfi reminder', rm.what);
       if (!shown || document.visibilityState === 'visible') toast('⏰ Reminder: ' + rm.what);
+    }
+
+    // ---- Web Push: reminders and calendar alerts arrive with the app closed ----
+    // The device subscribes (petfi_push_subscriptions); the app keeps its
+    // upcoming alerts in petfi_push_schedule; the petfi-push function sends
+    // them every minute (pg_cron). See petfi-push-2026-11-01.sql.
+    const VAPID_PUBLIC_KEY = 'BNlg9NOhnWFklMnc55vVxMSxKhVW62jxMC4mtb3GvDWycEQG-SAvY39tWAFHhDDGXXujlDPGdKnD7pHBU1Qe7i8';
+    let PUSH_ACTIVE = false;
+    function pushSupported() { return 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window; }
+    function b64urlToBytes(b) {
+      const pad = '='.repeat((4 - b.length % 4) % 4);
+      const raw = atob((b + pad).replace(/-/g, '+').replace(/_/g, '/'));
+      return Uint8Array.from(raw, c => c.charCodeAt(0));
+    }
+    async function ensurePushSubscription(sendTest) {
+      if (!cloud || !cloudUser || !pushSupported() || Notification.permission !== 'granted') { PUSH_ACTIVE = false; return false; }
+      try {
+        const reg = await navigator.serviceWorker.ready;
+        let sub = await reg.pushManager.getSubscription();
+        if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(VAPID_PUBLIC_KEY) });
+        const j = sub.toJSON();
+        if (!j.endpoint || !j.keys) return false;
+        const { error } = await cloud.from('petfi_push_subscriptions').upsert({
+          user_id: cloudUser.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
+          ua: String(navigator.userAgent || '').slice(0, 300), failures: 0,
+        }, { onConflict: 'endpoint' });
+        if (error) { console.warn('push subscribe:', error.message); PUSH_ACTIVE = false; return false; }
+        PUSH_ACTIVE = true;
+        state.pushSyncedSig = ''; schedulePushSync(0);
+        if (sendTest) { try { await cloud.functions.invoke('petfi-push', { method: 'POST', body: { test: true } }); } catch (e) {} }
+        return true;
+      } catch (e) { console.warn('push subscribe:', e && e.message); PUSH_ACTIVE = false; return false; }
+    }
+    // The alerts the server should send, rebuilt from reminders + calendar
+    function pushRows() {
+      if (!notifPref('reminders')) return [];
+      const now = Date.now(), rows = [];
+      (state.reminders || []).forEach((rm, k) => {
+        if (!(rm.ms >= 3600000) || !rm.next) return;
+        const next = rm.next > now ? rm.next : nextReminderTime(rm, now);
+        rows.push({ title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms });
+      });
+      (state.calendar || []).forEach((c, k) => {
+        if (c.notified || c.followUpAsked) return;
+        const at = calNotifyTime(c);
+        if (!(at > now) || now > new Date(c.date + 'T23:59:59').getTime()) return;
+        rows.push({ title: '🗓️ ' + String(c.what || 'Appointment').slice(0, 100), body: c.time ? 'Today at ' + c.time : 'Today!', tag: 'cal:' + k, next_at: new Date(at).toISOString(), every_ms: null });
+      });
+      return rows.slice(0, 60);
+    }
+    async function turnOnClosedAlerts() {
+      const ok = await ensurePushSubscription(true);
+      toast(ok ? '🔔 Done — alerts now arrive with the app closed' : '⚠️ This device can\'t receive alerts while Petfi is closed');
+      if (state.tab === 'home') openTab('home');
+    }
+    let pushSyncTimer = null, pushSyncing = false;
+    function schedulePushSync(delay) {
+      if (!PUSH_ACTIVE) return;
+      clearTimeout(pushSyncTimer);
+      pushSyncTimer = setTimeout(syncPushSchedule, delay == null ? 3000 : delay);
+    }
+    async function syncPushSchedule() {
+      if (!PUSH_ACTIVE || !cloud || !cloudUser || pushSyncing) return;
+      const rows = pushRows();
+      // Only the shape matters for the signature: next_at moves on its own server-side
+      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_ms ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']));
+      if (sig === state.pushSyncedSig) return;
+      pushSyncing = true;
+      try {
+        const del = await cloud.from('petfi_push_schedule').delete().eq('user_id', cloudUser.id);
+        if (del.error) throw del.error;
+        if (rows.length) {
+          const ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
+          if (ins.error) throw ins.error;
+        }
+        state.pushSyncedSig = sig;
+        try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+      } catch (e) { console.warn('push schedule:', e && e.message); }
+      finally { pushSyncing = false; }
     }
     // When to alert for a calendar entry: 1 hour before if a time was
     // set, otherwise 8 AM the morning of the appointment.
@@ -8403,6 +8734,7 @@
           favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: f.url })),
           sugg: (state.suggestions || []).slice(0, 10),
           age: state.accountType === 'pet' ? petAge(state.bday) : '', // a person's age stays private
+          pets: state.accountType === 'owner' ? (state.pets || []).slice(0, 8).map(x => ({ n: String(x.name || '').slice(0, 30), s: String(x.species || '').slice(0, 20), b: String(x.breed || '').slice(0, 40) })) : null,
           look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? (state.ownerEmoji || null) : null, p: state.avatarUrl || null,
             s: state.accountType === 'pet' && !state.avatarUrl ? (state.shareAvatarSig || null) : null },
         },
@@ -8519,7 +8851,7 @@
       if (ids.length) {
         const [l, c] = await Promise.all([
           cloud.from('post_likes').select('post_id, user_id').in('post_id', ids),
-          cloud.from('post_comments').select('post_id, author_id, content').in('post_id', ids).order('created_at'),
+          cloud.from('post_comments').select('id, post_id, author_id, content').in('post_id', ids).order('created_at'),
         ]);
         likes = l.data || []; comments = c.data || [];
       }
@@ -8537,7 +8869,7 @@
         FEED.splice(i, 1);
       }
       data.slice().reverse().forEach(row => {
-        if (isBlocked(row.author_id) || isBannedUser(row.author_id)) return; // blocked (by you) or suspended (by Petfi) users vanish
+        if (hiddenUser(row.author_id)) return; // blocked (by you), suspended (by Petfi), or owners for a pets-only account
         const c = row.content || {};
         if (c.petfiType) return; // dating cards / territory claims aren't feed posts
         if (c.pendingKey && pendingKeys[c.pendingKey]) return; // still shown as the local copy
@@ -8569,7 +8901,7 @@
         p.sub = meta + ' · ' + timeAgo(row.created_at) + (p.loc && p.loc.area ? ' · 📍 ' + p.loc.area : '');
         p.likes = likes.filter(x => x.post_id === row.id).length;
         p.likedByMe = !!(cloudUser && likes.some(x => x.post_id === row.id && x.user_id === cloudUser.id));
-        p.comments = comments.filter(x => x.post_id === row.id).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || '') }));
+        p.comments = comments.filter(x => x.post_id === row.id && !hiddenUser(x.author_id)).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || ''), authorId: x.author_id, cid: x.id }));
         FEED.unshift(p);
       });
       freshMine.forEach(p => FEED.unshift(p)); // your seconds-old posts stay on top
@@ -8618,21 +8950,51 @@
     // ======================= PEOPLE & FRIENDS =======================
     // Real member profiles, friend requests, and barks between accounts.
     let PEOPLE = [];               // other users' public profiles
+    let PEOPLE_MODE = 'newest';    // 'near' (by ZIP, from the database) | 'newest' | 'none-near'
     const PROFILE_BY_ID = {};      // quick lookup, includes hidden users
     let FRIENDSHIPS = [];          // every request/friendship involving me
     let lastPeopleFetch = 0;
 
+    async function syncMyLocation() {
+      if (!cloud || !cloudUser) return;
+      const zip = state.zip || '';
+      if ((state.locSyncedZip || '') === zip) return; // nothing new (no ZIP and nothing stored is in sync too)
+      try {
+        if (!zip) await cloud.from('member_locations').delete().eq('user_id', cloudUser.id);
+        else {
+          const g = await geocodeZip(zip); if (!g) return;
+          const { error } = await cloud.from('member_locations').upsert({ user_id: cloudUser.id, lat: Math.round(g.lat * 100) / 100, lon: Math.round(g.lon * 100) / 100, updated_at: new Date().toISOString() });
+          if (error) { console.warn('location:', error.message); return; }
+        }
+        state.locSyncedZip = zip; saveState();
+      } catch (e) {}
+    }
     async function loadPeople(force) {
       if (!cloud || !cloudUser) return;
       if (!force && Date.now() - lastPeopleFetch < 30000) return;
       lastPeopleFetch = Date.now();
-      const { data } = await cloud.from('profiles').select('*').neq('id', cloudUser.id)
-        .order('created_at', { ascending: false }).limit(40);
+      // Members near you: your ZIP's centre is stored privately, and the
+      // database answers with whole-mile distances (petfi_members_near)
+      await syncMyLocation();
+      let near = null;
+      if (state.zip) {
+        const r = await cloud.rpc('petfi_members_near', { radius_mi: LOCAL_RADIUS_MI, lim: 60 });
+        if (!r.error && Array.isArray(r.data)) near = r.data;
+      }
+      let data = null;
+      if (near && near.length) {
+        const miles = {}; near.forEach(x => { miles[x.id] = x.miles; });
+        const res = await cloud.from('profiles').select('*').in('id', near.map(x => x.id));
+        data = (res.data || []).map(p => Object.assign(p, { _mi: miles[p.id] })).sort((a, b) => a._mi - b._mi);
+        PEOPLE_MODE = 'near';
+      } else {
+        const res = await cloud.from('profiles').select('*').neq('id', cloudUser.id).order('created_at', { ascending: false }).limit(40);
+        data = res.data;
+        PEOPLE_MODE = state.zip ? 'none-near' : 'newest';
+      }
       if (!data) return;
       data.forEach(p => { PROFILE_BY_ID[p.id] = p; });
-      // "Only interact with other pets" (a pet account's setting) hides owner accounts here
-      const petsOnly = state.petsOnly && state.accountType === 'pet';
-      PEOPLE = data.filter(p => p.visible !== false && !isBlocked(p.id) && !p.banned && !(petsOnly && p.kind === 'owner'));
+      PEOPLE = data.filter(p => p.visible !== false && !p.banned && !hiddenUser(p.id));
       if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
     }
     // Make sure we hold the public profile of every author we're about to
@@ -8700,6 +9062,8 @@
           '<div class="prof-meta" style="margin-top:0.3rem;">' + esc(personMeta(u)) + (ageStr ? ' · ' + esc(ageStr) : '') + ' · ' + (u.kind === 'owner' ? 'Owner account' : 'Pet account') + '</div>' +
           (x.picks && x.picks.length
             ? '<div class="prof-meta" style="margin-top:0.4rem;">💘 Picks: ' + x.picks.map(p => esc(p.name) + ' (' + esc(p.breed) + ')').join(', ') + '</div>' : '') +
+          (u.kind === 'owner' && Array.isArray(x.pets) && x.pets.length
+            ? '<div class="prof-meta" style="margin-top:0.4rem;">🐾 Pets: ' + x.pets.map(q => esc(q.n) + (q.b || q.s ? ' (' + esc(q.b || q.s) + ')' : '')).join(', ') + '</div>' : '') +
         '</div>' +
         (heldByThem.length
           ? '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>👑 Currently holding</h3></div>' +
@@ -8788,7 +9152,7 @@
       }
       await ensureProfiles(data.map(m => m.sender_id).concat(data.map(m => m.recipient_id)));
       // Gentle in-app ping for brand-new incoming messages (if wanted)
-      const newest = data.find(m => m.recipient_id === cloudUser.id && !isBlocked(m.sender_id));
+      const newest = data.find(m => m.recipient_id === cloudUser.id && !hiddenUser(m.sender_id));
       if (newest && newest.id > lastSeenMsgId) {
         const wanted = newest.kind === 'bark' ? notifPref('barks') : notifPref('messages');
         if (!firstMsgLoad && dmOpenWith !== newest.sender_id && wanted) {
@@ -8824,7 +9188,7 @@
       const seen = state.dmSeen || {};
       MY_MESSAGES.forEach(m => {
         const other = m.sender_id === cloudUser.id ? m.recipient_id : m.sender_id;
-        if (isBlocked(other)) return; // no threads with blocked users
+        if (hiddenUser(other)) return; // no threads with blocked/suspended users (or owners, for pets-only)
         if (!map[other]) { map[other] = m; order.push(other); unread[other] = 0; }
         if (m.recipient_id === cloudUser.id && (!seen[other] || seen[other] < m.created_at)) unread[other]++;
       });
@@ -9051,10 +9415,12 @@
       if (!cloud || !cloudUser) return;
       if (!force && Date.now() - lastGroupsFetch < 30000) return;
       lastGroupsFetch = Date.now();
-      const [g, m] = await Promise.all([
+      const [g, m, rq] = await Promise.all([
         cloud.from('groups').select('*').order('created_at', { ascending: false }).limit(50),
         cloud.from('group_members').select('group_id, user_id'),
+        cloud.from('group_requests').select('group_id, user_id'),
       ]);
+      const reqs = rq.data || [];
       if (!g.data) return;
       const members = m.data || [];
       CLOUD_GROUPS = g.data.map(r => {
@@ -9068,6 +9434,8 @@
           isPrivate: r.is_private,
           creatorId: r.creator_id,
           mine: r.creator_id === cloudUser.id,
+          requested: reqs.some(x => x.group_id === r.id && x.user_id === cloudUser.id),
+          requests: r.creator_id === cloudUser.id ? reqs.filter(x => x.group_id === r.id && x.user_id !== cloudUser.id).map(x => x.user_id) : [],
         };
         grp.meta = groupMeta(grp);
         return grp;
@@ -9082,7 +9450,7 @@
       if (!data) return;
       await ensureProfiles(data.map(r => r.seller_id));
       // Trusted columns LAST; seller name from the real profile; photos from our bucket only
-      LISTINGS = data.filter(r => !isBlocked(r.seller_id)).map(r => Object.assign({}, r.content, {
+      LISTINGS = data.filter(r => !hiddenUser(r.seller_id)).map(r => Object.assign({}, r.content, {
         cloudId: r.id, sellerId: r.seller_id, mine: !!(cloudUser && r.seller_id === cloudUser.id),
         seller: authorName(r.seller_id, r.content && r.content.seller), affiliate: false,
         photos: safePhotos(r.content && r.content.photos), bg: safeBg(r.content && r.content.bg), emo: '🐾',
@@ -9094,6 +9462,7 @@
     // One call pulls everything; tabs top up quietly as you browse.
     function syncCloud() {
       if (!cloud || !cloudUser) return;
+      loadBlocks();
       loadCloudPosts(true);
       loadPeople(true);
       loadFriendships();
@@ -9137,15 +9506,23 @@
     // Fire-and-forget: sent over HTTP, so it never blocks the UI
     function livePing(toId, payload) {
       if (!cloud || !cloudUser || !toId || toId === cloudUser.id) return;
-      try {
-        const ch = cloud.channel(liveTopic(toId) + ':tx:' + Date.now() + Math.random().toString(36).slice(2, 6));
-        ch.send({ type: 'broadcast', event: 'ping', payload: Object.assign({ from: cloudUser.id, at: Date.now() }, payload || {}) })
-          .catch(() => {}).finally(() => { try { cloud.removeChannel(ch); } catch (e) {} });
-      } catch (e) {}
+      // Realtime's broadcast endpoint, on exactly the topic the recipient's
+      // liveConnect() subscribed to (a channel object would subscribe us too).
+      (async () => {
+        try {
+          const { data } = await cloud.auth.getSession();
+          const token = (data && data.session && data.session.access_token) || SUPA_KEY;
+          await fetch(SUPA_URL + '/realtime/v1/api/broadcast', {
+            method: 'POST',
+            headers: { apikey: SUPA_KEY, Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' },
+            body: JSON.stringify({ messages: [{ topic: liveTopic(toId), event: 'ping', payload: Object.assign({ from: cloudUser.id, at: Date.now() }, payload || {}) }] }),
+          });
+        } catch (e) {}
+      })();
     }
     let livePingTimer = null;
     function onLivePing(p) {
-      if (!cloudUser || !p || isBlocked(p.from)) return;
+      if (!cloudUser || !p || hiddenUser(p.from)) return;
       liveLastPing = Date.now();
       // Coalesce bursts (someone spamming barks) into one refresh
       clearTimeout(livePingTimer);
@@ -9153,6 +9530,8 @@
         if (p.type === 'dm' || p.type === 'bark') {
           if (dmOpenWith && p.from === dmOpenWith) refreshDMThread();
           loadMessages();
+        } else if (p.type === 'group') {
+          loadGroups(true);
         } else if (p.type === 'friend') {
           loadFriendships().then(() => {
             // A broadcast is just a nudge: the toast comes from the row the
@@ -9215,6 +9594,7 @@
       if (cloudUser) state.ageId = cloudUser.id; // the age answer follows the saved copy (see AGE CHECK)
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSaveState();
+      schedulePushSync(); // reminders or the calendar may have changed (no-op unless they did)
     }
     // opts.ageBlock (the under-age answer): end only THIS device's session,
     // keep this device's saved copy, and skip the goodbye toast.
