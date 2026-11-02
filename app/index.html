@@ -3644,12 +3644,13 @@
     //  • Amazon Associates  → https://affiliate-program.amazon.com  (approval
     //      needed; ~3% on pet supplies, and you earn on the WHOLE cart). Your
     //      tag looks like "yourname-20". Put it in AFFILIATE.amazonTag.
-    //  • Chewy (via Impact) → https://www.chewy.com/app/content/affiliate
-    //      (1%, 15-day cookie as of 2026-10; pharmacy and Rx food earn nothing).
-    //      Once approved you get a tracked deep-link base — paste a function
-    //      into AFFILIATE.chewyLink.
-    //  • PetSmart (FlexOffers, ~8%, 30-day cookie) → AFFILIATE.petsmartLink
-    //  • 1-800-PetMeds (FlexOffers or Partnerize, ~6%) → AFFILIATE.petmedsLink
+    //  • Chewy: Impact pays 1% (15-day cookie) and Impact DECLINED the Petfi
+    //      partner account on 2026-09-14; FlexOffers lists Chewy at 3.2%
+    //      (15-day). Pharmacy and Rx food earn nothing. Paste a function into
+    //      AFFILIATE.chewyLink once approved.
+    //  • One FlexOffers account (flexoffers.com, accepts apps, no traffic
+    //      minimum) covers PetSmart 8%/30d → AFFILIATE.petsmartLink,
+    //      1-800-PetMeds 6%/30d → AFFILIATE.petmedsLink, and Chewy 3.2%.
     //  Pet prescriptions pay ~0 everywhere: the money is food, litter and
     //  over-the-counter reorders ("Never run out" in My care).
     //  FTC: because these pay us, the store shows an affiliate disclosure.
@@ -5273,7 +5274,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.9.0';
+    const APP_VERSION = '1.9.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8524,6 +8525,11 @@
       // Emergency + spending
       h += '<div class="row" style="cursor:pointer;border-color:#ffc9c9;" onclick="openPetEmergency()"><div class="ricon" style="background:#ffecec;">🚨</div>' +
         '<div class="rmain"><div class="rtitle">Pet emergency</div><div class="rmeta">Poison control, emergency vets, what\'s toxic</div></div><span class="chev">›</span></div>';
+      // Quiet links, never a banner: there when someone goes looking
+      const lnk = (fn, txt) => '<span style="color:var(--blue);cursor:pointer;font-weight:600;white-space:nowrap;" onclick="' + fn + '()">' + txt + '</span>';
+      const insured = pets.length && pets.every(p => (state.petInfo[p.id] || {}).insurer);
+      h += '<p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0;">Not sure it\'s an emergency? ' + lnk('openVetChat', 'Talk to a vet online') +
+        (insured ? '' : ' · ' + lnk('openInsurance', 'Pet insurance quotes')) + '</p>';
       const spent = hxSpentThisYear();
       if (spent > 0) h += '<p class="sub" style="font-size:0.8rem;margin:0.2rem 0 0;">💵 Spent on care in ' + new Date().getFullYear() + ': <b>' + hxMoney(spent) + '</b> (visits, refills and supplies you logged)</p>';
       return h;
@@ -9453,9 +9459,10 @@
     }
 
     // ======================= INSURANCE QUOTES & VET CHAT =======================
-    // Referral links, not advice: insurers pay per quote lead (Fetch, Pets
-    // Best, Healthy Paws, Embrace ~$24-36 on their affiliate networks) and
-    // Vetster pays per booked visit (Impact). Until a tracked link is pasted
+    // Referral links, not advice: insurers pay per quote lead (~$24-36; as of
+    // 2026-11 Pets Best and Healthy Paws take applications by form, Fetch by
+    // contact form, Trupanion and Lemonade through Impact, which declined
+    // Petfi on 2026-09-14) and Vetster pays per booked visit. Until a tracked link is pasted
     // into AFFILIATE.insurance / AFFILIATE.vet, these are plain links. Keep the
     // copy neutral: in some states only a licensed agent may discuss coverage
     // or be paid on a sale, so Petfi never compares plans or recommends one.
