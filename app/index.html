@@ -421,6 +421,26 @@
     .pill-btn:active { transform: scale(0.95); }
     .pill-btn.ghost { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
     .pill-btn.blue { background: var(--blue); }
+    /* ---- Pet health (My care) ---- */
+    .hx-attn { background: #fff8e6; border: 2px solid #ffe0a3; border-radius: 16px; padding: 0.7rem 0.8rem 0.3rem; margin: 0.8rem 0 0.4rem; }
+    .hx-attn > b { display: block; font-size: 0.9rem; margin-bottom: 0.45rem; }
+    .hx-attn-row { display: flex; align-items: center; gap: 0.5rem; background: var(--card); border-radius: 12px; padding: 0.55rem 0.7rem; margin-bottom: 0.45rem; font-size: 0.84rem; font-weight: 600; cursor: pointer; border-left: 4px solid #e8a400; min-height: 40px; }
+    .hx-attn-row.bad { border-left-color: #d93636; }
+    .hx-pill { display: inline-block; border-radius: 999px; padding: 0.05rem 0.5rem; font-weight: 700; font-size: 0.72rem; }
+    .hx-pill.ok { background: #e7f6e9; color: #1f7a3d; }
+    .hx-pill.warn { background: #fff1d6; color: #8a5a00; }
+    .hx-pill.bad { background: #ffe3e3; color: #b42323; }
+    .hx-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.75rem 0.9rem; margin-bottom: 0.7rem; }
+    .hx-kv { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.32rem 0; border-bottom: 1px dashed var(--line); font-size: 0.85rem; }
+    .hx-kv:last-child { border-bottom: none; }
+    .hx-kv span { color: var(--muted); flex-shrink: 0; }
+    .hx-kv b { text-align: right; font-weight: 700; overflow-wrap: anywhere; }
+    .hx-more { margin-top: 1rem; border: 1px solid var(--line); border-radius: 14px; padding: 0.6rem 0.9rem; background: var(--bg); }
+    .hx-more summary { font-weight: 700; cursor: pointer; font-size: 0.9rem; min-height: 32px; display: flex; align-items: center; }
+    body.dark .hx-attn { background: #2e2818; border-color: #5a4a20; }
+    body.dark .hx-pill.ok { background: #1c3a26; color: #8fe0a8; }
+    body.dark .hx-pill.warn { background: #4a3a10; color: #ffd27a; }
+    body.dark .hx-pill.bad { background: #4a1c1c; color: #ff9c9c; }
     .pill-btn.done { background: #eaf1ff; color: var(--blue); }
 
     /* ---- Profile ---- */
@@ -2214,6 +2234,7 @@
       if (!state.pets) state.pets = [];
       if (!state.reminders) state.reminders = [];
       if (!state.calendar) state.calendar = [];
+      hxInit(); // pet health: meds, vaccines, visits, supplies; stable pet ids
       if (state.visible === undefined) state.visible = true;
       // A ZIP lookup interrupted by a reload/logout can persist this flag and
       // wedge the Nearby tab on "Looking up…" — always start cleared.
@@ -2245,6 +2266,7 @@
       setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
       setTimeout(syncShareAvatar, 6000);  // keep the link-preview icon current
       setTimeout(() => ensurePushSubscription(false), 3000); // reminders by push when notifications are allowed
+      setTimeout(() => loadTags(true), 4500);               // pet ID tags, finder messages, lost pets nearby
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2756,7 +2778,7 @@
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
 
-      h += interestShortcuts() + pledgeTrackerStrip();
+      h += interestShortcuts() + pledgeTrackerStrip() + (tagHomeStrip() || hxHomeStrip());
       const first = esc((state.displayName || 'friend').split(' ')[0]);
       h += '<div class="composer" onclick="openCompose()">' +
              '<div class="ca">' + myAvatar(36) + '</div>' +
@@ -3432,7 +3454,7 @@
 
     function renderNearby() {
       const zip = state.zip || '';
-      let h = '';
+      let h = lostNearSection(); // a missing pet nearby beats everything else here
       // Members first — the people (and pets) you can actually talk to
       h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
       if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
@@ -3623,12 +3645,21 @@
     //      needed; ~3% on pet supplies, and you earn on the WHOLE cart). Your
     //      tag looks like "yourname-20". Put it in AFFILIATE.amazonTag.
     //  • Chewy (via Impact) → https://www.chewy.com/app/content/affiliate
-    //      (~4% + $15 per NEW customer). Once approved you get a tracked
-    //      deep-link base — paste a function into AFFILIATE.chewyLink.
+    //      (1%, 15-day cookie as of 2026-10; pharmacy and Rx food earn nothing).
+    //      Once approved you get a tracked deep-link base — paste a function
+    //      into AFFILIATE.chewyLink.
+    //  • PetSmart (FlexOffers, ~8%, 30-day cookie) → AFFILIATE.petsmartLink
+    //  • 1-800-PetMeds (FlexOffers or Partnerize, ~6%) → AFFILIATE.petmedsLink
+    //  Pet prescriptions pay ~0 everywhere: the money is food, litter and
+    //  over-the-counter reorders ("Never run out" in My care).
     //  FTC: because these pay us, the store shows an affiliate disclosure.
     const AFFILIATE = {
       amazonTag: 'petfi-20',  // Amazon Associates tag (approved 2026-09-14)
       chewyLink: null,        // e.g. q => 'https://chewy.pxf.io/....?u=' + encodeURIComponent('https://www.chewy.com/s?query=' + q)
+      petsmartLink: null,     // q => tracked PetSmart search link
+      petmedsLink: null,      // q => tracked 1-800-PetMeds search link
+      insurance: {},          // { fetch: 'https://…tracked…', petsbest: … } keys as in INSURERS
+      vet: {},                // { vetster: 'https://…tracked…' } keys as in VET_CHATS
     };
     function amazonLink(query) {
       return 'https://www.amazon.com/s?k=' + encodeURIComponent(query) +
@@ -3649,7 +3680,7 @@
       { name: 'Amazon',   emo: '📦', url: q => amazonLink(q) },
       { name: 'Chewy',    emo: '🐾', url: q => (AFFILIATE.chewyLink ? AFFILIATE.chewyLink(q) : 'https://www.chewy.com/s?query=' + encodeURIComponent(q)) },
       { name: 'Petco',    emo: '🐶', url: q => 'https://www.petco.com/shop/en/petcostore/search?query=' + encodeURIComponent(q) },
-      { name: 'PetSmart', emo: '🦴', url: q => 'https://www.petsmart.com/search/?q=' + encodeURIComponent(q) },
+      { name: 'PetSmart', emo: '🦴', url: q => (AFFILIATE.petsmartLink ? AFFILIATE.petsmartLink(q) : 'https://www.petsmart.com/search/?q=' + encodeURIComponent(q)) },
     ];
     // What kind of place is the user after? Maps words → map categories.
     const PLACE_TYPES = [
@@ -4580,7 +4611,7 @@
         : '<div class="note">Nothing here yet — recommend the food, toys or gear you swear by. Your profile visitors can buy straight from your links.</div>';
 
       // Reminders & calendar live in the private "My Care" tab on Home
-      h += '<button class="btn secondary" style="margin-top:0.4rem;" onclick="refreshCare()">🔒 My reminders &amp; pet calendar →</button>';
+      h += '<button class="btn secondary" style="margin-top:0.4rem;" onclick="refreshCare()">🩺 Health, meds &amp; reminders →</button>';
       h += '<button class="btn secondary" onclick="openDonate()">💖 Give &amp; see the live total</button>';
 
       // Settings
@@ -5242,7 +5273,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.8.0';
+    const APP_VERSION = '1.9.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5286,10 +5317,10 @@
         '<h3>8. Ending an account</h3>' +
         '<p>You can delete your account anytime in Settings. We can suspend or remove accounts that break these terms, with or without notice, to keep the community safe.</p>' +
         '<h3>9. Disclaimers</h3>' +
-        '<p>Petfi is provided "as is". We do our best, but we can\'t promise the app will always be available or error-free. To the fullest extent allowed by law, Petfi isn\'t liable for disputes between users, lost profits, or indirect damages. Nothing in the app is veterinary advice — always consult a vet for health decisions.</p>' +
+        '<p>Petfi is provided "as is". We do our best, but we can\'t promise the app will always be available or error-free. To the fullest extent allowed by law, Petfi isn\'t liable for disputes between users, lost profits, or indirect damages. Nothing in the app is veterinary advice — always consult a vet for health decisions. Medication, refill, vaccine and lost-pet tools work from what you enter: Petfi doesn\'t sell, fill or approve prescriptions, and a reminder or alert can arrive late or not at all, so don\'t rely on Petfi alone for a dose that matters. Insurance and online-vet links go to those companies; Petfi doesn\'t sell insurance or recommend a plan, and some of those links may earn Petfi a referral fee.</p>' +
         '<h3>10. Changes</h3>' +
         '<p>If these terms change in a meaningful way, we\'ll post the update in the app. Continuing to use Petfi after an update means you accept the new terms.</p>' +
-        legalFoot() + '</div>' +
+        legalFoot('November 2, 2026') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -5304,7 +5335,10 @@
         '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
         '<li><b>Recent searches:</b> your last 5 in-app searches are saved with your private account data. Never shown to others.</li>' +
         '<li><b>Crash reports:</b> when the app hits an error it sends the error message, stack trace, app version, page address, your browser\'s user agent and your user id — at most 5 per visit, readable only by Petfi admins.</li>' +
-        '<li><b>Care data:</b> reminders and calendar entries — these are <b>private to you</b> and never shown to other users.</li>' +
+        '<li><b>Care data:</b> reminders, calendar entries and your pets\' health records — meds and prescriptions, vaccines, vet visits, weight, vet and microchip details, supplies and what you logged spending. These are <b>private to you</b> and never shown to other users unless you share a health passport. Petfi isn\'t a vet or a pharmacy and doesn\'t send them to one.</li>' +
+        '<li><b>Health passport links (optional):</b> when you share one, the parts you tick (for example vaccines, meds, allergies, the vet\'s number and an emergency phone) are stored with the link, and <b>anyone who has the link can see them</b> until it expires or you turn it off.</li>' +
+        '<li><b>Pet ID tags (optional):</b> anyone who scans your pet\'s tag sees the pet\'s name, species, breed, the note you add and — only if you add one — a phone number. When you mark a pet lost, the area you describe, a point for the ZIP you give (rounded to about 1 km), the date and any reward are shown on the tag page and to members within 25 miles, who may get one alert. A finder\'s message, the contact they leave and — only if they tick the box — their location are stored for you.</li>' +
+        '<li><b>Notifications (optional):</b> if you allow alerts, your device\'s push address is stored so reminders, refill and vaccine alerts and messages from finders reach you with the app closed.</li>' +
         '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position. A new spot you add is saved with a pin rounded to about 100 m and your account.</li></ul>' +
         '<h3>How it\'s used</h3>' +
         '<ul><li>To run the app: show your profile to others (if visible), deliver messages, display listings.</li>' +
@@ -5322,7 +5356,7 @@
         '<li><b>Delete your account</b> in Settings → Account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
         '<h3>Children</h3>' +
         '<p>Petfi is for adults: you must be <b>' + MIN_AGE + ' or older</b> to have an account. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. The app asks you to confirm your age and remembers the answer on your device only. If we learn an account belongs to someone under ' + MIN_AGE + ', we\'ll remove it. To report one, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p>' +
-        legalFoot('October 31, 2026') + '</div>' +
+        legalFoot('November 2, 2026') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -5346,6 +5380,9 @@
         '<div class="faq" style="margin-top:0.4rem;">' +
         '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. Both kinds are for adults ' + MIN_AGE + ' and older, and you can have one of each!</p></details>' +
         '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Owners verify from their profile with a government ID and a quick selfie (one-time $3; in the Android app the charge goes through Google Play). The check runs on Stripe Identity\'s own page: Petfi never sees the ID or selfie, only pass or fail and whether the person is 18 or older. A failed check can be retried at no extra charge.</p></details>' +
+        '<details><summary>💊 Can Petfi refill my pet\'s prescription?</summary><p>Petfi keeps track so you never run out. Add a med under <b>🔒 My care</b> with how many pills you have: we remind you at dose time and tell you <b>a few days before it runs out</b>. Tap <b>Refill</b> to call your vet or pharmacy, or open a licensed pet pharmacy (Chewy, 1-800-PetMeds, Petco, Walmart) — they get your vet\'s OK and ship it to you. Petfi itself never sells or fills prescriptions, and your pets\' health records are private to you.</p></details>' +
+        '<details><summary>🏷️ What is a Petfi pet ID tag?</summary><p>A free QR code for your pet\'s collar, made from your pet\'s health record in <b>🔒 My care</b>. Anyone who finds your pet scans it with their phone camera — no app needed — and can message you; you get a notification right away. Your phone number stays private unless you add it to the tag. If your pet goes missing, tap <b>Report lost</b>: members within 25 miles get an alert, and you can print a lost poster with the same QR.</p></details>' +
+        '<details><summary>🔗 How do I share my pet\'s records with a sitter or boarder?</summary><p>Open your pet\'s health record in <b>🔒 My care</b> and tap <b>Share health passport</b>. Pick what to include and how long the link should work. The link stays up to date as you change things, and you can turn it off any time.</p></details>' +
         '<details><summary>🎬 Can I post videos?</summary><p>Yes \u2014 one video per post, <b>under a minute</b> long and up to <b>45 MB</b>. Tap <b>🎬 Add a video</b> in the composer. In the feed videos start playing <b>muted</b> when they scroll into view; tap <b>🔇</b> for sound, or tap the video itself to pause it.</p></details>' +
         '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
@@ -6031,6 +6068,7 @@
       applyTheme(); // back to daylight for the welcome screen
       FEED.length = 0; feedLoadedOnce = false;
       PEOPLE = []; FRIENDSHIPS = []; MY_MESSAGES = []; CLOUD_GROUPS = []; LISTINGS = []; CLOUD_MATES = []; CLOUD_ADS = []; CLOUD_HUMANS = []; TERRITORY = [];
+      TAGS = {}; TAG_REPORTS = []; LOST_NEAR = []; tagsLoadedAt = 0;
       Object.keys(PROFILE_BY_ID).forEach(k => delete PROFILE_BY_ID[k]);
       lastPostsFetch = 0; lastPeopleFetch = 0; lastGroupsFetch = 0; lastListingsFetch = 0; lastMatesFetch = 0; lastTerritoryFetch = 0;
       updateBadges(); renderResume();
@@ -6049,10 +6087,9 @@
     function setHomeTab(t) { state.homeTab = t; openTab('home'); }
     function refreshCare() { state.homeTab = 'care'; openTab('home'); }
     function renderCare() {
-      let h = '<div class="note" style="margin-top:0;">🔒 Your reminders and calendar are <b>private</b> — only you can see them.</div>';
-
-      // Your breeding listings (the full Mate Match lives in its own tab)
-      if (state.accountType === 'owner') h += mateBlock();
+      let h = '<div class="note" style="margin-top:0;">🔒 Your pets\' health records, reminders and calendar are <b>private</b> — only you can see them.</div>';
+      h += hxAttentionBox();
+      h += hxCareSections();
 
       // Reminders
       h += '<div class="sec"><h3>⏰ My reminders</h3><span class="link" onclick="openAddReminder()">+ Add</span></div>';
@@ -6077,7 +6114,8 @@
             '<h4>' + calIcon(c.type) + ' ' + esc(c.what) + ' was ' + calLabel(c.date) + '</h4>' +
             '<p>Does your pet have another ' + calTypeName(c.type) + ' scheduled? Want to mark it in the calendar?</p>' +
             '<button class="pill-btn blue" onclick="followUpYes(' + i + ')">Yes, add it</button> ' +
-            '<button class="pill-btn ghost" onclick="followUpNo(' + i + ')">No thanks</button></div>';
+            '<button class="pill-btn ghost" onclick="followUpNo(' + i + ')">No thanks</button>' +
+            (c.type === 'vet' && hxPets().length ? ' <button class="pill-btn ghost" onclick="logCalVisit(' + i + ')">📝 Log the visit</button>' : '') + '</div>';
         }
       });
       const upcoming = cal.map((c, i) => ({ c, i })).filter(x => !calPast(x.c.date)).sort((a, b) => a.c.date < b.c.date ? -1 : 1);
@@ -6091,6 +6129,9 @@
             (x.c.notified ? '' : ' · 🔔 ' + (x.c.time ? '1 hr before' : 'morning of')) + '</div></div>' +
           '<div class="raction"><button class="pill-btn ghost" onclick="deleteCal(' + x.i + ')">🗑</button></div></div>').join('');
       }
+
+      // Your breeding listings (the full Mate Match lives in its own tab)
+      if (state.accountType === 'owner') h += mateBlock();
       return h;
     }
 
@@ -6615,7 +6656,7 @@
     }
     function savePet() {
       const name = val('pet2-name'); if (!name) { toast('Name your pet'); return; }
-      state.pets.push({ name, species: (val('pet2-species') || 'Dog').toLowerCase(), breed: val('pet2-breed') });
+      state.pets.push({ id: 'p' + hxId(), name, species: (val('pet2-species') || 'Dog').toLowerCase(), breed: val('pet2-breed') });
       closeSheet(); openTab('profile'); toast('Pet added 🐾');
     }
 
@@ -6878,7 +6919,8 @@
       { key: 'friends',   label: '🐾 Friend requests',         sub: 'New requests and acceptances' },
       { key: 'likes',     label: '❤️ Likes on my posts',       sub: 'Barks, meows & likes on your posts' },
       { key: 'comments',  label: '💬 Comments on my posts',    sub: 'When someone replies to you' },
-      { key: 'reminders', label: '⏰ Care reminders & calendar', sub: 'Feeding times, vet visits…' },
+      { key: 'reminders', label: '⏰ Care reminders & calendar', sub: 'Feeding times, vet visits, meds, refills…' },
+      { key: 'lostPets',  label: '🚨 Lost pets near me',        sub: 'When a pet goes missing within 25 miles' },
     ];
     function notifPref(key) {
       const p = state.notifyPrefs || {};
@@ -7867,18 +7909,20 @@
           '<div class="prof-meta">' + esc(pt.breed || pt.species) + '</div>' +
         '</div>' +
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
-        '<button class="btn" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
+        (pt.id ? '<button class="btn" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health, meds &amp; vaccines</button>' : '') +
+        '<button class="btn' + (pt.id ? ' secondary' : '') + '" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
         '<button class="btn secondary" onclick="confirmRemovePet(' + i + ')">🗑 Remove ' + esc(pt.name) + '</button>');
     }
     function confirmRemovePet(i) {
       const pt = state.pets[i]; if (!pt) return;
       openSheet('Remove ' + esc(pt.name) + '?',
-        '<p class="sub">' + esc(pt.name) + ' will be taken off your profile. You can always add them back.</p>' +
+        '<p class="sub">' + esc(pt.name) + ' will be taken off your profile, along with their meds, vaccines and vet records in My care.</p>' +
         '<button class="btn" onclick="removePet(' + i + ')">🗑 Yes, remove</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Keep</button>');
     }
     function removePet(i) {
       const pt = state.pets.splice(i, 1)[0];
+      if (pt) hxForgetPet(pt.id);
       saveState(); closeSheet(); openTab('profile');
       if (pt) toast(pt.name + ' removed 🐾');
     }
@@ -8138,6 +8182,1318 @@
       openSheet('🪪 Checking your ID', '<div class="note">Stripe is still processing your ID. Your badge appears by itself once it clears — usually within a few minutes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
     }
 
+    // ======================= PET HEALTH & MEDS =======================
+    // What Chewy Pharmacy, PetDesk and 11pets keep for an owner, kept here
+    // privately (state → account_data, like reminders and the calendar):
+    //   state.meds      each pet's meds and prescriptions. Dose reminders ride
+    //                   state.reminders (medId); the supply on hand counts down
+    //                   by itself, so we can say "refill now" before it runs out.
+    //   state.vaccines  one row per shot given; the newest per pet+name is current.
+    //   state.visits    vet visits (date, clinic, reason, cost, weight).
+    //   state.supplies  "never run out": food, litter, flea meds — how long one
+    //                   lasts → a reorder nudge (Chewy Autoship, minus the shipping).
+    //   state.petInfo   per pet: sex, microchip, vet clinic, allergies, weights…
+    //   state.spend     what refills and supplies cost (care spending this year).
+    // Pets are keyed by a stable id: state.pets[].id for owners, 'me' for a pet
+    // account. Petfi never sells or fills a prescription — the Refill sheet sends
+    // people to their vet or a licensed pet pharmacy, which gets the vet's OK.
+    // Alerts (refill, prescription expiry, vaccine due, supply low) are one-off
+    // rows in pushRows() and fire locally from the 5-second scheduler.
+    const DAY_MS = 86400000;
+    const MED_FREQS = [
+      { key: 'd1',  label: 'Once a day',       ms: DAY_MS },
+      { key: 'd2',  label: 'Twice a day',      ms: DAY_MS / 2 },
+      { key: 'd3',  label: 'Every 8 hours',    ms: DAY_MS / 3 },
+      { key: 'eod', label: 'Every other day',  ms: 2 * DAY_MS },
+      { key: 'w1',  label: 'Once a week',      ms: 7 * DAY_MS },
+      { key: 'm1',  label: 'Once a month',     ms: 30 * DAY_MS, months: 1 },
+      { key: 'w12', label: 'Every 12 weeks',   ms: 84 * DAY_MS },
+      { key: 'prn', label: 'Only when needed', ms: 0 },
+    ];
+    const MED_UNITS = [['tablet', 'tablets'], ['chew', 'chews'], ['capsule', 'capsules'], ['mL', 'mL'], ['drop', 'drops'], ['dose', 'doses'], ['tube', 'tubes'], ['shot', 'shots']];
+    // Typing help only — any name works
+    const COMMON_MEDS = ['Apoquel', 'Bravecto', 'Carprofen (Rimadyl)', 'Cerenia', 'Clavamox', 'Credelio', 'Cytopoint', 'Fluoxetine', 'Gabapentin', 'Galliprant', 'Heartgard Plus', 'Insulin', 'Interceptor Plus', 'Methimazole', 'Metronidazole', 'NexGard', 'NexGard Plus', 'Prednisone', 'Proin', 'Revolution', 'Sentinel', 'Simparica Trio', 'Thyroid (levothyroxine)', 'Trazodone', 'Vetmedin'];
+    const VAX_PRESETS = {
+      dog: ['Rabies', 'DHPP (distemper/parvo)', 'Bordetella (kennel cough)', 'Leptospirosis', 'Lyme', 'Canine influenza'],
+      cat: ['Rabies', 'FVRCP (feline distemper)', 'FeLV (feline leukemia)'],
+      horse: ['Rabies', 'Tetanus', 'EEE/WEE', 'West Nile', 'Flu/Rhino', 'Strangles'],
+      other: ['Rabies'],
+    };
+    // Licensed pet pharmacies. They contact the vet to approve a prescription.
+    // Pet Rx earns no commission at Chewy or Amazon; 1-800-PetMeds says it
+    // may (FlexOffers) — add a tracked link in AFFILIATE.petmedsLink if so.
+    const PET_PHARMACIES = [
+      { key: 'chewy',   emo: '🐾', name: 'Chewy Pharmacy', note: 'Contacts your vet for you · Autoship on refills', url: q => 'https://www.chewy.com/s?query=' + encodeURIComponent(q) },
+      { key: 'petmeds', emo: '💊', name: '1-800-PetMeds',  note: 'Contacts your vet for you', url: q => (AFFILIATE.petmedsLink ? AFFILIATE.petmedsLink(q) : 'https://www.1800petmeds.com/search?q=' + encodeURIComponent(q)) },
+      { key: 'petco',   emo: '🐶', name: 'Petco Pharmacy', note: 'Online or pick up in store', url: q => 'https://www.petco.com/shop/en/petcostore/search?query=' + encodeURIComponent(q) },
+      { key: 'walmart', emo: '🛒', name: 'Walmart Pet Rx', note: 'Online pet pharmacy', url: q => 'https://www.walmart.com/search?q=' + encodeURIComponent(q + ' pet rx') },
+    ];
+
+    // ---- ids, pets, dates ----
+    function hxId() { return Math.random().toString(36).slice(2, 10); }
+    function hxInit() {
+      ['meds', 'vaccines', 'visits', 'supplies', 'spend'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
+      if (!state.petInfo || typeof state.petInfo !== 'object' || Array.isArray(state.petInfo)) state.petInfo = {};
+      if (!state.hxFired || typeof state.hxFired !== 'object') state.hxFired = {};
+      (state.pets || []).forEach(p => { if (!p.id) p.id = 'p' + hxId(); });
+      // Fired-alert keys only need to outlive their alert
+      const old = Date.now() - 180 * DAY_MS;
+      Object.keys(state.hxFired).forEach(k => { if (!(state.hxFired[k] > old)) delete state.hxFired[k]; });
+      const yr = new Date().getFullYear() - 3;
+      state.spend = state.spend.filter(s => s && parseInt(String(s.d).slice(0, 4), 10) >= yr).slice(-500);
+    }
+    function hxPets() {
+      if (state.accountType === 'owner') return (state.pets || []).filter(p => p.id).map(p => ({ id: p.id, name: p.name || 'My pet', species: String(p.species || '').toLowerCase(), breed: p.breed || '' }));
+      return [{ id: 'me', name: state.name || 'My pet', species: String(state.species || '').toLowerCase(), breed: state.breed || '' }];
+    }
+    function hxPet(id) { return hxPets().find(p => p.id === id) || null; }
+    function hxPetName(id) { const p = hxPet(id); return p ? p.name : 'My pet'; }
+    function hxInfo(id) { if (!state.petInfo[id]) state.petInfo[id] = {}; return state.petInfo[id]; }
+    function hxPetIcon(p, px) { return p.id === 'me' ? myAvatar(px) : petAvatar(p.species, p.breed, px); }
+    function hxYmd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
+    function hxToday() { return hxYmd(new Date()); }
+    function hxValidYmd(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(new Date(s + 'T12:00:00')); }
+    function hxAddDays(ymd, n) { const d = new Date(ymd + 'T12:00:00'); d.setDate(d.getDate() + n); return hxYmd(d); }
+    function hxAddMonths(ymd, n) {
+      const d = new Date(ymd + 'T12:00:00'), day = d.getDate();
+      d.setDate(1); d.setMonth(d.getMonth() + n);
+      d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      return hxYmd(d);
+    }
+    function hxDaysUntil(ymd) { const d = new Date(ymd + 'T12:00:00'), t = new Date(); t.setHours(12, 0, 0, 0); return Math.round((d - t) / DAY_MS); }
+    function hxMorning(ymd) { return new Date(ymd + 'T09:00:00').getTime(); }
+    function hxDate(ymd) {
+      if (!hxValidYmd(ymd)) return '';
+      const d = new Date(ymd + 'T12:00:00');
+      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+    }
+    function hxWhen(days) {
+      if (days === 0) return 'today';
+      if (days === 1) return 'tomorrow';
+      if (days === -1) return 'yesterday';
+      const a = Math.abs(days);
+      const span = a < 45 ? a + ' days' : a < 548 ? Math.round(a / 30.4) + ' months' : Math.round(a / 365) + ' years';
+      return days > 0 ? 'in ' + span : span + ' ago';
+    }
+    function hxTime(t) {
+      if (!/^\d{1,2}:\d{2}$/.test(String(t || ''))) return '';
+      const [h, m] = t.split(':').map(Number);
+      return ((h % 12) || 12) + ':' + String(m).padStart(2, '0') + (h < 12 ? ' AM' : ' PM');
+    }
+    function hxNum(s, dflt) { const n = parseFloat(String(s).replace(',', '.')); return isFinite(n) && n >= 0 ? Math.round(n * 100) / 100 : dflt; }
+    function hxPhone(s) { return String(s || '').replace(/[^0-9+()\-. ]/g, '').trim().slice(0, 24); }
+    function hxTel(s) { const d = String(s || '').replace(/[^0-9+]/g, ''); return d.length >= 7 ? d : ''; }
+    function hxUrl(s) {
+      s = String(s || '').trim();
+      if (!s) return '';
+      if (!/^https?:\/\//i.test(s) && /^[\w-]+(\.[\w-]+)+(\/|$)/.test(s)) s = 'https://' + s;
+      try { const u = new URL(s); return /^https?:$/.test(u.protocol) ? u.href.slice(0, 500) : ''; } catch (e) { return ''; }
+    }
+    function hxMoney(n) { return '$' + (Math.round(n * 100) / 100).toFixed(n % 1 ? 2 : 0); }
+    function hxTelButton(label, phone) {
+      const t = hxTel(phone);
+      return t ? '<a class="btn secondary" href="tel:' + esc(t) + '" style="text-align:center;text-decoration:none;">' + label + '</a>' : '';
+    }
+    function hxPetSelect(id, selected) {
+      const pets = hxPets();
+      if (pets.length <= 1) return '<input type="hidden" id="' + id + '" value="' + esc(pets[0] ? pets[0].id : '') + '">';
+      return '<label>Which pet?</label><select id="' + id + '">' + pets.map(p => '<option value="' + esc(p.id) + '"' + (p.id === selected ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select>';
+    }
+    // Owners need a pet on file first; a pet account is its own patient
+    function hxNeedPet() {
+      if (hxPets().length) return false;
+      openSheet('🐾 Add your pet first',
+        '<div class="note" style="margin-top:0;">Meds, vaccines and vet records belong to a pet. Add yours — it takes ten seconds.</div>' +
+        '<button class="btn" onclick="openAddPet()">+ Add a pet</button>');
+      return true;
+    }
+    // After a save: back to the pet's record if that's where they came from
+    function hxDone(back, msg) {
+      saveState(); closeSheet();
+      if (state.tab === 'home' && state.homeTab === 'care') refreshCare();
+      if (back && hxPet(back)) openHealthRecord(back);
+      if (msg) toast(msg);
+    }
+    function hxBackField(back) { return '<input type="hidden" id="hx-back" value="' + esc(back || '') + '">'; }
+    function hxSpend(amt, what, petId, k) {
+      if (!(amt > 0)) return;
+      state.spend.push({ d: hxToday(), amt: Math.round(amt * 100) / 100, what: String(what || '').slice(0, 80), petId: petId || '', k: k || '' });
+    }
+    function hxSpentThisYear(petId) {
+      const yr = String(new Date().getFullYear());
+      let t = 0;
+      (state.visits || []).forEach(v => { if (String(v.date).startsWith(yr) && (!petId || v.petId === petId) && v.cost > 0) t += v.cost; });
+      (state.spend || []).forEach(s => { if (String(s.d).startsWith(yr) && (!petId || s.petId === petId) && s.amt > 0) t += s.amt; });
+      return t;
+    }
+
+    // ---- meds: schedule and supply math ----
+    function hxMed(id) { return (state.meds || []).find(m => m.id === id) || null; }
+    function medFreq(m) { return MED_FREQS.find(f => f.key === m.freq) || MED_FREQS[0]; }
+    function medPer(m) { return m.perDose > 0 ? m.perDose : 1; }
+    function medUnit(n, u) { const x = MED_UNITS.find(y => y[0] === u) || MED_UNITS[0]; return (Math.round(n * 100) / 100) + ' ' + (n === 1 ? x[0] : x[1]); }
+    function medDoseText(m) { return medUnit(medPer(m), m.unit); }
+    function medEndMs(m) { return m.end ? new Date(m.end + 'T23:59:59').getTime() : Infinity; }
+    function medActive(m) { return !m.stopped && !(m.end && hxDaysUntil(m.end) < 0); }
+    function medHasCount(m) { return typeof m.qty === 'number' && m.qty >= 0 && m.qtyAt > 0; }
+    // The next dose at or after `from`: the chosen start day at the chosen time,
+    // stepped forward on the schedule (calendar months for monthly meds).
+    function medNextDose(m, from) {
+      const f = medFreq(m);
+      if (!f.ms) return 0;
+      const [hh, mm] = (m.time || '09:00').split(':').map(Number);
+      const d = new Date((hxValidYmd(m.start) ? m.start : hxToday()) + 'T00:00:00');
+      d.setHours(hh || 0, mm || 0, 0, 0);
+      let next = d.getTime();
+      if (next < from) next = nextReminderTime({ next, ms: f.ms, months: f.months || 0, day: d.getDate(), time: m.time || '09:00' }, from - 1);
+      return next;
+    }
+    // Doses on hand now: the count they gave us minus every scheduled dose since
+    function medLeft(m) {
+      if (!medHasCount(m)) return null;
+      const f = medFreq(m);
+      if (!f.ms) return m.qty;
+      const t = Math.min(Date.now(), medEndMs(m));
+      const given = Math.max(0, Math.floor((t - m.qtyAt) / f.ms));
+      return Math.max(0, Math.round((m.qty - given * medPer(m)) * 100) / 100);
+    }
+    // When the supply runs out: the first scheduled dose there's nothing left
+    // for (ms), or 0 if we can't tell
+    function medRunOut(m) {
+      const f = medFreq(m);
+      if (!f.ms || !medHasCount(m)) return 0;
+      return m.qtyAt + (Math.floor(m.qty / medPer(m)) + 1) * f.ms;
+    }
+    function medNeedsRefill(m) { const r = medRunOut(m); return !!r && r < medEndMs(m); }
+    function medDaysLeft(m) { const r = medRunOut(m); return r ? Math.max(0, Math.floor((r - Date.now()) / DAY_MS)) : null; }
+    // Counting starts from the last dose before now, so the count drops at dose time
+    function medCountAnchor(m) {
+      const f = medFreq(m);
+      if (!f.ms) return Date.now();
+      return medNextDose(m, Date.now()) - f.ms;
+    }
+    function medReminderText(m) {
+      return '💊 ' + hxPetName(m.petId) + ': ' + m.name + (m.strength ? ' ' + m.strength : '') + ' — ' + medDoseText(m);
+    }
+    // One reminder per med, rebuilt whenever the med changes
+    function syncMedReminder(m) {
+      state.reminders = (state.reminders || []).filter(r => r.medId !== m.id);
+      const f = medFreq(m);
+      if (!m.remind || !f.ms || !medActive(m)) return;
+      const next = medNextDose(m, Date.now());
+      if (!next || next > medEndMs(m)) return;
+      state.reminders.push({
+        what: medReminderText(m), freqLabel: f.label, ms: f.ms, months: f.months || 0,
+        day: new Date(next).getDate(), next, time: m.time || '09:00', medId: m.id,
+        until: isFinite(medEndMs(m)) ? medEndMs(m) : 0,
+      });
+    }
+
+    // ---- vaccines and supplies ----
+    function hxVax(id) { return (state.vaccines || []).find(v => v.id === id) || null; }
+    // The newest shot per pet + vaccine name is the one that counts
+    function hxCurrentVaccines(petId) {
+      const latest = {};
+      (state.vaccines || []).forEach(v => {
+        if (petId && v.petId !== petId) return;
+        const k = v.petId + '|' + String(v.name || '').toLowerCase();
+        if (!latest[k] || (v.given || '') > (latest[k].given || '')) latest[k] = v;
+      });
+      return Object.keys(latest).map(k => latest[k]).sort((a, b) => (a.due || '9999') < (b.due || '9999') ? -1 : 1);
+    }
+    function hxVaxStatus(v) {
+      if (!hxValidYmd(v.due)) return { lvl: 'ok', text: v.given ? 'given ' + hxDate(v.given) : '' };
+      const d = hxDaysUntil(v.due);
+      if (d < 0) return { lvl: 'bad', text: 'overdue since ' + hxDate(v.due) };
+      if (d <= 30) return { lvl: 'warn', text: 'due ' + hxWhen(d) + ' (' + hxDate(v.due) + ')' };
+      return { lvl: 'ok', text: 'good until ' + hxDate(v.due) };
+    }
+    function hxSupply(id) { return (state.supplies || []).find(s => s.id === id) || null; }
+    function supplyRunOut(s) { return hxValidYmd(s.bought) && s.lasts > 0 ? hxAddDays(s.bought, Math.round(s.lasts)) : ''; }
+
+    // ---- what needs doing, and when to say so ----
+    function hxAttention() {
+      const items = [];
+      (state.meds || []).forEach(m => {
+        if (!medActive(m)) return;
+        const pn = hxPetName(m.petId), dl = medDaysLeft(m);
+        if (dl != null && medNeedsRefill(m) && dl <= (m.lead || 7)) {
+          items.push({ lvl: dl <= 1 ? 'bad' : 'warn', icon: '💊', act: "openRefill('" + m.id + "')",
+            text: (dl <= 0 ? 'Out of ' : 'Refill ') + m.name + ' for ' + pn + (dl > 0 ? ' — about ' + dl + (dl === 1 ? ' day' : ' days') + ' left' : '') + (m.refills === 0 ? ' · no refills left' : '') });
+        }
+        if (hxValidYmd(m.rxExp) && hxDaysUntil(m.rxExp) <= 30) {
+          const d = hxDaysUntil(m.rxExp);
+          items.push({ lvl: d < 0 ? 'bad' : 'warn', icon: '📋', act: "openMed('" + m.id + "')",
+            text: pn + '\'s ' + m.name + ' prescription ' + (d < 0 ? 'has expired' : 'expires ' + hxWhen(d)) });
+        }
+      });
+      hxCurrentVaccines().forEach(v => {
+        const st = hxVaxStatus(v);
+        if (st.lvl !== 'ok') items.push({ lvl: st.lvl, icon: '💉', act: "openVaccine('" + v.id + "')", text: hxPetName(v.petId) + '\'s ' + v.name + ' — ' + st.text });
+      });
+      (state.supplies || []).forEach(s => {
+        const ro = supplyRunOut(s); if (!ro) return;
+        const d = hxDaysUntil(ro);
+        if (d <= (s.lead || 5)) items.push({ lvl: d <= 0 ? 'bad' : 'warn', icon: '📦', act: "openReorder('" + s.id + "')",
+          text: (d <= 0 ? 'Out of ' : 'Running low: ') + s.name + (d > 0 ? ' — about ' + d + (d === 1 ? ' day' : ' days') + ' left' : '') });
+      });
+      return items.sort((a, b) => (a.lvl === 'bad' ? 0 : 1) - (b.lvl === 'bad' ? 0 : 1));
+    }
+    // One-off alerts at 9 AM on the right day; keys change when the
+    // underlying date does, so a new supply or a renewed shot alerts again.
+    function hxAlerts() {
+      const out = [];
+      const add = (key, ymd, title, body) => { if (hxValidYmd(ymd)) out.push({ key, at: hxMorning(ymd), title, body }); };
+      (state.meds || []).forEach(m => {
+        if (!medActive(m)) return;
+        const pn = hxPetName(m.petId), lead = m.lead || 7;
+        if (medNeedsRefill(m)) {
+          const ro = medRunOut(m);
+          add('rf:' + m.id + ':' + hxYmd(new Date(ro)), hxYmd(new Date(ro - lead * DAY_MS)), '💊 Time to refill ' + m.name,
+            pn + ' has about ' + lead + ' days left. ' + (m.refills === 0 ? 'No refills left — call your vet first.' : 'Order now so it arrives in time.'));
+        }
+        if (hxValidYmd(m.rxExp)) add('rx:' + m.id + ':' + m.rxExp, hxAddDays(m.rxExp, -14), '📋 ' + m.name + ' prescription expires soon',
+          pn + '\'s prescription runs out ' + hxDate(m.rxExp) + '. Ask your vet to renew it.');
+      });
+      hxCurrentVaccines().forEach(v => {
+        if (!hxValidYmd(v.due)) return;
+        const pn = hxPetName(v.petId);
+        add('vx14:' + v.id + ':' + v.due, hxAddDays(v.due, -14), '💉 ' + pn + '\'s ' + v.name + ' is due soon', 'Due ' + hxDate(v.due) + ' — book the vet now.');
+        add('vx0:' + v.id + ':' + v.due, v.due, '💉 ' + pn + '\'s ' + v.name + ' is due today', 'Book it, or log it in Petfi once it\'s done.');
+      });
+      (state.supplies || []).forEach(s => {
+        const ro = supplyRunOut(s); if (!ro) return;
+        const lead = s.lead || 5;
+        add('sp:' + s.id + ':' + s.bought, hxAddDays(ro, -lead), '📦 Running low: ' + s.name,
+          'About ' + lead + ' days left' + (s.petId ? ' for ' + hxPetName(s.petId) : '') + '. Tap to reorder.');
+      });
+      return out;
+    }
+    // From the scheduler: alert once, and only if we're not hours late
+    function hxTick(now) {
+      if (!state.hxFired) return false;
+      let changed = false;
+      hxAlerts().forEach(a => {
+        if (now < a.at || state.hxFired[a.key]) return;
+        state.hxFired[a.key] = now; changed = true;
+        if (now - a.at < 6 * 3600 * 1000) fireReminder({ what: a.title + ' — ' + a.body });
+      });
+      return changed;
+    }
+
+    // ---- My care sections ----
+    function hxAttentionBox() {
+      const att = hxAttention();
+      if (!att.length) return '';
+      return '<div class="hx-attn"><b>🩺 Needs attention</b>' + att.map(a =>
+        '<div class="hx-attn-row ' + a.lvl + '" onclick="' + a.act + '"><span>' + a.icon + '</span><span style="flex:1;">' + esc(a.text) + '</span><span class="chev">›</span></div>').join('') + '</div>';
+    }
+    function hxCareSections() {
+      const pets = hxPets();
+      let h = '';
+      // Health records, one per pet
+      h += '<div class="sec"><h3>🩺 Health records</h3>' + (state.accountType === 'owner' ? '<span class="link" onclick="openAddPet()">+ Pet</span>' : '') + '</div>';
+      if (!pets.length) h += '<div class="note" style="margin-top:0;">Add your pets to keep their meds, vaccines and vet records here. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="openAddPet()">+ Add a pet</span></div>';
+      h += pets.map(p => {
+        const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
+        const meta = [TAGS[p.id] && TAGS[p.id].lost ? '🚨 marked lost' : '', w ? w.v + ' ' + (info.wu || 'lb') : '', info.vetName ? '🏥 ' + info.vetName : '', info.chip ? 'microchipped' : ''].filter(Boolean).join(' · ') || 'Weight, vet, microchip, visits';
+        return '<div class="row" style="cursor:pointer;" onclick="openHealthRecord(\'' + jsStr(p.id) + '\')"><div class="ricon">' + hxPetIcon(p, 46) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(meta) + '</div></div><span class="chev">›</span></div>';
+      }).join('');
+
+      // Meds & prescriptions
+      h += '<div class="sec"><h3>💊 Meds &amp; prescriptions</h3><span class="link" onclick="openMedForm()">+ Add</span></div>';
+      const meds = (state.meds || []).filter(medActive);
+      h += meds.length ? meds.map(medRow).join('')
+        : '<div class="note" style="margin-top:0;">Flea &amp; heartworm, allergy pills, anything from the vet. We remind you at dose time, count down the supply and tell you <b>before you run out</b> — then one tap to refill.</div>';
+      const past = (state.meds || []).length - meds.length;
+      if (past) h += '<p class="sub" style="margin:-0.2rem 0 0.4rem;font-size:0.8rem;"><span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="openPastMeds()">Past meds (' + past + ')</span></p>';
+
+      // Vaccines
+      h += '<div class="sec"><h3>💉 Vaccines</h3><span class="link" onclick="openVaccineForm()">+ Add</span></div>';
+      const vx = hxCurrentVaccines();
+      h += vx.length ? vx.map(vaxRow).join('')
+        : '<div class="note" style="margin-top:0;">Copy the shots from your vet paperwork — rabies, DHPP, FVRCP… We remind you two weeks before each is due. Groomers, boarders and daycares ask for these.</div>';
+
+      // Never run out
+      h += '<div class="sec"><h3>📦 Never run out</h3><span class="link" onclick="openSupplyForm()">+ Add</span></div>';
+      const sup = (state.supplies || []).slice().sort((a, b) => (supplyRunOut(a) || '9') < (supplyRunOut(b) || '9') ? -1 : 1);
+      h += sup.length ? sup.map(supplyRow).join('')
+        : '<div class="note" style="margin-top:0;">Food, litter, treats, flea meds. Tell us how long one bag or box lasts and we nudge you to reorder a few days before it runs out — one tap reorders.</div>';
+
+      // Emergency + spending
+      h += '<div class="row" style="cursor:pointer;border-color:#ffc9c9;" onclick="openPetEmergency()"><div class="ricon" style="background:#ffecec;">🚨</div>' +
+        '<div class="rmain"><div class="rtitle">Pet emergency</div><div class="rmeta">Poison control, emergency vets, what\'s toxic</div></div><span class="chev">›</span></div>';
+      const spent = hxSpentThisYear();
+      if (spent > 0) h += '<p class="sub" style="font-size:0.8rem;margin:0.2rem 0 0;">💵 Spent on care in ' + new Date().getFullYear() + ': <b>' + hxMoney(spent) + '</b> (visits, refills and supplies you logged)</p>';
+      return h;
+    }
+    function medRow(m) {
+      const f = medFreq(m), left = medLeft(m), dl = medDaysLeft(m);
+      const bits = [medDoseText(m) + ' ' + f.label.toLowerCase() + (f.ms && m.time ? ' at ' + hxTime(m.time) : '')];
+      if (left != null) bits.push(medUnit(left, m.unit) + ' left' + (dl != null && medNeedsRefill(m) ? ' (~' + dl + (dl === 1 ? ' day)' : ' days)') : ''));
+      if (typeof m.refills === 'number') bits.push(m.refills + (m.refills === 1 ? ' refill' : ' refills'));
+      if (m.lastGiven && Date.now() - m.lastGiven < 2 * DAY_MS) bits.push('✓ given ' + hxAgo(m.lastGiven));
+      const low = dl != null && medNeedsRefill(m) && dl <= (m.lead || 7);
+      return '<div class="row" style="cursor:pointer;" onclick="openMed(\'' + jsStr(m.id) + '\')"><div class="ricon">💊</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);">' + esc(m.strength) + '</span>' : '') + '</div>' +
+        '<div class="rmeta">' + esc(hxPetName(m.petId)) + ' · ' + esc(bits.join(' · ')) + '</div></div>' +
+        '<div class="raction"><button class="pill-btn' + (low ? '' : ' ghost') + '" onclick="event.stopPropagation();openRefill(\'' + jsStr(m.id) + '\')">Refill</button></div></div>';
+    }
+    function vaxRow(v) {
+      const st = hxVaxStatus(v);
+      return '<div class="row" style="cursor:pointer;" onclick="openVaccine(\'' + jsStr(v.id) + '\')"><div class="ricon">💉</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(v.name) + '</div><div class="rmeta">' + esc(hxPetName(v.petId)) + ' · <span class="hx-pill ' + st.lvl + '">' + esc(st.text || 'no due date') + '</span></div></div>' +
+        '<span class="chev">›</span></div>';
+    }
+    function supplyRow(s) {
+      const ro = supplyRunOut(s), d = ro ? hxDaysUntil(ro) : null;
+      const lvl = d == null ? 'ok' : d <= 0 ? 'bad' : d <= (s.lead || 5) ? 'warn' : 'ok';
+      const when = d == null ? '' : d <= 0 ? 'ran out ' + hxDate(ro) : 'runs out ~' + hxDate(ro) + ' (' + hxWhen(d) + ')';
+      return '<div class="row" style="cursor:pointer;" onclick="openSupplyForm(\'' + jsStr(s.id) + '\')"><div class="ricon">📦</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(s.name) + '</div><div class="rmeta">' + (s.petId ? esc(hxPetName(s.petId)) + ' · ' : '') + '<span class="hx-pill ' + lvl + '">' + esc(when) + '</span></div></div>' +
+        '<div class="raction"><button class="pill-btn' + (lvl === 'ok' ? ' ghost' : '') + '" onclick="event.stopPropagation();openReorder(\'' + jsStr(s.id) + '\')">Reorder</button></div></div>';
+    }
+    // Home feed: the most urgent thing, one tap from the feed; or a one-time hello
+    function hxHomeStrip() {
+      const att = hxAttention();
+      if (att.length) {
+        return '<div class="mm-banner" style="border-color:' + (att[0].lvl === 'bad' ? '#ffb3b3' : '#ffe0a3') + ';" onclick="' + att[0].act + '"><div class="i">' + att[0].icon + '</div>' +
+          '<div><b>' + esc(att[0].text) + '</b><small>' + (att.length > 1 ? '+' + (att.length - 1) + ' more in 🔒 My care' : 'Tap to take care of it') + '</small></div><span class="chev">›</span></div>';
+      }
+      const empty = !(state.meds || []).length && !(state.vaccines || []).length && !(state.supplies || []).length;
+      if (empty && !state.hxHelloDone && (hxPets().length || state.accountType === 'owner')) {
+        return '<div class="mm-banner" onclick="state.hxHelloDone=true;setHomeTab(\'care\')"><div class="i">🩺</div>' +
+          '<div><b>New: meds, vaccines &amp; refills</b><small>Dose reminders, "running low" alerts and one-tap refills, private to you</small></div>' +
+          '<span class="chev" onclick="event.stopPropagation();state.hxHelloDone=true;saveState();openTab(\'home\')" title="Hide">✕</span></div>';
+      }
+      return '';
+    }
+
+    // ---- Meds: add / edit / detail / refill ----
+    function openMedForm(id, petId, back) {
+      if (hxNeedPet()) return;
+      const m = (id && hxMed(id)) || {};
+      const left = medLeft(m);
+      const f = m.freq || 'd1';
+      openSheet(m.id ? '💊 Edit ' + esc(m.name) : '💊 Add a med',
+        hxBackField(back) + hxPetSelect('md-pet', m.petId || petId) +
+        '<label>Medicine</label><input type="text" id="md-name" list="md-list" maxlength="80" value="' + esc(m.name || '') + '" placeholder="e.g. Apoquel, NexGard, Heartgard">' +
+        '<datalist id="md-list">' + COMMON_MEDS.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
+        '<label>Strength <small style="color:var(--muted);font-weight:400;">(optional, from the label)</small></label><input type="text" id="md-str" maxlength="40" value="' + esc(m.strength || '') + '" placeholder="e.g. 16 mg, 25–50 lb">' +
+        '<label>Each dose</label><div style="display:flex;gap:0.5rem;"><input type="number" id="md-per" min="0" step="0.25" value="' + esc(m.perDose || 1) + '" style="flex:1;">' +
+          '<select id="md-unit" style="flex:1.4;">' + MED_UNITS.map(u => '<option value="' + u[0] + '"' + (u[0] === (m.unit || 'tablet') ? ' selected' : '') + '>' + u[1] + '</option>').join('') + '</select></div>' +
+        '<label>How often?</label><select id="md-freq" onchange="hxFreqChanged()">' + MED_FREQS.map(x => '<option value="' + x.key + '"' + (x.key === f ? ' selected' : '') + '>' + x.label + '</option>').join('') + '</select>' +
+        '<div id="md-when"><label>Next dose</label><div style="display:flex;gap:0.5rem;"><input type="date" id="md-date" value="' + esc(m.start || hxToday()) + '" style="flex:1.3;"><input type="time" id="md-time" value="' + esc(m.time || '08:00') + '" style="flex:1;"></div>' +
+          '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input type="checkbox" id="md-remind"' + (m.id ? (m.remind ? ' checked' : '') : ' checked') + ' style="width:auto;"> Remind me at dose time</label></div>' +
+        '<label>How many ' + '<span id="md-unit-name">' + esc((MED_UNITS.find(u => u[0] === (m.unit || 'tablet')) || MED_UNITS[0])[1]) + '</span> do you have now? <small style="color:var(--muted);font-weight:400;">(so we can warn you before you run out)</small></label>' +
+          '<input type="number" id="md-qty" min="0" step="0.5" value="' + (left == null ? '' : esc(left)) + '" placeholder="e.g. 30">' +
+        '<label>Refills left on the prescription <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="number" id="md-refills" min="0" step="1" value="' + (typeof m.refills === 'number' ? esc(m.refills) : '') + '" placeholder="It\'s on the label">' +
+        '<label>Warn me before it runs out</label><select id="md-lead">' + [3, 5, 7, 10, 14].map(n => '<option value="' + n + '"' + (n === (m.lead || 7) ? ' selected' : '') + '>' + n + ' days ahead</option>').join('') + '</select>' +
+        '<details class="hx-more"' + (m.rxNo || m.vet || m.pharm ? ' open' : '') + '><summary>📋 Prescription &amp; pharmacy (optional)</summary>' +
+          '<label>Rx number</label><input type="text" id="md-rx" maxlength="40" value="' + esc(m.rxNo || '') + '">' +
+          '<label>Prescribed by</label><input type="text" id="md-vet" maxlength="80" value="' + esc(m.vet || (state.petInfo[m.petId || petId] || {}).vetName || '') + '" placeholder="Dr. name or clinic">' +
+          '<label>Prescription expires</label><input type="date" id="md-rxexp" value="' + esc(m.rxExp || '') + '">' +
+          '<label>Pharmacy</label><input type="text" id="md-pharm" list="md-plist" maxlength="60" value="' + esc(m.pharm || '') + '" placeholder="e.g. My vet, Chewy, Costco">' +
+          '<datalist id="md-plist"><option value="My vet\'s clinic">' + PET_PHARMACIES.map(p => '<option value="' + esc(p.name) + '">').join('') + '<option value="Costco Pharmacy"><option value="Walgreens"><option value="CVS"></datalist>' +
+          '<label>Pharmacy phone</label><input type="tel" id="md-pphone" maxlength="24" value="' + esc(m.pharmPhone || '') + '">' +
+          '<label>Pharmacy website</label><input type="url" id="md-purl" maxlength="500" value="' + esc(m.pharmUrl || '') + '" placeholder="Link to refill online">' +
+          '<label>Last day <small style="color:var(--muted);font-weight:400;">(for a short course, like antibiotics)</small></label><input type="date" id="md-end" value="' + esc(m.end || '') + '">' +
+          '<label>Notes</label><textarea id="md-notes" rows="2" maxlength="500" placeholder="Give with food, hide in a treat…">' + esc(m.notes || '') + '</textarea>' +
+        '</details>' +
+        '<p class="sub" style="font-size:0.72rem;margin:0.6rem 0 0;">Follow your vet\'s instructions — Petfi only keeps track and reminds you.</p>' +
+        '<button class="btn" onclick="saveMed(\'' + jsStr(m.id || '') + '\')">' + (m.id ? 'Save changes' : 'Add med 💊') + '</button>');
+      hxFreqChanged();
+      const unitSel = document.getElementById('md-unit');
+      if (unitSel) unitSel.onchange = () => { const u = MED_UNITS.find(x => x[0] === unitSel.value); const n = document.getElementById('md-unit-name'); if (u && n) n.textContent = u[1]; };
+    }
+    function hxFreqChanged() {
+      const f = MED_FREQS.find(x => x.key === val('md-freq'));
+      const w = document.getElementById('md-when');
+      if (w) w.style.display = f && f.ms ? '' : 'none';
+    }
+    function saveMed(id) {
+      const name = val('md-name'); if (!name) { toast('What\'s the medicine called?'); return; }
+      const petId = val('md-pet'); if (!hxPet(petId)) { toast('Pick a pet'); return; }
+      let m = id ? hxMed(id) : null;
+      const isNew = !m;
+      const before = m ? medLeft(m) : null;
+      if (!m) m = { id: 'm' + hxId(), created: Date.now() };
+      m.petId = petId; m.name = name.slice(0, 80); m.strength = val('md-str').slice(0, 40);
+      m.perDose = hxNum(val('md-per'), 1) || 1; m.unit = val('md-unit') || 'tablet';
+      m.freq = val('md-freq') || 'd1';
+      m.start = hxValidYmd(val('md-date')) ? val('md-date') : hxToday();
+      m.time = /^\d{2}:\d{2}$/.test(val('md-time')) ? val('md-time') : '08:00';
+      const rem = document.getElementById('md-remind');
+      m.remind = !!(rem && rem.checked) && !!medFreq(m).ms;
+      const qRaw = val('md-qty'), q = qRaw === '' ? null : hxNum(qRaw, null);
+      if (q == null) { delete m.qty; delete m.qtyAt; }
+      else if (isNew || q !== before) { m.qty = q; m.qtyAt = medCountAnchor(m); }
+      const rf = val('md-refills');
+      m.refills = rf === '' ? null : Math.max(0, Math.round(hxNum(rf, 0)));
+      m.lead = parseInt(val('md-lead'), 10) || 7;
+      m.rxNo = val('md-rx').slice(0, 40); m.vet = val('md-vet').slice(0, 80);
+      m.rxExp = hxValidYmd(val('md-rxexp')) ? val('md-rxexp') : '';
+      m.pharm = val('md-pharm').slice(0, 60); m.pharmPhone = hxPhone(val('md-pphone')); m.pharmUrl = hxUrl(val('md-purl'));
+      m.end = hxValidYmd(val('md-end')) ? val('md-end') : '';
+      m.notes = val('md-notes').slice(0, 500);
+      if (isNew) state.meds.push(m);
+      syncMedReminder(m);
+      if (m.remind && ('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') ensurePushSubscription(false); });
+      const dl = medDaysLeft(m);
+      hxDone(val('hx-back'), isNew ? (dl != null && medNeedsRefill(m) ? '💊 Added — supply lasts about ' + dl + ' days' : '💊 ' + m.name + ' added') : 'Saved 💊');
+    }
+    function openMed(id) {
+      const m = hxMed(id); if (!m) return;
+      const f = medFreq(m), left = medLeft(m), dl = medDaysLeft(m), info = state.petInfo[m.petId] || {};
+      const rem = (state.reminders || []).find(r => r.medId === m.id);
+      const line = (k, v) => v ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
+      let h = '<div class="hx-card">' +
+        line('For', hxPetName(m.petId)) +
+        line('Dose', medDoseText(m) + ' ' + f.label.toLowerCase() + (f.ms && m.time ? ' at ' + hxTime(m.time) : '')) +
+        line('Next reminder', rem ? new Date(rem.next).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
+        line('On hand', left == null ? '' : medUnit(left, m.unit) + (dl != null && medNeedsRefill(m) ? ' — runs out ~' + hxDate(hxYmd(new Date(medRunOut(m)))) : '')) +
+        line('Refills left', typeof m.refills === 'number' ? String(m.refills) : '') +
+        line('Last given', m.lastGiven ? hxAgo(m.lastGiven) : '') +
+        line('Rx number', m.rxNo) + line('Prescribed by', m.vet) +
+        line('Prescription expires', m.rxExp ? hxDate(m.rxExp) : '') +
+        line('Pharmacy', [m.pharm, m.pharmPhone].filter(Boolean).join(' · ')) +
+        line('Last day', m.end ? hxDate(m.end) : '') +
+        line('Notes', m.notes) + '</div>';
+      if (medActive(m)) {
+        h += '<button class="btn" onclick="markMedGiven(\'' + jsStr(id) + '\')">✓ Gave a dose' + (m.lastGiven && Date.now() - m.lastGiven < DAY_MS ? ' (last: ' + hxAgo(m.lastGiven) + ')' : '') + '</button>';
+        h += '<button class="btn secondary" onclick="openRefill(\'' + jsStr(id) + '\')">🔁 Refill</button>';
+        h += '<button class="btn secondary" onclick="openLogRefill(\'' + jsStr(id) + '\')">📦 I got a refill — update the count</button>';
+        if (info.vetPhone) h += hxTelButton('📞 Call ' + esc(info.vetName || 'the vet'), info.vetPhone);
+      }
+      h += '<button class="btn secondary" onclick="openMedForm(\'' + jsStr(id) + '\')">✏️ Edit</button>';
+      h += medActive(m)
+        ? '<button class="btn secondary" onclick="stopMed(\'' + jsStr(id) + '\')">⏹ Stopped taking it</button>'
+        : '<button class="btn secondary" onclick="restartMed(\'' + jsStr(id) + '\')">▶️ Taking it again</button>';
+      h += '<button class="btn secondary" onclick="deleteMed(\'' + jsStr(id) + '\')">🗑 Delete</button>';
+      openSheet('💊 ' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);font-size:0.9em;">' + esc(m.strength) + '</span>' : ''), h);
+    }
+    function markMedGiven(id) {
+      const m = hxMed(id); if (!m) return;
+      m.lastGiven = Date.now();
+      // As-needed meds don't count down on a schedule, so a dose comes off by hand
+      if (!medFreq(m).ms && medHasCount(m)) m.qty = Math.max(0, Math.round((m.qty - medPer(m)) * 100) / 100);
+      haptic(); hxDone('', '✓ Logged — ' + medDoseText(m) + ' of ' + m.name);
+    }
+    function stopMed(id) {
+      const m = hxMed(id); if (!m) return;
+      m.stopped = hxToday(); syncMedReminder(m);
+      hxDone('', '⏹ ' + m.name + ' moved to past meds');
+    }
+    function restartMed(id) {
+      const m = hxMed(id); if (!m) return;
+      delete m.stopped; if (m.end && hxDaysUntil(m.end) < 0) m.end = '';
+      m.start = hxToday(); if (medHasCount(m)) m.qtyAt = medCountAnchor(m);
+      syncMedReminder(m); hxDone('', '▶️ ' + m.name + ' is back on the list');
+    }
+    function deleteMed(id) {
+      const m = hxMed(id); if (!m) return;
+      state.meds = state.meds.filter(x => x.id !== id);
+      state.reminders = (state.reminders || []).filter(r => r.medId !== id);
+      hxDone('', 'Removed ' + m.name);
+    }
+    function openPastMeds() {
+      const past = (state.meds || []).filter(m => !medActive(m));
+      openSheet('💊 Past meds', past.length ? past.map(m =>
+        '<div class="row" style="cursor:pointer;" onclick="openMed(\'' + jsStr(m.id) + '\')"><div class="ricon">💊</div><div class="rmain"><div class="rtitle">' + esc(m.name) + '</div>' +
+        '<div class="rmeta">' + esc(hxPetName(m.petId)) + ' · ' + esc(m.stopped ? 'stopped ' + hxDate(m.stopped) : 'finished ' + hxDate(m.end)) + '</div></div><span class="chev">›</span></div>').join('')
+        : '<div class="note">Nothing here.</div>');
+    }
+    function openRefill(id) {
+      const m = hxMed(id); if (!m) return;
+      const info = state.petInfo[m.petId] || {};
+      const q = m.name.replace(/\s*\(.*?\)\s*/g, ' ').trim() + (m.strength ? ' ' + m.strength : '');
+      const left = medLeft(m), dl = medDaysLeft(m);
+      let h = '<p class="sub" style="margin-bottom:0.6rem;">' + esc(hxPetName(m.petId)) + (left != null ? ' · ' + esc(medUnit(left, m.unit)) + ' left' + (dl != null && medNeedsRefill(m) ? ' (about ' + dl + (dl === 1 ? ' day)' : ' days)') : '') : '') + '</p>';
+      if (m.refills === 0) h += '<div class="note" style="margin-top:0;background:#fff4e0;color:#8a5a00;">No refills left on this prescription — the pharmacy will need a new one from your vet. Call the vet first.</div>';
+      h += hxTelButton('📞 Call ' + esc(m.pharm || 'my pharmacy'), m.pharmPhone);
+      if (m.pharmUrl) h += '<button class="btn secondary" onclick="openLink(\'' + jsStr(m.pharmUrl) + '\')">🌐 Refill on ' + esc(m.pharm || 'my pharmacy\'s') + ' website</button>';
+      h += hxTelButton('📞 Call ' + esc(info.vetName || 'my vet'), info.vetPhone);
+      h += '<div class="sec" style="margin-top:0.9rem;"><h3>Order from a pet pharmacy</h3></div>' +
+        '<p class="sub" style="margin:-0.4rem 0 0.6rem;font-size:0.8rem;">For a prescription they get your vet\'s OK before shipping — usually 1–3 days, so order early and have the vet\'s name and phone handy (📋 below copies it all).</p>';
+      h += PET_PHARMACIES.map(p => '<div class="fav-item" onclick="openLink(\'' + jsStr(p.url(q)) + '\')"><span class="fi">' + p.emo + '</span>' +
+        '<span class="ft">' + esc(p.name) + '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">' + esc(p.note) + '</small></span><span class="fl">Open ↗</span></div>').join('');
+      h += '<button class="btn secondary" style="margin-top:0.6rem;" onclick="copyRxDetails(\'' + jsStr(id) + '\')">📋 Copy the prescription details</button>';
+      h += '<button class="btn secondary" onclick="openRxRequest(\'' + jsStr(id) + '\')">✍️ Ask my vet for a written prescription</button>';
+      h += '<button class="btn" onclick="openLogRefill(\'' + jsStr(id) + '\')">✅ Got it — update my count</button>';
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Petfi doesn\'t sell or fill prescriptions — your vet or a licensed pharmacy does.</p>';
+      openSheet('🔁 Refill ' + esc(m.name), h);
+    }
+    function hxRxText(m) {
+      const p = hxPet(m.petId) || {}, info = state.petInfo[m.petId] || {}, w = hxLastWeight(m.petId);
+      return [
+        'Pet: ' + (p.name || '') + (p.species ? ' (' + p.species + (p.breed ? ', ' + p.breed : '') + ')' : '') + (w ? ', ' + w.v + ' ' + (info.wu || 'lb') : ''),
+        'Medication: ' + m.name + (m.strength ? ' ' + m.strength : '') + ' — ' + medDoseText(m) + ' ' + medFreq(m).label.toLowerCase(),
+        m.rxNo ? 'Rx #: ' + m.rxNo : '',
+        typeof m.refills === 'number' ? 'Refills left: ' + m.refills : '',
+        'Prescribed by: ' + (m.vet || info.vetName || '') + (info.vetPhone ? ' · ' + info.vetPhone : ''),
+        info.allergies ? 'Allergies: ' + info.allergies : '',
+      ].filter(x => x && !/: $/.test(x)).join('\n');
+    }
+    function hxCopy(text, okMsg) {
+      try { navigator.clipboard.writeText(text).then(() => toast(okMsg), () => toast('Could not copy')); } catch (e) { toast('Could not copy'); }
+    }
+    function copyRxDetails(id) { const m = hxMed(id); if (m) hxCopy(hxRxText(m), '📋 Copied — paste it into the pharmacy\'s form'); }
+    // Many states let owners ask for a written prescription to fill anywhere
+    // (Florida made vets offer it in 2026); this drafts the ask, they send it.
+    function openRxRequest(id) {
+      const m = hxMed(id); if (!m) return;
+      const info = state.petInfo[m.petId] || {};
+      const msg = 'Hi' + (info.vetName ? ' ' + info.vetName : '') + ', could you please send a written prescription for ' + hxPetName(m.petId) + '\'s ' + m.name + (m.strength ? ' ' + m.strength : '') +
+        ' (' + medDoseText(m) + ' ' + medFreq(m).label.toLowerCase() + ')' + (m.pharm ? ' to ' + m.pharm : '') + '? I\'d like to fill it there. Thank you!';
+      openSheet('✍️ Ask for a written prescription',
+        '<p class="sub" style="margin-bottom:0.6rem;">Vets can give you a written prescription so you can fill it at the pharmacy you choose. Copy this and text or email your vet:</p>' +
+        '<textarea id="rxr-msg" rows="5">' + esc(msg) + '</textarea>' +
+        '<button class="btn" onclick="hxCopy(document.getElementById(\'rxr-msg\').value,\'📋 Copied — paste it into a text or email to your vet\')">📋 Copy message</button>' +
+        hxTelButton('📞 Call ' + esc(info.vetName || 'my vet'), info.vetPhone));
+    }
+    function openLogRefill(id) {
+      const m = hxMed(id); if (!m) return;
+      const units = (MED_UNITS.find(u => u[0] === m.unit) || MED_UNITS[0])[1];
+      openSheet('📦 Refill for ' + esc(m.name),
+        '<label>How many ' + esc(units) + ' came in the refill?</label><input type="number" id="lr-got" min="0" step="0.5" value="' + esc(m.lastFill || '') + '" placeholder="e.g. 30">' +
+        '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">We add it to the ' + (medLeft(m) != null ? esc(medUnit(medLeft(m), m.unit)) + ' you have left' : 'count') + '.</p>' +
+        '<label>What did it cost? <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="number" id="lr-cost" min="0" step="0.01" placeholder="$">' +
+        (typeof m.refills === 'number' && m.refills > 0 ? '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input type="checkbox" id="lr-used" checked style="width:auto;"> It used one of my ' + m.refills + ' refills</label>' : '') +
+        '<button class="btn" onclick="saveLogRefill(\'' + jsStr(id) + '\')">Update count ✅</button>');
+    }
+    function saveLogRefill(id) {
+      const m = hxMed(id); if (!m) return;
+      const got = hxNum(val('lr-got'), 0);
+      if (!(got > 0)) { toast('How many came in the refill?'); return; }
+      const left = medLeft(m) || 0;
+      m.qty = Math.round((left + got) * 100) / 100; m.qtyAt = medCountAnchor(m); m.lastFill = got;
+      const used = document.getElementById('lr-used');
+      if (used && used.checked && m.refills > 0) m.refills--;
+      hxSpend(hxNum(val('lr-cost'), 0), m.name + ' refill', m.petId, 'refill');
+      const dl = medDaysLeft(m);
+      hxDone('', dl != null && medNeedsRefill(m) ? '✅ Count updated — lasts about ' + dl + ' days' : '✅ Count updated');
+    }
+
+    // ---- Vaccines ----
+    function openVaccineForm(id, petId, back, renewOf) {
+      if (hxNeedPet()) return;
+      const prev = renewOf ? hxVax(renewOf) : null;
+      const v = (id && hxVax(id)) || {};
+      const pid = v.petId || (prev && prev.petId) || petId || (hxPets()[0] || {}).id;
+      const sp = (hxPet(pid) || {}).species;
+      const presets = VAX_PRESETS[sp] || VAX_PRESETS.dog.concat(VAX_PRESETS.cat.slice(1));
+      const given = v.given || hxToday();
+      // A renewal repeats the last interval (a 3-year rabies stays 3 years)
+      let due = v.due || '';
+      if (!id && prev && hxValidYmd(prev.given) && hxValidYmd(prev.due)) {
+        const days = Math.round((new Date(prev.due + 'T12:00:00') - new Date(prev.given + 'T12:00:00')) / DAY_MS);
+        due = hxAddDays(given, days > 0 ? days : 365);
+      }
+      openSheet(v.id ? '💉 Edit ' + esc(v.name) : prev ? '💉 New ' + esc(prev.name) + ' shot' : '💉 Add a vaccine',
+        hxBackField(back) + hxPetSelect('vx-pet', pid) +
+        '<label>Vaccine</label><input type="text" id="vx-name" list="vx-list" maxlength="60" value="' + esc(v.name || (prev && prev.name) || '') + '" placeholder="e.g. Rabies">' +
+        '<datalist id="vx-list">' + presets.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
+        '<label>Date given</label><input type="date" id="vx-given" value="' + esc(given) + '">' +
+        '<label>Next due <small style="color:var(--muted);font-weight:400;">(it\'s on the certificate)</small></label><input type="date" id="vx-due" value="' + esc(due) + '">' +
+        '<div class="chips chips-sm" style="margin:0.5rem 0 0;">' + [['+6 months', 0, 6], ['+1 year', 1, 0], ['+3 years', 3, 0]].map(x =>
+          '<div class="chip" onclick="hxSetDue(' + x[1] + ',' + x[2] + ')">' + x[0] + '</div>').join('') + '</div>' +
+        '<label>Vet or clinic</label><input type="text" id="vx-vet" maxlength="80" value="' + esc(v.vet || (prev && prev.vet) || (state.petInfo[pid] || {}).vetName || '') + '">' +
+        '<label>Tag or lot number <small style="color:var(--muted);font-weight:400;">(optional — the rabies tag number)</small></label><input type="text" id="vx-tag" maxlength="40" value="' + esc(v.tag || '') + '">' +
+        '<button class="btn" onclick="saveVaccine(\'' + jsStr(v.id || '') + '\')">' + (v.id ? 'Save changes' : 'Save shot 💉') + '</button>');
+    }
+    function hxSetDue(years, months) {
+      const g = val('vx-given'); if (!hxValidYmd(g)) { toast('Set the date given first'); return; }
+      const e = document.getElementById('vx-due');
+      if (e) e.value = hxAddMonths(g, years * 12 + months);
+    }
+    function saveVaccine(id) {
+      const name = val('vx-name'); if (!name) { toast('Which vaccine?'); return; }
+      const petId = val('vx-pet'); if (!hxPet(petId)) { toast('Pick a pet'); return; }
+      const given = val('vx-given'), due = val('vx-due');
+      if (!hxValidYmd(given)) { toast('When was it given?'); return; }
+      if (due && hxValidYmd(due) && due <= given) { toast('The due date should be after the date given'); return; }
+      let v = id ? hxVax(id) : null;
+      const isNew = !v;
+      if (!v) v = { id: 'v' + hxId() };
+      v.petId = petId; v.name = name.slice(0, 60); v.given = given; v.due = hxValidYmd(due) ? due : '';
+      v.vet = val('vx-vet').slice(0, 80); v.tag = val('vx-tag').slice(0, 40);
+      if (isNew) state.vaccines.push(v);
+      hxDone(val('hx-back'), v.due ? '💉 Saved — we\'ll remind you before ' + hxDate(v.due) : '💉 Saved');
+    }
+    function openVaccine(id) {
+      const v = hxVax(id); if (!v) return;
+      const st = hxVaxStatus(v);
+      const history = (state.vaccines || []).filter(x => x.petId === v.petId && String(x.name).toLowerCase() === String(v.name).toLowerCase() && x.id !== v.id)
+        .sort((a, b) => (a.given || '') < (b.given || '') ? 1 : -1);
+      const line = (k, val2) => val2 ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(val2) + '</b></div>' : '';
+      openSheet('💉 ' + esc(v.name),
+        '<div class="hx-card">' + line('For', hxPetName(v.petId)) + line('Given', hxDate(v.given)) +
+          '<div class="hx-kv"><span>Status</span><b><span class="hx-pill ' + st.lvl + '">' + esc(st.text || 'no due date') + '</span></b></div>' +
+          line('Vet', v.vet) + line('Tag / lot', v.tag) +
+          (history.length ? line('Earlier shots', history.map(x => hxDate(x.given)).join(', ')) : '') + '</div>' +
+        '<button class="btn" onclick="openVaccineForm(\'\',\'\',\'\',\'' + jsStr(id) + '\')">✅ Got the next shot</button>' +
+        '<button class="btn secondary" onclick="closeSheet();openAddCal(\'' + jsStr(hxPetName(v.petId) + '\'s ' + v.name + ' shot') + '\',\'vet\')">🗓️ Put the appointment in my calendar</button>' +
+        '<button class="btn secondary" onclick="openVaccineForm(\'' + jsStr(id) + '\')">✏️ Edit</button>' +
+        '<button class="btn secondary" onclick="deleteVaccine(\'' + jsStr(id) + '\')">🗑 Delete this record</button>');
+    }
+    function deleteVaccine(id) {
+      const v = hxVax(id); if (!v) return;
+      state.vaccines = state.vaccines.filter(x => x.id !== id);
+      hxDone('', 'Removed ' + v.name);
+    }
+
+    // ---- Never run out (supplies) ----
+    function openSupplyForm(id) {
+      const s = (id && hxSupply(id)) || {};
+      const pets = hxPets();
+      const lasts = s.lasts || 30;
+      const unit = lasts % 30 === 0 && lasts >= 30 ? 30 : lasts % 7 === 0 ? 7 : 1;
+      openSheet(s.id ? '📦 ' + esc(s.name) : '📦 Never run out',
+        '<label>What is it?</label><input type="text" id="sp-name" maxlength="80" value="' + esc(s.name || '') + '" placeholder="e.g. Purina Pro Plan 30 lb bag">' +
+        (pets.length > 1 ? '<label>For</label><select id="sp-pet"><option value="">All my pets</option>' + pets.map(p => '<option value="' + esc(p.id) + '"' + (p.id === s.petId ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select>'
+          : '<input type="hidden" id="sp-pet" value="' + esc(s.petId || '') + '">') +
+        '<label>How long does one last?</label><div style="display:flex;gap:0.5rem;"><input type="number" id="sp-n" min="1" step="1" value="' + esc(lasts / unit) + '" style="flex:1;">' +
+          '<select id="sp-unit" style="flex:1.4;">' + [[1, 'days'], [7, 'weeks'], [30, 'months']].map(u => '<option value="' + u[0] + '"' + (u[0] === unit ? ' selected' : '') + '>' + u[1] + '</option>').join('') + '</select></div>' +
+        '<label>Last bought</label><input type="date" id="sp-bought" value="' + esc(s.bought || hxToday()) + '">' +
+        '<label>Remind me</label><select id="sp-lead">' + [3, 5, 7, 10].map(n => '<option value="' + n + '"' + (n === (s.lead || 5) ? ' selected' : '') + '>' + n + ' days before it runs out</option>').join('') + '</select>' +
+        '<label>Where you buy it <small style="color:var(--muted);font-weight:400;">(optional — paste the product link)</small></label><input type="url" id="sp-link" maxlength="500" value="' + esc(s.link || '') + '" placeholder="https://…">' +
+        '<label>Price <small style="color:var(--muted);font-weight:400;">(optional — for your care spending)</small></label><input type="number" id="sp-cost" min="0" step="0.01" value="' + (s.cost > 0 ? esc(s.cost) : '') + '" placeholder="$">' +
+        '<button class="btn" onclick="saveSupply(\'' + jsStr(s.id || '') + '\')">' + (s.id ? 'Save changes' : 'Start tracking 📦') + '</button>' +
+        (s.id ? '<button class="btn secondary" onclick="openReorder(\'' + jsStr(s.id) + '\')">🛒 Reorder</button><button class="btn secondary" onclick="deleteSupply(\'' + jsStr(s.id) + '\')">🗑 Stop tracking</button>' : ''));
+    }
+    function saveSupply(id) {
+      const name = val('sp-name'); if (!name) { toast('What should we track?'); return; }
+      const n = Math.round(hxNum(val('sp-n'), 0)), unit = parseInt(val('sp-unit'), 10) || 1;
+      if (!(n > 0)) { toast('How long does one last?'); return; }
+      let s = id ? hxSupply(id) : null;
+      const isNew = !s;
+      if (!s) s = { id: 's' + hxId() };
+      s.name = name.slice(0, 80); s.petId = hxPet(val('sp-pet')) ? val('sp-pet') : '';
+      s.lasts = Math.min(730, n * unit); s.bought = hxValidYmd(val('sp-bought')) ? val('sp-bought') : hxToday();
+      s.lead = parseInt(val('sp-lead'), 10) || 5; s.link = hxUrl(val('sp-link')); s.cost = hxNum(val('sp-cost'), 0);
+      if (isNew) { state.supplies.push(s); hxSpend(s.cost, s.name, s.petId, 'supply'); }
+      hxDone('', '📦 We\'ll nudge you around ' + hxDate(hxAddDays(supplyRunOut(s), -s.lead)));
+    }
+    function deleteSupply(id) {
+      const s = hxSupply(id); if (!s) return;
+      state.supplies = state.supplies.filter(x => x.id !== id);
+      hxDone('', 'Stopped tracking ' + s.name);
+    }
+    // Our Amazon tag goes on Amazon links that don't already carry one
+    function hxTagLink(url) {
+      try {
+        const u = new URL(url);
+        if (/(^|\.)amazon\.com$/i.test(u.hostname) && AFFILIATE.amazonTag && !u.searchParams.get('tag')) u.searchParams.set('tag', AFFILIATE.amazonTag);
+        return u.href;
+      } catch (e) { return url; }
+    }
+    function openReorder(id) {
+      const s = hxSupply(id); if (!s) return;
+      const ro = supplyRunOut(s), d = ro ? hxDaysUntil(ro) : null;
+      let h = '<p class="sub" style="margin-bottom:0.6rem;">' + (d == null ? '' : d <= 0 ? 'Ran out ' + hxDate(ro) : 'About ' + d + (d === 1 ? ' day' : ' days') + ' left') + '</p>';
+      if (s.link) h += '<button class="btn" onclick="openLink(\'' + jsStr(hxTagLink(s.link)) + '\')">🛒 Reorder from my saved link</button>';
+      h += '<div class="sec" style="margin-top:0.6rem;"><h3>Or find it at</h3></div>';
+      h += RETAILERS.map(r => '<div class="fav-item" onclick="openLink(\'' + jsStr(r.url(s.name)) + '\')"><span class="fi">' + r.emo + '</span><span class="ft">' + esc(r.name) +
+        (r.name === 'Chewy' ? '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">Autoship can deliver it on a schedule</small>' : '') + '</span><span class="fl">Search ↗</span></div>').join('');
+      h += '<button class="btn" style="margin-top:0.6rem;" onclick="supplyBought(\'' + jsStr(id) + '\')">✅ Bought it — restart the countdown</button>';
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Paid links: Petfi may earn a commission on some purchases, at no cost to you.</p>';
+      openSheet('🛒 Reorder ' + esc(s.name), h);
+    }
+    function supplyBought(id) {
+      const s = hxSupply(id); if (!s) return;
+      s.bought = hxToday(); hxSpend(s.cost, s.name, s.petId, 'supply');
+      haptic(); hxDone('', '📦 Countdown restarted — next nudge around ' + hxDate(hxAddDays(supplyRunOut(s), -(s.lead || 5))));
+    }
+
+    // ---- One pet's health record ----
+    function hxLastWeight(petId) {
+      const ws = ((state.petInfo[petId] || {}).weights || []).slice().sort((a, b) => a.d < b.d ? -1 : 1);
+      return ws.length ? ws[ws.length - 1] : null;
+    }
+    function hxSpark(ws) {
+      if (ws.length < 2) return '';
+      const pts = ws.slice(-12), vs = pts.map(w => w.v), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs), W = 140, H = 36;
+      const xy = pts.map((w, i) => (i / (pts.length - 1) * (W - 8) + 4).toFixed(1) + ',' + (hi === lo ? H / 2 : H - 5 - (w.v - lo) / (hi - lo) * (H - 10)).toFixed(1));
+      return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="' + xy.join(' ') + '"/></svg>';
+    }
+    function openHealthRecord(petId) {
+      const p = hxPet(petId); if (!p) return;
+      const info = state.petInfo[p.id] || {};
+      const ws = (info.weights || []).slice().sort((a, b) => a.d < b.d ? -1 : 1), w = ws[ws.length - 1];
+      const bday = p.id === 'me' ? state.bday : info.bday;
+      const pid = jsStr(p.id);
+      const line = (k, v) => v ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
+      let h = '<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem;"><div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;">' + hxPetIcon(p, 64) + '</div>' +
+        '<div><div style="font-weight:800;font-size:1.05rem;">' + esc(p.name) + '</div><div class="sub" style="margin:0;font-size:0.82rem;">' + esc([p.breed || p.species, bday ? petAge(bday) : '', info.sex].filter(Boolean).join(' · ')) + '</div></div></div>';
+      // Weight
+      h += '<div class="hx-card" style="display:flex;align-items:center;gap:0.6rem;"><div style="flex:1;"><div style="font-size:0.75rem;color:var(--muted);font-weight:700;">WEIGHT</div>' +
+        '<div style="font-weight:800;font-size:1.1rem;">' + (w ? esc(w.v + ' ' + (info.wu || 'lb')) + ' <small style="font-weight:600;color:var(--muted);font-size:0.72rem;">' + esc(hxDate(w.d)) + '</small>' : '—') + '</div></div>' +
+        hxSpark(ws) + '<button class="pill-btn" onclick="openWeightForm(\'' + pid + '\')">+ Log</button></div>';
+      // Details
+      h += '<div class="hx-card">' +
+        line('Spayed / neutered', info.fixed) + line('Microchip', [info.chip, info.chipCo].filter(Boolean).join(' · ')) +
+        line('Vet', [info.vetName, info.vetPhone].filter(Boolean).join(' · ')) + line('Allergies', info.allergies) +
+        line('Conditions', info.conditions) + line('Food', info.diet) + line('Insurance', [info.insurer, info.policy].filter(Boolean).join(' · ')) +
+        (info.vetName || info.chip || info.allergies || info.fixed ? '' : '<p class="sub" style="margin:0;font-size:0.82rem;">Add the vet\'s number, microchip, allergies and insurance — handy at the vet, the groomer and in an emergency.</p>') +
+        '<button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openPetInfoForm(\'' + pid + '\')">✏️ Edit details</button>' +
+        (info.insurer ? '' : ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openInsurance()">🛡️ Insurance quotes</button>') +
+        ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openVetChat()">💬 Ask a vet online</button>' +
+        (info.vetPhone ? ' ' + '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;" href="tel:' + esc(hxTel(info.vetPhone)) + '">📞 Call vet</a>' : '') + '</div>';
+      // Meds
+      const meds = (state.meds || []).filter(m => m.petId === p.id && medActive(m));
+      h += '<div class="sec"><h3>💊 Meds</h3><span class="link" onclick="openMedForm(\'\',\'' + pid + '\',\'' + pid + '\')">+ Add</span></div>';
+      h += meds.length ? meds.map(medRow).join('') : '<p class="sub" style="font-size:0.82rem;margin:-0.3rem 0 0.4rem;">No meds on file.</p>';
+      // Vaccines
+      const vx = hxCurrentVaccines(p.id);
+      h += '<div class="sec"><h3>💉 Vaccines</h3><span class="link" onclick="openVaccineForm(\'\',\'' + pid + '\',\'' + pid + '\')">+ Add</span></div>';
+      h += vx.length ? vx.map(vaxRow).join('') : '<p class="sub" style="font-size:0.82rem;margin:-0.3rem 0 0.4rem;">No vaccines on file.</p>';
+      // Visits
+      const visits = (state.visits || []).filter(v => v.petId === p.id).sort((a, b) => a.date < b.date ? 1 : -1);
+      h += '<div class="sec"><h3>🩺 Vet visits</h3><span class="link" onclick="openVisitForm(\'\',\'' + pid + '\')">+ Add</span></div>';
+      h += visits.length ? visits.slice(0, 8).map(v =>
+        '<div class="row" style="cursor:pointer;" onclick="openVisitForm(\'' + jsStr(v.id) + '\',\'' + pid + '\')"><div class="ricon">🩺</div><div class="rmain"><div class="rtitle">' + esc(v.reason || 'Vet visit') + '</div>' +
+        '<div class="rmeta">' + esc([hxDate(v.date), v.clinic, v.cost > 0 ? hxMoney(v.cost) : ''].filter(Boolean).join(' · ')) + '</div></div></div>').join('')
+        : '<p class="sub" style="font-size:0.82rem;margin:-0.3rem 0 0.4rem;">Log checkups and sick visits — what they found, what it cost.</p>';
+      const spent = hxSpentThisYear(p.id);
+      if (spent > 0) h += '<p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0;">💵 ' + esc(p.name) + '\'s care in ' + new Date().getFullYear() + ': <b>' + hxMoney(spent) + '</b></p>';
+      h += '<button class="btn" style="margin-top:0.8rem;" onclick="openPassports(\'' + pid + '\')">🔗 Share ' + esc(p.name) + '\'s health passport</button>';
+      h += '<button class="btn secondary" onclick="openPetTag(\'' + pid + '\')">' + (TAGS[p.id] && TAGS[p.id].lost ? '🚨 Lost mode is on — open' : '🏷️ Pet ID tag &amp; lost mode') + '</button>';
+      h += '<button class="btn secondary" onclick="copyHealthSummary(\'' + pid + '\')">📋 Copy ' + esc(p.name) + '\'s health summary</button>';
+      h += '<button class="btn secondary" onclick="openPetEmergency(\'' + pid + '\')">🚨 Pet emergency</button>';
+      openSheet('🩺 ' + esc(p.name) + '\'s health', h);
+    }
+    // Plain text a sitter, boarder or new vet can read — they paste it anywhere
+    function copyHealthSummary(petId) {
+      const p = hxPet(petId); if (!p) return;
+      const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
+      const L = [p.name + ' — ' + [p.breed || p.species, (p.id === 'me' ? state.bday : info.bday) ? petAge(p.id === 'me' ? state.bday : info.bday) : '', info.sex].filter(Boolean).join(', ')];
+      if (w) L.push('Weight: ' + w.v + ' ' + (info.wu || 'lb') + ' (' + hxDate(w.d) + ')');
+      if (info.chip) L.push('Microchip: ' + info.chip + (info.chipCo ? ' (' + info.chipCo + ')' : ''));
+      if (info.vetName || info.vetPhone) L.push('Vet: ' + [info.vetName, info.vetPhone].filter(Boolean).join(', '));
+      if (info.allergies) L.push('Allergies: ' + info.allergies);
+      if (info.conditions) L.push('Conditions: ' + info.conditions);
+      if (info.diet) L.push('Food: ' + info.diet);
+      const meds = (state.meds || []).filter(m => m.petId === p.id && medActive(m));
+      if (meds.length) { L.push('', 'Medications:'); meds.forEach(m => L.push('• ' + m.name + (m.strength ? ' ' + m.strength : '') + ' — ' + medDoseText(m) + ' ' + medFreq(m).label.toLowerCase() + (medFreq(m).ms && m.time ? ' at ' + hxTime(m.time) : '') + (m.notes ? ' (' + m.notes + ')' : ''))); }
+      const vx = hxCurrentVaccines(p.id);
+      if (vx.length) { L.push('', 'Vaccines:'); vx.forEach(v => L.push('• ' + v.name + ': given ' + hxDate(v.given) + (v.due ? ', due ' + hxDate(v.due) : '') + (v.tag ? ' (tag ' + v.tag + ')' : ''))); }
+      L.push('', 'Owner: ' + (state.displayName || state.name || '') + ' — via Petfi');
+      hxCopy(L.join('\n'), '📋 Copied — paste it into a text or email for your sitter, boarder or vet');
+    }
+    function openPetInfoForm(petId) {
+      const p = hxPet(petId); if (!p) return;
+      const info = state.petInfo[p.id] || {};
+      const sel = (id, opts, cur) => '<select id="' + id + '"><option value="">—</option>' + opts.map(o => '<option' + (o === cur ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+      const txt = (id, label, v, ph, max) => '<label>' + label + '</label><input type="text" id="' + id + '" maxlength="' + (max || 80) + '" value="' + esc(v || '') + '" placeholder="' + esc(ph || '') + '">';
+      openSheet('✏️ ' + esc(p.name) + '\'s details',
+        '<label>Sex</label>' + sel('pi-sex', ['Male', 'Female'], info.sex) +
+        '<label>Spayed / neutered</label>' + sel('pi-fixed', ['Yes', 'No'], info.fixed) +
+        (p.id === 'me' ? '' : '<label>Birthday</label><input type="date" id="pi-bday" value="' + esc(info.bday || '') + '">') +
+        txt('pi-chip', 'Microchip number', info.chip, '15 digits on the paperwork', 30) +
+        txt('pi-chipco', 'Registered with', info.chipCo, 'e.g. AKC Reunite, HomeAgain, 24Petwatch', 60) +
+        txt('pi-vet', 'Vet or clinic', info.vetName, 'e.g. Happy Paws Animal Hospital') +
+        '<label>Vet phone</label><input type="tel" id="pi-vetphone" maxlength="24" value="' + esc(info.vetPhone || '') + '">' +
+        txt('pi-allergies', 'Allergies', info.allergies, 'Foods, meds…', 200) +
+        txt('pi-cond', 'Health conditions', info.conditions, 'e.g. hip dysplasia, diabetes', 200) +
+        txt('pi-diet', 'Food', info.diet, 'Brand and how much', 200) +
+        txt('pi-ins', 'Pet insurance', info.insurer, 'Company', 60) +
+        txt('pi-policy', 'Policy number', info.policy, '', 40) +
+        '<button class="btn" onclick="savePetInfo(\'' + jsStr(p.id) + '\')">Save</button>');
+    }
+    function savePetInfo(petId) {
+      const info = hxInfo(petId);
+      info.sex = val('pi-sex'); info.fixed = val('pi-fixed');
+      if (document.getElementById('pi-bday')) info.bday = hxValidYmd(val('pi-bday')) ? val('pi-bday') : '';
+      info.chip = val('pi-chip').slice(0, 30); info.chipCo = val('pi-chipco').slice(0, 60);
+      info.vetName = val('pi-vet').slice(0, 80); info.vetPhone = hxPhone(val('pi-vetphone'));
+      info.allergies = val('pi-allergies').slice(0, 200); info.conditions = val('pi-cond').slice(0, 200); info.diet = val('pi-diet').slice(0, 200);
+      info.insurer = val('pi-ins').slice(0, 60); info.policy = val('pi-policy').slice(0, 40);
+      hxDone(petId, 'Saved ✅');
+    }
+    function openWeightForm(petId) {
+      const p = hxPet(petId); if (!p) return;
+      const info = state.petInfo[p.id] || {};
+      const ws = (info.weights || []).slice().sort((a, b) => a.d < b.d ? 1 : -1);
+      openSheet('⚖️ ' + esc(p.name) + '\'s weight',
+        '<div style="display:flex;gap:0.5rem;"><input type="number" id="wt-v" min="0" step="0.1" placeholder="Weight" style="flex:1.4;">' +
+          '<select id="wt-u" style="flex:1;"><option value="lb"' + ((info.wu || 'lb') === 'lb' ? ' selected' : '') + '>lb</option><option value="kg"' + (info.wu === 'kg' ? ' selected' : '') + '>kg</option></select></div>' +
+        '<label>Date</label><input type="date" id="wt-d" value="' + hxToday() + '">' +
+        '<button class="btn" onclick="saveWeight(\'' + jsStr(p.id) + '\')">Save weight ⚖️</button>' +
+        (ws.length ? '<div class="sec"><h3>History</h3></div>' + ws.slice(0, 20).map(w =>
+          '<div class="hx-kv"><span>' + esc(hxDate(w.d)) + '</span><b>' + esc(w.v + ' ' + (info.wu || 'lb')) + ' <span style="color:var(--muted);cursor:pointer;margin-left:0.4rem;" title="Remove" onclick="deleteWeight(\'' + jsStr(p.id) + '\',\'' + jsStr(w.d) + '\')">✕</span></b></div>').join('') : ''));
+    }
+    function hxAddWeight(petId, d, v, unit) {
+      const info = hxInfo(petId);
+      if (unit && unit !== (info.wu || 'lb') && (info.weights || []).length) {
+        // Switching units converts the history, so the chart stays honest
+        const k = unit === 'kg' ? 0.45359237 : 1 / 0.45359237;
+        info.weights.forEach(w => { w.v = Math.round(w.v * k * 10) / 10; });
+      }
+      if (unit) info.wu = unit;
+      info.weights = (info.weights || []).filter(w => w.d !== d);
+      info.weights.push({ d, v: Math.round(v * 10) / 10 });
+      info.weights = info.weights.sort((a, b) => a.d < b.d ? -1 : 1).slice(-120);
+    }
+    function saveWeight(petId) {
+      const v = hxNum(val('wt-v'), 0), d = val('wt-d');
+      if (!(v > 0)) { toast('Enter the weight'); return; }
+      hxAddWeight(petId, hxValidYmd(d) ? d : hxToday(), v, val('wt-u') || 'lb');
+      hxDone(petId, '⚖️ Weight saved');
+    }
+    function deleteWeight(petId, d) {
+      const info = hxInfo(petId);
+      info.weights = (info.weights || []).filter(w => w.d !== d);
+      saveState(); openWeightForm(petId);
+    }
+    function openVisitForm(id, petId, pre) {
+      const v = (id && (state.visits || []).find(x => x.id === id)) || pre || {};
+      const pid = v.petId || petId;
+      openSheet(id ? '🩺 Vet visit' : '🩺 Log a vet visit',
+        hxPetSelect('vs-pet', pid) +
+        '<label>Date</label><input type="date" id="vs-date" value="' + esc(v.date || hxToday()) + '">' +
+        '<label>What for?</label><input type="text" id="vs-reason" maxlength="80" value="' + esc(v.reason || '') + '" placeholder="e.g. Annual checkup, ear infection">' +
+        '<label>Clinic</label><input type="text" id="vs-clinic" maxlength="80" value="' + esc(v.clinic || (state.petInfo[pid] || {}).vetName || '') + '">' +
+        '<label>What the vet said <small style="color:var(--muted);font-weight:400;">(optional)</small></label><textarea id="vs-notes" rows="3" maxlength="1000">' + esc(v.notes || '') + '</textarea>' +
+        '<div style="display:flex;gap:0.5rem;"><div style="flex:1;"><label>Cost</label><input type="number" id="vs-cost" min="0" step="0.01" value="' + (v.cost > 0 ? esc(v.cost) : '') + '" placeholder="$"></div>' +
+          '<div style="flex:1;"><label>Weight</label><input type="number" id="vs-wt" min="0" step="0.1" value="' + (v.weight > 0 ? esc(v.weight) : '') + '" placeholder="' + esc((state.petInfo[pid] || {}).wu || 'lb') + '"></div></div>' +
+        '<button class="btn" onclick="saveVisit(\'' + jsStr(id || '') + '\')">' + (id ? 'Save changes' : 'Save visit 🩺') + '</button>' +
+        (id ? '<button class="btn secondary" onclick="deleteVisit(\'' + jsStr(id) + '\')">🗑 Delete</button>' : '') +
+        '<button class="btn secondary" onclick="closeSheet();openAddCal(\'' + jsStr(hxPetName(pid) + '\'s next checkup') + '\',\'vet\')">🗓️ Book the next one in my calendar</button>');
+    }
+    function saveVisit(id) {
+      const petId = val('vs-pet'); if (!hxPet(petId)) { toast('Pick a pet'); return; }
+      const date = val('vs-date'); if (!hxValidYmd(date)) { toast('When was the visit?'); return; }
+      let v = id ? (state.visits || []).find(x => x.id === id) : null;
+      const isNew = !v;
+      if (!v) v = { id: 'x' + hxId() };
+      v.petId = petId; v.date = date; v.reason = val('vs-reason').slice(0, 80); v.clinic = val('vs-clinic').slice(0, 80);
+      v.notes = val('vs-notes').slice(0, 1000); v.cost = hxNum(val('vs-cost'), 0); v.weight = hxNum(val('vs-wt'), 0);
+      if (v.weight > 0) hxAddWeight(petId, date, v.weight, '');
+      if (isNew) state.visits.push(v);
+      hxDone(petId, '🩺 Visit saved');
+    }
+    function deleteVisit(id) {
+      const v = (state.visits || []).find(x => x.id === id); if (!v) return;
+      state.visits = state.visits.filter(x => x.id !== id);
+      hxDone(v.petId, 'Visit removed');
+    }
+    // A past vet appointment in the calendar becomes a visit in one tap
+    function logCalVisit(i) {
+      const c = (state.calendar || [])[i], pets = hxPets();
+      if (!c || !pets.length) return;
+      openVisitForm('', pets[0].id, { date: c.date, reason: c.what, petId: pets[0].id });
+    }
+    // A pet removed from the profile takes its health record with it
+    function hxForgetPet(petId) {
+      if (!petId) return;
+      const gone = new Set((state.meds || []).filter(m => m.petId === petId).map(m => m.id));
+      state.meds = (state.meds || []).filter(m => m.petId !== petId);
+      state.reminders = (state.reminders || []).filter(r => !gone.has(r.medId));
+      state.vaccines = (state.vaccines || []).filter(v => v.petId !== petId);
+      state.visits = (state.visits || []).filter(v => v.petId !== petId);
+      (state.supplies || []).forEach(s => { if (s.petId === petId) s.petId = ''; });
+      if (state.petInfo) delete state.petInfo[petId];
+    }
+
+    // ---- Emergency ----
+    function openPetEmergency(petId) {
+      const info = (petId && state.petInfo[petId]) || hxPets().map(p => state.petInfo[p.id] || {}).find(i => i.vetPhone) || {};
+      openSheet('🚨 Pet emergency',
+        '<div class="note" style="margin-top:0;background:#ffecec;color:#a02020;"><b>Ate something it shouldn\'t?</b> Call now — don\'t wait for symptoms. Have the package handy.</div>' +
+        hxTelButton('📞 Call ' + esc(info.vetName || 'my vet'), info.vetPhone) +
+        '<a class="btn" href="tel:+18884264435" style="text-align:center;text-decoration:none;">☎️ ASPCA Poison Control · (888) 426-4435</a>' +
+        '<a class="btn" href="tel:+18557647661" style="text-align:center;text-decoration:none;">☎️ Pet Poison Helpline · (855) 764-7661</a>' +
+        '<p class="sub" style="font-size:0.75rem;margin:0.2rem 0 0.6rem;">Both answer 24/7 for dogs, cats and other animals; each charges a consultation fee.</p>' +
+        '<button class="btn secondary" onclick="openLink(\'https://www.google.com/maps/search/emergency+veterinarian+near+me\')">🏥 Find an emergency vet near me</button>' +
+        '<button class="btn secondary" onclick="openVetChat()">💬 Not sure? Talk to a vet online</button>' +
+        '<div class="sec"><h3>☠️ Common poisons</h3></div>' +
+        '<div class="hx-card" style="font-size:0.85rem;line-height:1.5;">Chocolate · xylitol (sugar-free gum, some peanut butter) · grapes &amp; raisins · onions, garlic &amp; chives · macadamia nuts · alcohol · caffeine · marijuana &amp; edibles · <b>lilies (deadly to cats)</b> · people pain pills (ibuprofen, acetaminophen, naproxen) · antidepressants &amp; ADHD meds · antifreeze · rat &amp; snail bait · insecticides</div>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">From the ASPCA\'s list of the most common pet poisonings. Not veterinary advice — when in doubt, call.</p>');
+    }
+
+    // ======================= HEALTH PASSPORT LINKS =======================
+    // A pet's health card shared as a link (go.petfi.pet/h/<token>) for a
+    // sitter, boarder, groomer or new vet: only the parts the owner ticks. The
+    // card lives in petfi_health_cards and the app rewrites it whenever the
+    // pet's record changes, so the link stays current until it expires or is
+    // turned off. state.passports = [{ token, petId, inc, phone, expires, sig }].
+    // See petfi-passport-tags-2026-11-02.sql.
+    const PASS_INC = [
+      ['basics', '🐾 Breed, age, sex & weight'], ['health', '⚠️ Allergies, conditions & food'], ['meds', '💊 Medications & dosing'],
+      ['vax', '💉 Vaccines'], ['vet', '🏥 Vet name & phone'], ['chip', '🔖 Microchip'], ['owner', '📞 My name & phone (emergency contact)'],
+    ];
+    const PHOTO_PUBLIC = SUPA_URL + '/storage/v1/object/public/photos/';
+    function hxToken() {
+      const b = crypto.getRandomValues(new Uint8Array(18));
+      return btoa(String.fromCharCode.apply(null, b)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    }
+    function hxPassportCard(p) {
+      const pet = hxPet(p.petId); if (!pet) return null;
+      const info = state.petInfo[pet.id] || {}, inc = p.inc || {}, w = hxLastWeight(pet.id);
+      const bday = pet.id === 'me' ? state.bday : info.bday;
+      const c = { v: 1, name: pet.name.slice(0, 40), species: pet.species };
+      if (pet.id === 'me' && typeof state.avatarUrl === 'string' && state.avatarUrl.indexOf(PHOTO_PUBLIC) === 0) c.photo = state.avatarUrl.slice(0, 300);
+      if (inc.basics) {
+        c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? petAge(bday) : ''; c.sex = info.sex || ''; c.fixed = info.fixed || '';
+        if (w) c.weight = { v: w.v, u: info.wu || 'lb', d: w.d };
+      }
+      if (inc.health) { c.allergies = info.allergies || ''; c.conditions = info.conditions || ''; c.diet = info.diet || ''; }
+      if (inc.meds) c.meds = (state.meds || []).filter(m => m.petId === pet.id && medActive(m)).slice(0, 30).map(m => ({
+        name: m.name, strength: m.strength || '', dose: medDoseText(m), freq: medFreq(m).label.toLowerCase(),
+        time: medFreq(m).ms && m.time ? hxTime(m.time) : '', notes: String(m.notes || '').slice(0, 200) }));
+      if (inc.vax) c.vaccines = hxCurrentVaccines(pet.id).slice(0, 30).map(v => ({ name: v.name, given: v.given || '', due: v.due || '', tag: v.tag || '' }));
+      if (inc.vet && (info.vetName || info.vetPhone)) c.vet = { name: info.vetName || '', phone: info.vetPhone || '' };
+      if (inc.chip && info.chip) { c.chip = info.chip; c.chipCo = info.chipCo || ''; }
+      if (inc.owner) c.owner = { name: String(state.displayName || state.name || '').split(' ')[0].slice(0, 40), phone: p.phone || '' };
+      return c;
+    }
+    function hxPassUrl(p) { return SHARE_GO + '/h/' + p.token; }
+    function hxPassLive(p) { return !p.expires || p.expires > Date.now(); }
+    function openPassports(petId) {
+      const pet = hxPet(petId); if (!pet) return;
+      if (!canSaveToCloud('share a health passport')) return;
+      const mine = (state.passports || []).filter(p => p.petId === petId && hxPassLive(p));
+      let h = '<p class="sub" style="margin-bottom:0.7rem;">One link with ' + esc(pet.name) + '\'s vaccines, meds, allergies and the vet\'s number, for a sitter, boarder, groomer or new vet. It stays up to date as you change things here, and you can turn it off any time.</p>';
+      if (mine.length) {
+        h += '<div class="sec" style="margin-top:0;"><h3>Active links</h3></div>' + mine.map(p =>
+          '<div class="row"><div class="ricon">🔗</div><div class="rmain"><div class="rtitle">' + esc(p.label || 'Health passport') + '</div>' +
+          '<div class="rmeta">' + (p.expires ? 'works until ' + esc(new Date(p.expires).toLocaleDateString()) : 'no end date') + '</div></div>' +
+          '<div class="raction"><button class="pill-btn" onclick="sharePassport(\'' + jsStr(p.token) + '\')">Share</button></div></div>').join('');
+      }
+      h += '<div class="sec"><h3>➕ New link</h3></div>' +
+        '<label>Who\'s it for? <small style="color:var(--muted);font-weight:400;">(just for you)</small></label><input type="text" id="ps-label" maxlength="40" placeholder="e.g. Sitter — Maria, Happy Tails Boarding">' +
+        '<label>What to include</label>' + PASS_INC.map(x =>
+          '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;margin:0.35rem 0;"><input type="checkbox" id="ps-' + x[0] + '" checked style="width:auto;"> ' + x[1] + '</label>').join('') +
+        '<label>Phone to show as emergency contact <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="tel" id="ps-phone" maxlength="24" placeholder="Only on this link">' +
+        '<label>Link works for</label><select id="ps-exp"><option value="7">1 week</option><option value="30" selected>1 month</option><option value="365">1 year</option><option value="0">Until I turn it off</option></select>' +
+        '<button class="btn" onclick="createPassport(\'' + jsStr(petId) + '\')">🔗 Make the link</button>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Anyone with the link can see what you tick above — nothing else from your account.</p>';
+      openSheet('🔗 ' + esc(pet.name) + '\'s health passport', h);
+    }
+    async function createPassport(petId) {
+      if (!canSaveToCloud('share a health passport')) return;
+      const inc = {};
+      PASS_INC.forEach(x => { const e = document.getElementById('ps-' + x[0]); inc[x[0]] = !!(e && e.checked); });
+      const days = parseInt(val('ps-exp'), 10) || 0;
+      const p = { token: hxToken(), petId, inc, phone: hxPhone(val('ps-phone')), label: val('ps-label').slice(0, 40), expires: days ? Date.now() + days * DAY_MS : 0, created: Date.now() };
+      const card = hxPassportCard(p); if (!card) return;
+      const { error } = await cloud.from('petfi_health_cards').insert({ token: p.token, user_id: cloudUser.id, pet_id: petId, card, expires_at: p.expires ? new Date(p.expires).toISOString() : null });
+      if (error) { toast(/row-level|policy/i.test(error.message) ? '⚠️ You have 20 links already — turn one off first' : '⚠️ Could not make the link — try again'); return; }
+      p.sig = JSON.stringify(card);
+      state.passports = (state.passports || []).concat([p]);
+      saveState();
+      sharePassport(p.token);
+    }
+    async function sharePassport(token) {
+      const p = (state.passports || []).find(x => x.token === token); if (!p) return;
+      const pet = hxPet(p.petId) || { name: 'My pet' }, url = hxPassUrl(p);
+      openSheet('🔗 Share ' + esc(pet.name) + '\'s passport',
+        '<div id="ps-qr" style="text-align:center;margin:0.3rem 0 0.6rem;min-height:40px;"></div>' +
+        '<div class="link-box" style="display:flex;gap:0.4rem;"><input type="text" readonly value="' + esc(url) + '" onclick="this.select()" style="flex:1;font-size:0.85rem;"></div>' +
+        '<button class="btn" onclick="hxShareLink(\'' + jsStr(url) + '\',\'' + jsStr(pet.name + '\'s health passport') + '\')">📤 Send the link</button>' +
+        '<button class="btn secondary" onclick="hxCopy(\'' + jsStr(url) + '\',\'🔗 Link copied\')">📋 Copy link</button>' +
+        '<button class="btn secondary" onclick="openLink(\'' + jsStr(url) + '\')">👀 Open it (print or save a PDF there)</button>' +
+        '<button class="btn secondary" onclick="revokePassport(\'' + jsStr(token) + '\')">⛔ Turn this link off</button>');
+      const seq = sheetSeq;
+      try { const q = await qrFor(url); const box = document.getElementById('ps-qr'); if (box && seq === sheetSeq) box.innerHTML = qrSvg(q, 170); } catch (e) {}
+    }
+    function hxShareLink(url, title) {
+      if (navigator.share) { navigator.share({ title, url }).catch(() => {}); return; }
+      hxCopy(url, '🔗 Link copied — paste it in a text or email');
+    }
+    async function revokePassport(token) {
+      if (!canSaveToCloud('turn the link off')) return;
+      const { error } = await cloud.from('petfi_health_cards').delete().eq('token', token);
+      if (error) { toast('⚠️ Could not turn it off — try again'); return; }
+      const p = (state.passports || []).find(x => x.token === token);
+      state.passports = (state.passports || []).filter(x => x.token !== token);
+      saveState(); closeSheet(); toast('⛔ That link no longer works');
+      if (p) openPassports(p.petId);
+    }
+    // Keep every live link in step with the record (debounced from saveState)
+    let passSyncTimer = null, passSyncing = false;
+    function schedulePassportSync() {
+      if (!(state.passports || []).length || !cloud || !cloudUser) return;
+      clearTimeout(passSyncTimer);
+      passSyncTimer = setTimeout(syncPassports, 4000);
+    }
+    async function syncPassports() {
+      if (passSyncing || !cloud || !cloudUser) return;
+      passSyncing = true;
+      let changed = false;
+      try {
+        const keep = [];
+        for (const p of (state.passports || [])) {
+          if (!hxPassLive(p) || !hxPet(p.petId)) { await cloud.from('petfi_health_cards').delete().eq('token', p.token); changed = true; continue; }
+          keep.push(p);
+          const card = hxPassportCard(p), sig = JSON.stringify(card);
+          if (sig === p.sig) continue;
+          const { error } = await cloud.from('petfi_health_cards').update({ card, updated_at: new Date().toISOString() }).eq('token', p.token);
+          if (!error) { p.sig = sig; changed = true; }
+        }
+        if (keep.length !== (state.passports || []).length) state.passports = keep;
+      } catch (e) { console.warn('passports:', e && e.message); }
+      finally { passSyncing = false; }
+      if (changed) { try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {} cloudSaveState(); }
+    }
+
+    // ======================= PET ID TAGS & LOST MODE =======================
+    // A QR on the collar opens go.petfi.pet/t/<code>: the finder sees the pet
+    // and messages the owner (petfi_tag_found → push), and sees a phone only if
+    // the owner put one on the tag. Lost mode lists the pet for members nearby
+    // (petfi_lost_near) and pushes one alert within 25 miles (petfi_tag_alert).
+    // The tag row is the truth; TAGS caches it by pet id.
+    let TAGS = {}, TAG_REPORTS = [], LOST_NEAR = [], tagsLoadedAt = 0;
+    const TAG_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    function hxTagCode() {
+      const b = crypto.getRandomValues(new Uint8Array(8));
+      return Array.from(b, x => TAG_ALPHABET[x % 32]).join('');
+    }
+    function tagUrl(code) { return SHARE_GO + '/t/' + code; }
+    // "5 min ago" / "3 hr ago" / "2 days ago" (timeAgo's "3h" is for the feed)
+    function hxAgo(ts) {
+      const s = (Date.now() - new Date(ts).getTime()) / 1000;
+      if (!(s >= 0)) return '';
+      if (s < 90) return 'just now';
+      if (s < 3600) return Math.round(s / 60) + ' min ago';
+      if (s < 86400) return Math.round(s / 3600) + ' hr ago';
+      const d = Math.round(s / 86400);
+      return d === 1 ? 'yesterday' : d + ' days ago';
+    }
+    async function loadTags(force) {
+      if (!cloud || !cloudUser) return;
+      if (!force && Date.now() - tagsLoadedAt < 60000) return;
+      tagsLoadedAt = Date.now();
+      try {
+        const [t, r] = await Promise.all([
+          cloud.from('petfi_pet_tags').select('*').eq('user_id', cloudUser.id),
+          cloud.from('petfi_tag_reports').select('id, code, message, contact, lat, lon, created_at').eq('user_id', cloudUser.id).order('created_at', { ascending: false }).limit(30),
+        ]);
+        if (!t.error) { TAGS = {}; (t.data || []).forEach(x => { TAGS[x.pet_id] = x; }); }
+        if (!r.error) TAG_REPORTS = r.data || [];
+        if (state.zip) {
+          const n = await cloud.rpc('petfi_lost_near', { radius_mi: 25 });
+          if (!n.error && Array.isArray(n.data)) LOST_NEAR = n.data.filter(x => !Object.values(TAGS).some(y => y.code === x.code));
+        }
+      } catch (e) {}
+      if (appActive() && state.tab === 'home') rerenderTab(renderHome);
+      if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
+    }
+    function tagNewReports() {
+      const seen = state.tagSeenAt || 0;
+      return TAG_REPORTS.filter(r => new Date(r.created_at).getTime() > seen);
+    }
+    // Home: a finder's message first, then a lost pet nearby
+    function tagHomeStrip() {
+      const fresh = tagNewReports();
+      if (fresh.length) {
+        const t = Object.values(TAGS).find(x => x.code === fresh[0].code);
+        return '<div class="mm-banner" style="border-color:#ffb3b3;" onclick="openTagReports()"><div class="i">📍</div><div><b>' +
+          esc((t && t.lost ? 'Someone may have found ' : 'Someone scanned ') + (t ? t.pet_name + (t.lost ? '!' : '\'s tag') : 'your pet\'s tag')) + '</b><small>' +
+          esc(String(fresh[0].message).slice(0, 80)) + '</small></div><span class="chev">›</span></div>';
+      }
+      if (LOST_NEAR.length) {
+        const l = LOST_NEAR[0];
+        return '<div class="mm-banner" style="border-color:#ffb3b3;" onclick="openLink(\'' + jsStr(tagUrl(l.code)) + '\')"><div class="i">🚨</div><div><b>' +
+          esc('Lost ' + (l.species && l.species !== 'other' ? l.species : 'pet') + ' near you: ' + l.name) + '</b><small>' +
+          esc([l.area, l.miles + ' mi away', 'missing ' + hxAgo(l.lost_at)].filter(Boolean).join(' · ')) + '</small></div><span class="chev">›</span></div>';
+      }
+      return '';
+    }
+    function lostNearSection() {
+      if (!LOST_NEAR.length) return '';
+      return '<div class="sec"><h3>🚨 Lost pets near you</h3></div>' + LOST_NEAR.slice(0, 10).map(l =>
+        '<div class="row" style="cursor:pointer;border-color:#ffc9c9;" onclick="openLink(\'' + jsStr(tagUrl(l.code)) + '\')"><div class="ricon">' +
+        (typeof l.photo === 'string' && l.photo.indexOf(PHOTO_PUBLIC) === 0 ? '<img src="' + esc(l.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(l.species)) + '</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(l.name) + (l.reward ? ' <span class="hx-pill warn">Reward</span>' : '') + '</div>' +
+        '<div class="rmeta">' + esc([l.breed || l.species, l.area, l.miles + ' mi', 'missing ' + hxAgo(l.lost_at)].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>').join('');
+    }
+    async function openPetTag(petId) {
+      const pet = hxPet(petId); if (!pet) return;
+      if (!canSaveToCloud('make a pet ID tag')) return;
+      openSheet('🏷️ ' + esc(pet.name) + '\'s ID tag', '<div class="note" style="margin-top:0;">Loading…</div>');
+      const seq = sheetSeq;
+      await loadTags(true);
+      if (seq !== sheetSeq) return;
+      renderPetTag(petId);
+    }
+    async function renderPetTag(petId) {
+      const pet = hxPet(petId); if (!pet) return;
+      const t = TAGS[petId], pid = jsStr(petId);
+      if (!t) {
+        openSheet('🏷️ ' + esc(pet.name) + '\'s ID tag',
+          '<div style="font-size:2.6rem;text-align:center;">🏷️</div>' +
+          '<p class="sub" style="text-align:center;margin-bottom:0.8rem;">A free QR code for ' + esc(pet.name) + '\'s collar. Anyone who finds ' + esc(pet.name) + ' scans it with their phone camera — no app needed — and can message you straight away. Your number stays private unless you add it.</p>' +
+          '<button class="btn" onclick="createPetTag(\'' + pid + '\')">🏷️ Make ' + esc(pet.name) + '\'s free tag</button>');
+        return;
+      }
+      const url = tagUrl(t.code), n = TAG_REPORTS.filter(r => r.code === t.code).length;
+      let h = '';
+      if (t.lost) {
+        h += '<div class="note" style="margin-top:0;background:#ffe9e9;color:#a02020;"><b>🚨 ' + esc(pet.name) + ' is marked lost</b> (' + esc(hxAgo(t.lost_at)) + ')' + (t.lost_area ? ' · ' + esc(t.lost_area) : '') + '. Members within 25 miles see it on their Nearby tab.</div>' +
+          '<button class="btn" onclick="openLink(\'' + jsStr(url + '?print=poster') + '\')">🖨️ Print a lost poster</button>' +
+          '<button class="btn secondary" onclick="postLostPet(\'' + pid + '\')">📣 Post it on my Local feed</button>' +
+          '<button class="btn secondary" onclick="markPetFound(\'' + pid + '\')">🎉 ' + esc(pet.name) + ' is home — turn off lost mode</button>';
+      }
+      h += '<div id="tag-qr" style="text-align:center;margin:0.6rem 0 0.3rem;min-height:40px;"></div>' +
+        '<p class="sub" style="text-align:center;font-size:0.8rem;margin-bottom:0.6rem;">' + esc(url.replace('https://', '')) + '</p>';
+      if (n) h += '<button class="btn" onclick="openTagReports(\'' + jsStr(t.code) + '\')">📨 Messages from finders (' + n + ')</button>';
+      if (!t.lost) h += '<button class="btn" style="background:#c62828;" onclick="openReportLost(\'' + pid + '\')">🚨 Report ' + esc(pet.name) + ' lost</button>';
+      h += '<button class="btn secondary" onclick="openLink(\'' + jsStr(url + '?print=tags') + '\')">🖨️ Print tag stickers</button>' +
+        '<button class="btn secondary" onclick="openTagInfo(\'' + pid + '\')">✏️ What\'s on the tag' + (t.phone ? ' (shows your phone)' : '') + '</button>' +
+        '<button class="btn secondary" onclick="openLink(\'' + jsStr(url) + '\')">👀 See what a finder sees</button>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Tip: print the stickers, or save this QR to your phone and order a blank QR pet tag — any engraver can print it.</p>';
+      openSheet('🏷️ ' + esc(pet.name) + '\'s ID tag', h);
+      const seq = sheetSeq;
+      try { const q = await qrFor(url); const box = document.getElementById('tag-qr'); if (box && seq === sheetSeq) box.innerHTML = qrSvg(q, 180); } catch (e) {}
+    }
+    async function createPetTag(petId) {
+      const pet = hxPet(petId); if (!pet || !canSaveToCloud('make a pet ID tag')) return;
+      const photo = pet.id === 'me' && typeof state.avatarUrl === 'string' && state.avatarUrl.indexOf(PHOTO_PUBLIC) === 0 ? state.avatarUrl.slice(0, 300) : null;
+      for (let i = 0; i < 3; i++) {
+        const row = { code: hxTagCode(), user_id: cloudUser.id, pet_id: petId, pet_name: pet.name.slice(0, 40), species: String(pet.species || '').slice(0, 20), breed: String(pet.breed || '').slice(0, 40), photo_url: photo };
+        const { error } = await cloud.from('petfi_pet_tags').insert(row);
+        if (!error) { TAGS[petId] = Object.assign({ note: '', phone: '', lost: false }, row); haptic(); toast('🏷️ ' + pet.name + '\'s tag is ready'); renderPetTag(petId); return; }
+        if (error.code === '23505' && /pet_id/.test(error.message || '')) { await loadTags(true); renderPetTag(petId); return; }
+        if (error.code !== '23505') { toast(/row-level|policy/i.test(error.message) ? '⚠️ 10 tags is the limit for now' : '⚠️ Could not make the tag — try again'); return; }
+      }
+      toast('⚠️ Could not make the tag — try again');
+    }
+    function openTagInfo(petId) {
+      const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet) return;
+      openSheet('✏️ What\'s on ' + esc(pet.name) + '\'s tag',
+        '<label>Note for the finder <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
+        '<textarea id="tg-note" rows="3" maxlength="300" placeholder="e.g. Friendly but shy. Needs his meds daily. Please don\'t chase him.">' + esc(t.note || '') + '</textarea>' +
+        '<label>Phone to show <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="tel" id="tg-phone" maxlength="24" value="' + esc(t.phone || '') + '" placeholder="Leave empty to stay private">' +
+        '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Anyone who scans the tag sees the phone number. Without one, finders can still message you here and you get a notification.</p>' +
+        '<button class="btn" onclick="saveTagInfo(\'' + jsStr(petId) + '\')">Save</button>');
+    }
+    async function saveTagInfo(petId) {
+      const t = TAGS[petId]; if (!t || !canSaveToCloud('update the tag')) return;
+      const pet = hxPet(petId) || {};
+      const upd = { note: val('tg-note').slice(0, 300), phone: hxPhone(val('tg-phone')).replace(/[^0-9+() .-]/g, ''), pet_name: String(pet.name || t.pet_name).slice(0, 40), species: String(pet.species || '').slice(0, 20), breed: String(pet.breed || '').slice(0, 40), updated_at: new Date().toISOString() };
+      const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
+      if (error) { toast('⚠️ Could not save — try again'); return; }
+      Object.assign(t, upd); toast('✅ Tag updated'); renderPetTag(petId);
+    }
+    function openReportLost(petId) {
+      const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet) return;
+      openSheet('🚨 Report ' + esc(pet.name) + ' lost',
+        '<div class="note" style="margin-top:0;">Right now: walk the block calling ' + esc(pet.name) + '\'s name, check under porches and cars, and call nearby shelters and vets. Then tell Petfi:</div>' +
+        '<label>ZIP where ' + esc(pet.name) + ' went missing</label><input type="text" id="lo-zip" inputmode="numeric" maxlength="5" value="' + esc(state.zip || '') + '">' +
+        '<label>Where, in a few words <small style="color:var(--muted);font-weight:400;">(no street address)</small></label><input type="text" id="lo-area" maxlength="80" placeholder="e.g. near McKinley Park, East Sac">' +
+        '<label>Reward <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="text" id="lo-reward" maxlength="60" placeholder="e.g. $200">' +
+        '<label>Phone for finders <small style="color:var(--muted);font-weight:400;">(optional — shown on the tag page and poster)</small></label><input type="tel" id="lo-phone" maxlength="24" value="' + esc(t.phone || '') + '">' +
+        '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input type="checkbox" id="lo-alert" checked style="width:auto;"> Alert Petfi members within 25 miles</label>' +
+        '<button class="btn" style="background:#c62828;" onclick="reportPetLost(\'' + jsStr(petId) + '\')">🚨 Mark ' + esc(pet.name) + ' lost</button>');
+    }
+    async function reportPetLost(petId) {
+      const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet || !canSaveToCloud('report a lost pet')) return;
+      const zip = val('lo-zip');
+      if (!/^\d{5}$/.test(zip)) { toast('Enter the 5-digit ZIP'); return; }
+      const alertNearby = !!(document.getElementById('lo-alert') || {}).checked;
+      toast('📡 Marking ' + pet.name + ' lost…');
+      const g = await geocodeZip(zip);
+      if (!g) { toast('⚠️ Couldn\'t find that ZIP — check it and try again'); return; }
+      const upd = { lost: true, lost_at: new Date().toISOString(), lost_area: (val('lo-area') || g.area || ('ZIP ' + zip)).slice(0, 80), reward: val('lo-reward').slice(0, 60),
+        phone: hxPhone(val('lo-phone')).replace(/[^0-9+() .-]/g, ''), lost_lat: Math.round(g.lat * 100) / 100, lost_lon: Math.round(g.lon * 100) / 100, updated_at: new Date().toISOString() };
+      const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
+      if (error) { toast('⚠️ Could not mark lost — try again'); return; }
+      Object.assign(t, upd);
+      let sent = 0;
+      if (alertNearby) {
+        const r = await cloud.rpc('petfi_tag_alert', { c: t.code, radius_mi: 25 });
+        sent = !r.error && typeof r.data === 'number' ? r.data : 0;
+      }
+      toast(alertNearby ? (sent > 0 ? '🚨 Alert sent to ' + sent + ' member' + (sent === 1 ? '' : 's') + ' nearby' : '🚨 Marked lost — members nearby see it on their Nearby tab') : '🚨 Marked lost');
+      renderPetTag(petId);
+    }
+    function postLostPet(petId) {
+      const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet) return;
+      closeSheet();
+      // A draft, not a placeholder, so they can post it as is; Local is where it helps
+      composeDraft = ('🚨 LOST: ' + pet.name + (pet.breed ? ' (' + pet.breed + ')' : '') + (t.lost_area ? ', last seen ' + t.lost_area : '') + '. ' +
+        (t.reward ? 'Reward: ' + t.reward + '. ' : '') + 'If you see ' + pet.name + ', please message me: ' + tagUrl(t.code) + ' 🙏 Please share!').slice(0, 600);
+      openCompose();
+      const local = document.querySelector('#cmp-scope div');
+      if (local) setComposeScope('local', local);
+    }
+    async function markPetFound(petId) {
+      const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet || !canSaveToCloud('update the tag')) return;
+      const upd = { lost: false, lost_at: null, lost_area: '', reward: '', lost_lat: null, lost_lon: null, updated_at: new Date().toISOString() };
+      const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
+      if (error) { toast('⚠️ Could not update — try again'); return; }
+      Object.assign(t, upd); confetti(); toast('🎉 So glad ' + pet.name + ' is home!');
+      renderPetTag(petId);
+    }
+    function openTagReports(code) {
+      state.tagSeenAt = Date.now(); saveState();
+      const list = TAG_REPORTS.filter(r => !code || r.code === code);
+      const nameOf = c => { const t = Object.values(TAGS).find(x => x.code === c); return t ? t.pet_name : 'your pet'; };
+      openSheet('📨 Messages from finders', list.length ? list.map(r => {
+        const c = String(r.contact || ''), isMail = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(c), digits = hxTel(c);
+        return '<div class="hx-card"><div style="font-size:0.75rem;color:var(--muted);font-weight:700;">About ' + esc(nameOf(r.code)) + ' · ' + esc(hxAgo(r.created_at)) + '</div>' +
+          '<div style="margin:0.3rem 0;white-space:pre-wrap;">' + esc(r.message) + '</div>' +
+          (c ? '<div style="font-size:0.85rem;"><b>Contact:</b> ' + esc(c) + '</div>' : '<div style="font-size:0.8rem;color:var(--muted);">No contact left — they can only reach you through the tag.</div>') +
+          '<div style="display:flex;gap:0.4rem;flex-wrap:wrap;margin-top:0.5rem;">' +
+            (digits && !isMail ? '<a class="pill-btn" style="text-decoration:none;" href="tel:' + esc(digits) + '">📞 Call</a><a class="pill-btn ghost" style="text-decoration:none;" href="sms:' + esc(digits) + '">💬 Text</a>' : '') +
+            (isMail ? '<a class="pill-btn" style="text-decoration:none;" href="mailto:' + esc(c) + '">✉️ Email</a>' : '') +
+            (r.lat != null && r.lon != null ? '<button class="pill-btn ghost" onclick="openLink(\'' + jsStr('https://www.google.com/maps?q=' + r.lat + ',' + r.lon) + '\')">📍 Where they were</button>' : '') +
+            '<button class="pill-btn ghost" onclick="deleteTagReport(' + Number(r.id) + ',\'' + jsStr(code || '') + '\')">🗑</button></div></div>';
+      }).join('') : '<div class="note">No messages yet.</div>');
+      if (state.tab === 'home') rerenderTab(renderHome);
+    }
+    async function deleteTagReport(id, code) {
+      if (!canSaveToCloud('delete it')) return;
+      const { error } = await cloud.from('petfi_tag_reports').delete().eq('id', id);
+      if (error) { toast('⚠️ Could not delete'); return; }
+      TAG_REPORTS = TAG_REPORTS.filter(r => r.id !== id);
+      openTagReports(code || undefined);
+    }
+
+    // ======================= INSURANCE QUOTES & VET CHAT =======================
+    // Referral links, not advice: insurers pay per quote lead (Fetch, Pets
+    // Best, Healthy Paws, Embrace ~$24-36 on their affiliate networks) and
+    // Vetster pays per booked visit (Impact). Until a tracked link is pasted
+    // into AFFILIATE.insurance / AFFILIATE.vet, these are plain links. Keep the
+    // copy neutral: in some states only a licensed agent may discuss coverage
+    // or be paid on a sale, so Petfi never compares plans or recommends one.
+    const INSURERS = [
+      { key: 'fetch',    name: 'Fetch',        url: 'https://www.fetchpet.com/' },
+      { key: 'healthypaws', name: 'Healthy Paws', url: 'https://www.healthypawspetinsurance.com/' },
+      { key: 'petsbest', name: 'Pets Best',    url: 'https://www.petsbest.com/' },
+      { key: 'embrace',  name: 'Embrace',      url: 'https://www.embracepetinsurance.com/' },
+      { key: 'lemonade', name: 'Lemonade',     url: 'https://www.lemonade.com/pet' },
+      { key: 'trupanion', name: 'Trupanion',   url: 'https://www.trupanion.com/' },
+      { key: 'spot',     name: 'Spot',         url: 'https://spotpet.com/' },
+    ];
+    const VET_CHATS = [
+      { key: 'chewy',   emo: '🐾', name: 'Chewy Connect with a Vet', note: 'Free chat with a vet tech in most states; video visits with a vet', url: 'https://www.chewy.com/pethealth/connect-with-a-vet/virtual-visit' },
+      { key: 'vetster', emo: '🩺', name: 'Vetster',  note: 'Book a video visit with a licensed vet, 24/7', url: 'https://vetster.com/en-us' },
+      { key: 'airvet',  emo: '📱', name: 'Airvet',   note: 'Video call a vet from your phone', url: 'https://www.airvet.com/' },
+      { key: 'pawp',    emo: '💬', name: 'Pawp',     note: 'Membership with unlimited vet chat', url: 'https://pawp.com/' },
+    ];
+    function hxPaidRow(emo, name, note, url, paid) {
+      return '<div class="fav-item" onclick="openLink(\'' + jsStr(url) + '\')"><span class="fi">' + emo + '</span>' +
+        '<span class="ft">' + esc(name) + (note ? '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">' + esc(note) + '</small>' : '') + '</span>' +
+        '<span class="fl">' + (paid ? 'Paid link ↗' : 'Open ↗') + '</span></div>';
+    }
+    function openInsurance() {
+      const tracked = AFFILIATE.insurance || {};
+      openSheet('🛡️ Pet insurance quotes',
+        '<p class="sub" style="margin-bottom:0.7rem;">Get a quote straight from the insurer — most take a couple of minutes with your pet\'s age and breed. Petfi doesn\'t sell insurance or recommend a plan; read each policy for what it covers.</p>' +
+        INSURERS.map(x => hxPaidRow('🛡️', x.name, '', tracked[x.key] || x.url, !!tracked[x.key])).join('') +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Already insured? Add the company and policy number in your pet\'s details so it\'s handy at the vet.</p>');
+    }
+    function openVetChat() {
+      const tracked = AFFILIATE.vet || {};
+      openSheet('💬 Talk to a vet online',
+        '<p class="sub" style="margin-bottom:0.7rem;">Not sure it\'s an emergency? A vet or vet tech can look over a video or photos and tell you whether to go in. For poisoning or trouble breathing, call poison control or go to an emergency vet now.</p>' +
+        VET_CHATS.map(x => hxPaidRow(x.emo, x.name, x.note, tracked[x.key] || x.url, !!tracked[x.key])).join('') +
+        '<button class="btn secondary" style="margin-top:0.6rem;" onclick="openPetEmergency()">🚨 Pet emergency numbers</button>');
+    }
+
     // ======================= PRIVATE REMINDERS =======================
     // Feed the pets, clean the litter box, fresh bedding — the app
     // nudges you with a real browser notification when one is due.
@@ -8148,6 +9504,7 @@
       { label: 'Once a day',     ms: 24 * 3600 * 1000 },
       { label: 'Every 2 days',   ms: 48 * 3600 * 1000 },
       { label: 'Once a week',    ms: 7 * 24 * 3600 * 1000 },
+      { label: 'Once a month',   ms: 30 * 24 * 3600 * 1000, months: 1 },
     ];
     function remIcon(what) {
       const t = (what || '').toLowerCase();
@@ -8208,13 +9565,17 @@
         next = d.getTime();
         while (next <= Date.now()) next += f.ms; // first future occurrence
       }
-      state.reminders.push({ what, freqLabel: f.label, ms: f.ms, next: next, time: time || '' });
+      state.reminders.push({ what, freqLabel: f.label, ms: f.ms, months: f.months || 0, day: new Date(next).getDate(), next: next, time: time || '' });
       saveState();
       if (('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(() => { if (state.tab === 'home') openTab('home'); });
       closeSheet(); refreshCare(); toast('Reminder set ⏰' + (time ? ' for ' + time : ''));
     }
     function deleteReminder(i) {
-      state.reminders.splice(i, 1); saveState(); refreshCare(); toast('Reminder removed');
+      const rm = state.reminders.splice(i, 1)[0];
+      // A med's dose reminder: the med stays, it just stops reminding
+      const m = rm && rm.medId && hxMed(rm.medId);
+      if (m) m.remind = false;
+      saveState(); refreshCare(); toast('Reminder removed');
     }
     // Chrome for Android (so the Play app too) has no Notification constructor:
     // the service worker shows it there; the constructor is the desktop path.
@@ -8274,14 +9635,21 @@
       (state.reminders || []).forEach((rm, k) => {
         if (!(rm.ms >= 3600000) || !rm.next) return;
         const next = rm.next > now ? rm.next : nextReminderTime(rm, now);
-        rows.push({ title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms });
+        if (rm.until && next > rm.until) return;
+        rows.push({ title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms,
+          every_months: rm.months > 0 ? rm.months : null, until_at: rm.until ? new Date(rm.until).toISOString() : null });
       });
       (state.calendar || []).forEach((c, k) => {
         if (c.notified || c.followUpAsked) return;
         const at = calNotifyTime(c);
         if (!(at > now) || now > new Date(c.date + 'T23:59:59').getTime()) return;
-        rows.push({ title: '🗓️ ' + String(c.what || 'Appointment').slice(0, 100), body: c.time ? 'Today at ' + c.time : 'Today!', tag: 'cal:' + k, next_at: new Date(at).toISOString(), every_ms: null });
+        rows.push({ title: '🗓️ ' + String(c.what || 'Appointment').slice(0, 100), body: c.time ? 'Today at ' + c.time : 'Today!', tag: 'cal:' + k, next_at: new Date(at).toISOString(), every_ms: null, every_months: null, until_at: null });
       });
+      // Pet health: refill, prescription, vaccine and supply alerts (one-off)
+      hxAlerts().forEach(a => {
+        if (a.at > now) rows.push({ title: a.title.slice(0, 120), body: a.body.slice(0, 300), tag: ('hx:' + a.key).slice(0, 60), next_at: new Date(a.at).toISOString(), every_ms: null, every_months: null, until_at: null });
+      });
+      if (rows.length > 60) rows.sort((a, b) => a.next_at < b.next_at ? -1 : 1); // keep the soonest
       return rows.slice(0, 60);
     }
     async function turnOnClosedAlerts() {
@@ -8299,7 +9667,8 @@
       if (!PUSH_ACTIVE || !cloud || !cloudUser || pushSyncing) return;
       const rows = pushRows();
       // Only the shape matters for the signature: next_at moves on its own server-side
-      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_ms ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']));
+      // (monthly rows keep next_at: their day of the month is part of the schedule)
+      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_months, r.until_at, r.every_ms && !r.every_months ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']));
       if (sig === state.pushSyncedSig) return;
       pushSyncing = true;
       try {
@@ -8324,6 +9693,15 @@
     // Step a reminder forward. Day-based ones anchored to a clock time keep that
     // local time across a DST change instead of drifting an hour.
     function nextReminderTime(rm, now) {
+      if (rm.months > 0) {
+        // Monthly: the same day each month (clamped to short months), same time
+        const d = new Date(rm.next), day = rm.day || d.getDate();
+        do {
+          d.setDate(1); d.setMonth(d.getMonth() + rm.months);
+          d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+        } while (d.getTime() <= now);
+        return d.getTime();
+      }
       const days = rm.ms > 0 && rm.ms % 86400000 === 0 ? rm.ms / 86400000 : 0;
       if (days && rm.time) {
         const [hh, mm] = String(rm.time).split(':').map(Number);
@@ -8347,6 +9725,12 @@
           changed = true;
         }
       });
+      // A course of meds stops reminding after its last day
+      if ((state.reminders || []).some(rm => rm.until && rm.next > rm.until)) {
+        state.reminders = state.reminders.filter(rm => !(rm.until && rm.next > rm.until));
+        changed = true;
+      }
+      if (hxTick(now)) changed = true; // refills, prescriptions, vaccines, supplies
       (state.calendar || []).forEach(c => {
         if (c.notified || c.followUpAsked) return;
         if (now >= calNotifyTime(c)) {
@@ -9564,10 +10948,10 @@
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
       if (!cloud || !cloudUser) return;
-      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); }
+      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); loadTags(); }
       else if (name === 'groups') loadGroups();
       else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
-      else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); }
+      else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); loadTags(); }
       else if (name === 'store') loadListings();
       else if (name === 'profile') loadTerritory();
     }
@@ -9595,6 +10979,7 @@
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSaveState();
       schedulePushSync(); // reminders or the calendar may have changed (no-op unless they did)
+      schedulePassportSync(); // shared health passports follow the record
     }
     // opts.ageBlock (the under-age answer): end only THIS device's session,
     // keep this device's saved copy, and skip the goodbye toast.
@@ -9610,6 +10995,7 @@
       applyTheme(); // back to daylight for the welcome screen
       FEED.length = 0; feedLoadedOnce = false;
       PEOPLE = []; FRIENDSHIPS = []; MY_MESSAGES = []; CLOUD_GROUPS = []; LISTINGS = []; CLOUD_MATES = []; CLOUD_ADS = []; CLOUD_HUMANS = []; TERRITORY = [];
+      TAGS = {}; TAG_REPORTS = []; LOST_NEAR = []; tagsLoadedAt = 0;
       LOCAL_LISTINGS.length = 0; LOCAL_GROUPS.length = 0; LOCAL_MATES.length = 0;
       Object.keys(PROFILE_BY_ID).forEach(k => delete PROFILE_BY_ID[k]);
       clearInterval(dmPollTimer); dmOpenWith = null; lastSeenMsgId = 0; firstMsgLoad = true;
