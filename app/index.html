@@ -2496,6 +2496,7 @@
       setTimeout(() => ensurePushSubscription(false), 3000); // reminders by push when notifications are allowed
       setTimeout(() => loadTags(true), 4500);
       setTimeout(careJoinPending, 2500);                     // arrived on a care-team invite link
+      setTimeout(openPendingMate, 3000);                     // arrived on a shared Mate Match listing
       setTimeout(() => loadCare(true), 5000);                // shared pets and the care log               // pet ID tags, finder messages, lost pets nearby
     }
 
@@ -5573,7 +5574,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.15.0';
+    const APP_VERSION = '1.16.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7683,6 +7684,48 @@
           '<button class="btn mm-view" onclick="event.stopPropagation();openMateDetail(' + i + ')">View details ›</button>' +
         '</div></div>';
     }
+    // ---- Sharing a listing: go.petfi.pet/m/<id> previews with its photo,
+    // name, breed and town (petfi_mate_preview), and opens it in the app ----
+    function mateShareUrl(m) { return 'https://go.petfi.pet/m/' + Number(m.cloudId); }
+    function shareMateListing(i) {
+      const m = MATES_VIEW[i]; if (!m || !m.cloudId) return;
+      const url = mateShareUrl(m), what = [m.name, m.breed || m.species].filter(Boolean).join(', ');
+      track('share_open', 'mate');
+      if (navigator.share) { navigator.share({ title: what + ' on Mate Match', text: what + ' — on Mate Match, Petfi', url }).catch(() => {}); return; }
+      hxCopy(url, '🔗 Link copied — paste it in a breed group, text or post');
+    }
+    // Arriving on a shared listing (petfi.pet/app/?mate=<id>): open it once the
+    // listings are in; signed out, the welcome screen says what was shared
+    const MATE_OPEN_KEY = 'petfi-mate-open';
+    (function () {
+      try {
+        const m = new URLSearchParams(location.search).get('mate');
+        if (m && /^\d{1,12}$/.test(m)) localStorage.setItem(MATE_OPEN_KEY, JSON.stringify({ id: Number(m), at: Date.now() }));
+      } catch (e) {}
+    })();
+    function pendingMateId() {
+      try { const j = JSON.parse(localStorage.getItem(MATE_OPEN_KEY) || 'null'); return j && Date.now() - j.at < 14 * DAY_MS ? j.id : 0; } catch (e) { return 0; }
+    }
+    async function openPendingMate() {
+      const id = pendingMateId(); if (!id || !cloudUser) return;
+      await loadMatesAndAds(true);
+      visibleMates();
+      const i = MATES_VIEW.findIndex(x => Number(x.cloudId) === id);
+      try { localStorage.removeItem(MATE_OPEN_KEY); } catch (e) {}
+      if (i < 0) { toast('That listing is no longer up'); return; }
+      openTab('mate'); setTimeout(() => openMateDetail(i), 300);
+    }
+    async function renderMateInviteSlot() {
+      const id = pendingMateId(), slot = document.getElementById('invite-slot');
+      if (!id || !slot || !cloud || slot.innerHTML) return;
+      try {
+        const { data } = await cloud.rpc('petfi_mate_preview', { lid: id });
+        const r = data && data[0]; if (!r || slot.innerHTML) return;
+        slot.innerHTML = '<div class="note" style="text-align:center;">💘 Someone shared <b>' + esc(r.name) + '</b>, ' + esc([r.breed, r.species].filter(Boolean).join(' ')) +
+          (r.area ? ' near ' + esc(r.area) : '') + ', on Mate Match. Join Petfi free (or log in) to see the listing and message the breeder.</div>';
+      } catch (e) {}
+    }
+    setTimeout(renderMateInviteSlot, 1700);
     function mateRow(m, i, extra) {
       const ph = safePhotos(m.photos);
       return '<div class="row" style="cursor:pointer;" onclick="openMateDetail(' + i + ')">' +
@@ -7729,7 +7772,8 @@
               ? '<button class="btn mm-publish" onclick="openCloudDM(\'' + jsStr(m.ownerId) + '\')">💬 Message the owner</button>'
               : '<div class="note">This listing only exists on this device.</div>') +
             '<button class="btn secondary" onclick="saveMatePick(' + i + ')">⭐ Save to my picks</button>' +
-            (m.ownerId ? '<button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="reportMate(' + i + ')">🚩 Report listing</button>' : '')));
+            (m.ownerId ? '<button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="reportMate(' + i + ')">🚩 Report listing</button>' : '')) +
+          (m.cloudId ? '<button class="btn secondary" style="margin-top:0.5rem;" onclick="shareMateListing(' + i + ')">📤 Share this listing</button>' : ''));
     }
     // Your picks are PRIVATE unless "Show my breeding activity" is on —
     // then they appear on your public profile card.
