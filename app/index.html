@@ -438,6 +438,14 @@
       body.printing #print-area { display: block; }
       #print-area pre { white-space: pre-wrap; font: 12pt/1.45 -apple-system, "Segoe UI", sans-serif; color: #000; }
     }
+    /* ---- Adoptable pets near you ---- */
+    .adopt-row { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; scroll-snap-type: x mandatory; }
+    .adopt-card { flex: 0 0 128px; scroll-snap-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.4rem; cursor: pointer; }
+    .adopt-card img { width: 100%; height: 110px; object-fit: cover; border-radius: 10px; display: block; background: var(--bg); }
+    .adopt-card b { display: block; font-size: 0.85rem; margin-top: 0.3rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .adopt-card small { display: block; color: var(--muted); font-size: 0.72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .adopt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 0.6rem; }
+    .adopt-grid .adopt-card { flex: none; }
     /* ---- Care team: the Today box ---- */
     .ct-card { padding: 0.65rem 0.8rem; }
     .ct-head { display: flex; align-items: baseline; gap: 0.5rem; cursor: pointer; }
@@ -852,6 +860,9 @@
         <div class="logo" style="font-size:2.2rem; margin-top:0.5rem;">Pet<span>fi</span></div>
         <p class="sub" style="margin-top:0.6rem;">The social world for pets<br/>and the people who love them.</p>
       </div>
+      <p style="text-align:right;margin:0 0 0.2rem;" translate="no"><a href="#" id="lang-link" onclick="setLang(langIsEs() ? 'en' : 'es');return false;" style="color:var(--muted);font-weight:700;text-decoration:none;font-size:0.85rem;">🌐 Español</a></p>
+      <div id="lang-ask" class="note" style="display:none;text-align:center;" translate="no">¿Quieres usar Petfi en español?
+        <button class="pill-btn" onclick="setLang('es')">Sí, en español</button> <button class="pill-btn ghost" onclick="setLang('en');document.getElementById('lang-ask').style.display='none'">No, English</button></div>
       <div id="invite-slot"></div>
       <div id="resume-slot"></div>
       <h2 style="text-align:center; margin-top:1.5rem;">How do you want to join?</h2>
@@ -998,12 +1009,12 @@
       <h1>What brings you here?</h1>
       <p class="sub">Pick what you're into — we'll put shortcuts to it at the top of your home page.</p>
       <div class="grid">
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
-        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
+        <div class="pick" role="button" tabindex="0" data-i="Sell products" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
+        <div class="pick" role="button" tabindex="0" data-i="Sell pets" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
+        <div class="pick" role="button" tabindex="0" data-i="Find a mate" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
+        <div class="pick" role="button" tabindex="0" data-i="Farm animals" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
+        <div class="pick" role="button" tabindex="0" data-i="Connect" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
+        <div class="pick" role="button" tabindex="0" data-i="Local spots" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
       </div>
 
       <button class="btn blue" onclick="showOwnerPet()">Continue</button>
@@ -1147,6 +1158,121 @@
       } catch (e) {}
       track('open', where);
     }
+
+    // ======================= SPANISH (Español) =======================
+    // The source stays English; Spanish is a layer over the rendered page.
+    // es.json (built from petfi-i18n/) maps each English text piece — a text
+    // node, a placeholder, an aria-label, a title — to Spanish, exactly or by
+    // pattern. A miss stays English. What members write is never touched:
+    // posts, comments, messages and names (ES_SKIP) are left as they are.
+    const LANG_KEY = 'petfi-lang';
+    let LANG = (() => { try { return localStorage.getItem(LANG_KEY) || ''; } catch (e) { return ''; } })();
+    let ES = null, ES_RX = [], ES_RX_BY = new Map(), ES_MEMO = new Map(), esObserver = null;
+    const ES_ATTRS = ['placeholder', 'aria-label', 'title', 'alt', 'label']; // label: <optgroup>
+    const ES_SKIP = '[translate="no"], .notranslate, script, style, textarea, .logo, .post-body, .post-name, .cmt, .dm-bubble';
+    function langIsEs() { return LANG === 'es'; }
+    function esLocale() { return LANG === 'es' ? 'es-MX' : undefined; }
+    function esNorm(t) { return String(t).replace(/\s+/g, ' ').trim(); }
+    async function loadEs() {
+      if (ES) return true;
+      try {
+        const r = await fetch('es.json?v=' + encodeURIComponent(APP_VERSION));
+        if (!r.ok) return false;
+        const d = await r.json();
+        ES = new Map(Object.keys(d.exact || {}).map(k => [esNorm(k), d.exact[k]]));
+        ES_RX = [];
+        (d.patterns || []).forEach(p => {
+          let rx; try { rx = new RegExp(p[0]); } catch (e) { return; }
+          const m = /^\^((?:\\.|[^\\()[\].*+?{}|^$])+)/.exec(p[0]);
+          const first = m ? m[1].replace(/\\(.)/g, '$1')[0] : '';
+          if (first) { if (!ES_RX_BY.has(first)) ES_RX_BY.set(first, []); ES_RX_BY.get(first).push([rx, p[1]]); }
+          else ES_RX.push([rx, p[1]]);
+        });
+        return true;
+      } catch (e) { return false; }
+    }
+    function esOne(k) {
+      const hit = ES.get(k);
+      if (hit != null) return hit;
+      for (const list of [ES_RX_BY.get(k[0]) || [], ES_RX]) {
+        for (let i = 0; i < list.length; i++) if (list[i][0].test(k)) return k.replace(list[i][0], list[i][1]);
+      }
+      return null;
+    }
+    function esFor(t) {
+      const k = esNorm(t);
+      if (k.length < 2 || !/[A-Za-z]/.test(k)) return null;
+      if (ES_MEMO.has(k)) return ES_MEMO.get(k);
+      let out = esOne(k);
+      if (out == null && k.indexOf(' · ') > 0) {
+        let any = false;
+        const parts = k.split(' · ').map(x => { const y = x.length > 1 && /[A-Za-z]/.test(x) ? esOne(x) : null; if (y != null) any = true; return y == null ? x : y; });
+        if (any) out = parts.join(' · ');
+      }
+      if (ES_MEMO.size > 8000) ES_MEMO.clear();
+      ES_MEMO.set(k, out);
+      return out;
+    }
+    function esSkipped(el) { return !el || !el.closest || !!el.closest(ES_SKIP); }
+    function esText(node) {
+      const v = node.nodeValue;
+      if (!v || node.__es === v || !/[A-Za-z]/.test(v)) return;
+      const out = esFor(v);
+      if (out == null) { node.__es = v; return; }
+      const nv = v.match(/^\s*/)[0] + out + v.match(/\s*$/)[0];
+      node.__es = nv; node.nodeValue = nv;
+    }
+    function esAttrs(el) {
+      for (const a of ES_ATTRS) {
+        const v = el.getAttribute(a);
+        if (!v || el['__es_' + a] === v) continue;
+        const out = esFor(v);
+        el['__es_' + a] = out == null ? v : out;
+        if (out != null) el.setAttribute(a, out);
+      }
+    }
+    function esWalk(root) {
+      if (!ES || !root) return;
+      if (root.nodeType === 3) { if (!esSkipped(root.parentElement)) esText(root); return; }
+      if (root.nodeType !== 1 || esSkipped(root)) return;
+      esAttrs(root);
+      const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT,
+        { acceptNode: n => n.nodeType === 1 && n.matches(ES_SKIP) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+      let n;
+      while ((n = w.nextNode())) { if (n.nodeType === 3) esText(n); else esAttrs(n); }
+    }
+    async function esStart() {
+      if (!(await loadEs())) return false;
+      document.documentElement.lang = 'es';
+      esWalk(document.body);
+      if (!esObserver) {
+        esObserver = new MutationObserver(ms => {
+          for (const m of ms) {
+            if (m.type === 'characterData') { if (!esSkipped(m.target.parentElement)) esText(m.target); }
+            else if (m.type === 'attributes') { if (!esSkipped(m.target)) esAttrs(m.target); }
+            else m.addedNodes.forEach(esWalk);
+          }
+        });
+        esObserver.observe(document.body, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: ES_ATTRS });
+      }
+      return true;
+    }
+    function setLang(l) {
+      LANG = l;
+      try { localStorage.setItem(LANG_KEY, l); } catch (e) {}
+      track('open', 'lang-' + l);
+      if (l === 'es') { esStart().then(ok => { if (!ok) toast('⚠️ Couldn\'t load Spanish — check your connection'); langLinks(); }); }
+      else if (esObserver) location.reload(); // English is the page as written
+      else langLinks();
+    }
+    // The small language switch on the welcome screen (never translated itself)
+    function langLinks() {
+      const el = document.getElementById('lang-link');
+      if (el) el.textContent = langIsEs() ? '🌐 English' : '🌐 Español';
+      const ask = document.getElementById('lang-ask');
+      if (ask) ask.style.display = !LANG && (navigator.languages || [navigator.language || '']).some(x => /^es\b/i.test(x || '')) ? '' : 'none';
+    }
+    setTimeout(() => { langLinks(); if (langIsEs()) esStart(); }, 0);
     let cloudUser = null; // set once someone signs up or logs in
 
     // ---------- Crash reporting ----------
@@ -2211,7 +2337,7 @@
       el.classList.toggle('selected');
       // The pick's text starts with its emoji — store the clean label only
       const e = el.querySelector('.e');
-      const label = (e ? el.textContent.replace(e.textContent, '') : el.textContent).trim();
+      const label = el.dataset.i || (e ? el.textContent.replace(e.textContent, '') : el.textContent).trim();
       const i = state.interests.indexOf(label);
       if (i >= 0) state.interests.splice(i, 1); else state.interests.push(label);
     }
@@ -3574,6 +3700,7 @@
     function renderNearby() {
       const zip = state.zip || '';
       let h = lostNearSection(); // a missing pet nearby beats everything else here
+      h += adoptSection();       // shelter pets near this ZIP (once the RescueGroups key is in)
       // Members first — the people (and pets) you can actually talk to
       h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
       if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
@@ -4658,7 +4785,7 @@
           (isPet && SPECIES_ART[(state.species || '').toLowerCase()] ? '<button class="pill-btn ghost" onclick="openAvatarStudio()">🎨 Customize</button>' : '') +
           (!isPet ? '<button class="pill-btn ghost" onclick="openOwnerStudio()">🎨 Customize</button>' : '') +
           '<button class="pill-btn ghost" title="' + (isPet ? 'Use a photo of your pet' : 'Use a photo of you') + '" onclick="pickAvatarPhoto()">📷 Use a photo</button>' +
-          (isPet ? '<button class="pill-btn ghost" title="Turn a photo of your pet into a cartoon icon" onclick="cartoonMyPet()">✨ Cartoon my pet</button>' : '') +
+          avatarButtonHtml() +
           (state.avatarUrl ? '<button class="pill-btn ghost" onclick="clearAvatarPhoto()">↺ Back to my icon</button>' : '') +
           '<button class="pill-btn" onclick="shareMyProfile()">🔗 Share my profile</button>' +
           '<button class="pill-btn ghost" onclick="sharePetCard()">📸 Share my card</button>' +
@@ -4747,6 +4874,7 @@
       h += settingToggle('darkMode', '🌙 Dark mode', 'Easier on the eyes at night', !!state.darkMode);
       h += '</div>';
       h += '<button class="btn secondary" style="margin-top:0.7rem;" onclick="openNotifSettings()">🔔 Notification settings</button>';
+      h += '<button class="btn secondary" translate="no" onclick="setLang(langIsEs() ? \'en\' : \'es\')">' + (langIsEs() ? '🌐 Switch to English' : '🌐 Cambiar a español') + '</button>';
       h += '<button class="btn secondary" onclick="openEditStatus()">✏️ Edit status message</button>';
 
       // Help, safety & legal
@@ -5396,7 +5524,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.10.2';
+    const APP_VERSION = '1.11.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5463,6 +5591,7 @@
         '<li><b>Pet ID tags (optional):</b> anyone who scans your pet\'s tag sees the pet\'s name, species, breed, the note you add and — only if you add one — a phone number. When you mark a pet lost, the area you describe, a point for the ZIP you give (rounded to about 1 km), the date and any reward are shown on the tag page and to members within 25 miles, who may get one alert. A finder\'s message, the contact they leave and — only if they tick the box — their location are stored for you.</li>' +
         '<li><b>Notifications (optional):</b> if you allow alerts, your device\'s push address is stored so reminders, refill and vaccine alerts, messages from finders, and the social alerts you leave on (messages, friend requests, comments, likes, Mate Match) reach you with the app closed. The alert shows the sender\'s name and, for a message or comment, the start of what they wrote.</li>' +
         '<li><b>Care team (optional):</b> if you invite someone to a pet\'s care team, they see that pet\'s name, breed and age, meds and dosing, vaccines, food, allergies, conditions, microchip and vet, and everyone on the team sees what each person logs (fed, walked, meds given, notes) with their name and the time. Your other records, reminders and calendar stay private. Leave or stop sharing any time; stopping deletes the shared log.</li>' +
+        '<li><b>AI avatar (optional, with ID verification):</b> the photo you choose — of your pet, or a selfie — is sent to Google\'s Gemini AI to draw a cartoon avatar and is not kept by Petfi or used to identify you. The cartoon is saved as your profile picture, which other members can see. Google processes the photo under its API terms.</li>' +
         '<li><b>Usage counts:</b> Petfi records which steps are used — for example "opened the app", "reached the ZIP screen", "made a tag" — with a random ID for this device, the link you arrived from (like a tag page) and, if you\'re signed in, your account. Never what you write. It stays in Petfi\'s own database: no third-party analytics or ad trackers.</li>' +
         '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position. A new spot you add is saved with a pin rounded to about 100 m and your account.</li></ul>' +
         '<h3>How it\'s used</h3>' +
@@ -5548,7 +5677,7 @@
       openSheet('💌 Send feedback',
         '<p class="sub" style="font-size:0.85rem;">Found a bug? Have an idea? We read every single message.</p>' +
         '<label>What kind of feedback?</label>' +
-        '<select id="fb-type"><option>💡 Idea or suggestion</option><option>🐛 Something\'s broken</option><option>😕 Something\'s confusing</option><option>💛 Just saying hi</option></select>' +
+        '<select id="fb-type"><option value="💡 Idea or suggestion">💡 Idea or suggestion</option><option value="🐛 Something\'s broken">🐛 Something\'s broken</option><option value="😕 Something\'s confusing">😕 Something\'s confusing</option><option value="💛 Just saying hi">💛 Just saying hi</option></select>' +
         '<label>Tell us about it</label>' +
         '<textarea id="fb-text" placeholder="The more detail, the better…" style="width:100%;min-height:110px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;"></textarea>' +
         '<button class="btn" onclick="submitFeedback()">Send it 💌</button>');
@@ -5583,7 +5712,7 @@
       openSheet('🚩 Report ' + esc(label),
         '<p class="sub" style="font-size:0.85rem;">Reports are anonymous — ' + esc(label) + ' won\'t know it was you.</p>' +
         '<label>What\'s wrong?</label>' +
-        '<select id="rp-reason">' + REPORT_REASONS.map(r => '<option>' + r + '</option>').join('') + '</select>' +
+        '<select id="rp-reason">' + REPORT_REASONS.map(r => '<option value="' + esc(r) + '">' + r + '</option>').join('') + '</select>' +
         '<label>Anything else we should know? <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
         '<textarea id="rp-text" placeholder="Details help us act faster…" style="width:100%;min-height:80px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:0.95rem;"></textarea>' +
         '<button class="btn" onclick="submitReport()">Submit report 🚩</button>');
@@ -5799,280 +5928,185 @@
       renderModeration(); toast('Account suspended ⛔');
     }
 
-    // ======================= AI CARTOON ICON (petfi-api on Vercel) =======================
-    var CARTOON_API = 'https://petfi-api.vercel.app';
-
-    var cartoonJob = { file: null, jpegBase64: null, previewUrl: null, pngBase64: null, busy: false };
-
-    function cartoonMyPet() {
-      cartoonJob = { file: null, jpegBase64: null, previewUrl: null, pngBase64: null, busy: false };
-      cartoonRenderPick();
+    // ======================= AI AVATAR (included with ID verification) =======================
+    // A cartoon of your pet (Pet accounts) or of you (Owner accounts), drawn by
+    // Google's Gemini image model in petfi-avatar. Only for members with the $3
+    // ID badge, AVATAR.cap tries each (a new drawing or a change is one try).
+    // The photo goes to Google for that one drawing and isn't kept; the
+    // cartoon is saved in the member's photos folder. Off until the server's
+    // PETFI_AVATAR_READY switch — until then nothing here is shown.
+    let AVATAR = { ready: false, verified: false, left: 0, cap: 5, at: 0 };
+    let avatarJob = { kind: 'pet', b64: '', preview: '', url: '', busy: false };
+    async function loadAvatarStatus(force) {
+      if (!cloud || !cloudUser || (!force && Date.now() - AVATAR.at < 300000)) return AVATAR;
+      const r = await fnCall('petfi-avatar', 'status');
+      if (!r.error) AVATAR = { ready: !!r.ready, verified: !!r.verified, left: Number(r.left) || 0, cap: Number(r.cap) || 5, at: Date.now() };
+      return AVATAR;
     }
-
-    function cartoonSheet(html) {
-      openSheet('✨ Cartoon my pet', html);
+    function avatarIsPet() { return state.accountType !== 'owner'; }
+    // The perk line for the ID-verification offer (only once it's switched on)
+    function avatarPerkHtml() {
+      if (!AVATAR.ready) return '';
+      return '<div class="note" style="background:#f3ecff;color:#5b3aa8;">✨ <b>Included:</b> an AI avatar made from ' +
+        (avatarIsPet() ? 'a photo of your pet' : 'your selfie') + ' — ' + AVATAR.cap + ' tries, with changes until it looks just right.</div>';
     }
-
-    function cartoonRenderPick() {
-      var pet = (state && state.accountType === 'pet' && state.displayName) || '';
-      cartoonSheet(
-        '<div style="text-align:center">' +
-          '<p style="margin:0 0 14px;line-height:1.45">Pick a clear, well-lit photo of ' +
-          (pet ? esc(pet) : 'your pet') +
-          '. Face forward works best.</p>' +
-          '<input type="file" accept="image/*" id="cartoonFile" style="display:none">' +
-          '<button class="btn" id="cartoonPickBtn" style="width:100%">Choose a photo</button>' +
-          '<p style="margin:14px 0 0;font-size:13px;opacity:.7">3 cartoons per week per account.</p>' +
-        '</div>'
-      );
-      cartoonWire(function () {
-        var input = document.getElementById('cartoonFile');
-        var btn = document.getElementById('cartoonPickBtn');
-        if (!input || !btn) return;
-        btn.onclick = function () { input.click(); };
-        input.onchange = function () {
-          var f = input.files && input.files[0];
-          if (f) cartoonPrepare(f);
+    // Profile button (only once it's switched on)
+    function avatarButtonHtml() {
+      if (cloudUser && !AVATAR.at) loadAvatarStatus().then(a => { if (a.ready && state.tab === 'profile') openTab('profile'); });
+      if (!AVATAR.ready || !cloudUser) return '';
+      return '<button class="pill-btn ghost" onclick="openAvatarMaker()">✨ AI avatar' + (state.verified ? '' : ' 🪪') + '</button>';
+    }
+    async function openAvatarMaker() {
+      await loadAvatarStatus(true);
+      if (!AVATAR.ready) { toast('AI avatars aren\'t available yet'); return; }
+      if (!state.verified && !AVATAR.verified) {
+        openSheet('✨ AI avatar',
+          '<p class="sub">Turn ' + (avatarIsPet() ? 'a photo of your pet' : 'a selfie') + ' into a cartoon avatar that actually looks like ' + (avatarIsPet() ? 'them' : 'you') + '.</p>' +
+          '<div class="note">🪪 It comes <b>free with ID verification</b> — the one-time $3 check that also gets you the trust badge. You get ' + AVATAR.cap + ' tries.</div>' +
+          '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and unlock it</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+        return;
+      }
+      if (AVATAR.left <= 0) {
+        openSheet('✨ AI avatar', '<div class="note">You\'ve used all ' + AVATAR.cap + ' of your AI avatar tries.' +
+          (state.aiAvatar && state.aiAvatar.last ? ' Your last one is still yours to use.' : '') + '</div>' +
+          (state.aiAvatar && state.aiAvatar.last ? '<button class="btn" onclick="avatarUse(state.aiAvatar.last, true)">Use my last AI avatar</button>' : '') +
+          '<button class="btn secondary" onclick="closeSheet()">OK</button>');
+        return;
+      }
+      avatarJob = { kind: avatarIsPet() ? 'pet' : 'human', b64: '', preview: '', url: (state.aiAvatar && state.aiAvatar.last) || '', busy: false };
+      if (avatarJob.url) { avatarRenderResult(true); return; } // pick up where they left off
+      avatarRenderPick();
+    }
+    function avatarRenderPick() {
+      const pet = avatarJob.kind === 'pet';
+      let h = '<p class="sub">' + (pet ? 'A clear, close photo works best: your pet\'s face, good light, nothing covering them.' : 'A clear selfie works best: your face, good light, no sunglasses.') + '</p>';
+      if (pet) {
+        h += '<label for="av-species">Species</label><select id="av-species">' + speciesOptions(state.species || 'dog') + '</select>' +
+          '<label for="av-breed">Breed <small style="color:var(--muted);font-weight:400;">(helps it get the details right)</small></label>' +
+          '<input id="av-breed" maxlength="40" value="' + esc(state.breed || '') + '" placeholder="e.g. Pit bull, German Shepherd, tabby">';
+      }
+      h += '<input type="file" id="av-file" accept="image/*"' + (pet ? '' : ' capture="user"') + ' style="display:none;" onchange="avatarPicked(this)">' +
+        '<button class="btn" onclick="document.getElementById(\'av-file\').click()">📷 ' + (pet ? 'Choose a photo of your pet' : 'Take or choose a selfie') + '</button>' +
+        (pet ? '' : '<label style="display:flex;gap:0.5rem;align-items:flex-start;font-weight:500;font-size:0.82rem;margin-top:0.6rem;"><input type="checkbox" id="av-ok" style="width:auto;margin-top:0.2rem;"> <span>This is me (or I have their OK). I understand the photo is sent to Google\'s AI to draw the avatar and isn\'t kept.</span></label>') +
+        '<p class="sub" style="font-size:0.75rem;margin-top:0.6rem;">' + (pet ? 'Your photo is sent to Google\'s AI to draw the avatar and isn\'t kept. ' : '') +
+        'Each drawing or change uses one try — you have <b>' + AVATAR.left + '</b> left.</p>';
+      openSheet('✨ AI avatar', h);
+    }
+    // Shrink to at most 768px on the long side, JPEG — plenty for the model, light to send
+    function avatarShrink(file) {
+      return new Promise((res, rej) => {
+        const url = URL.createObjectURL(file), img = new Image();
+        img.onload = () => {
+          const k = Math.min(1, 768 / Math.max(img.width, img.height));
+          const c = document.createElement('canvas');
+          c.width = Math.round(img.width * k); c.height = Math.round(img.height * k);
+          c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+          URL.revokeObjectURL(url);
+          const d = c.toDataURL('image/jpeg', 0.85);
+          res({ preview: d, b64: d.slice(d.indexOf(',') + 1) });
         };
-      });
-    }
-
-    function cartoonPrepare(file) {
-      if (!/^image\//.test(file.type || '')) { toast('That file is not an image.'); return; }
-      cartoonSheet('<div style="text-align:center;padding:24px 0">Reading the photo…</div>');
-      cartoonDownsize(file).then(function (out) {
-        cartoonJob.file = file;
-        cartoonJob.jpegBase64 = out.base64;
-        cartoonJob.previewUrl = out.dataUrl;
-        cartoonRenderPreview();
-      }).catch(function () {
-        toast('Could not read that photo. Try another one.');
-        cartoonRenderPick();
-      });
-    }
-
-    /* Draws the photo into a canvas capped at 1024 px on the long edge and
-       re-encodes it as JPEG 0.85, so the upload stays well under the 4 MB cap. */
-    function cartoonDownsize(file) {
-      return new Promise(function (resolve, reject) {
-        var url = URL.createObjectURL(file);
-        var img = new Image();
-        img.onload = function () {
-          try {
-            var max = 1024;
-            var w = img.naturalWidth || img.width;
-            var h = img.naturalHeight || img.height;
-            if (!w || !h) throw new Error('no dimensions');
-            var scale = Math.min(1, max / Math.max(w, h));
-            var cw = Math.max(1, Math.round(w * scale));
-            var ch = Math.max(1, Math.round(h * scale));
-            var c = document.createElement('canvas');
-            c.width = cw;
-            c.height = ch;
-            var ctx = c.getContext('2d');
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(0, 0, cw, ch);
-            ctx.drawImage(img, 0, 0, cw, ch);
-            var dataUrl = c.toDataURL('image/jpeg', 0.85);
-            URL.revokeObjectURL(url);
-            resolve({ dataUrl: dataUrl, base64: dataUrl.slice(dataUrl.indexOf(',') + 1) });
-          } catch (e) {
-            URL.revokeObjectURL(url);
-            reject(e);
-          }
-        };
-        img.onerror = function () { URL.revokeObjectURL(url); reject(new Error('decode failed')); };
+        img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
         img.src = url;
       });
     }
-
-    function cartoonRenderPreview() {
-      cartoonSheet(
-        '<div style="text-align:center">' +
-          '<img src="' + cartoonJob.previewUrl + '" alt="" ' +
-            'style="width:200px;height:200px;object-fit:cover;border-radius:18px;display:block;margin:0 auto 16px">' +
-          '<button class="btn" id="cartoonGoBtn" style="width:100%">✨ Make my cartoon</button>' +
-          '<button class="btn secondary" id="cartoonOtherBtn" style="width:100%;margin-top:8px">Pick a different photo</button>' +
-        '</div>'
-      );
-      cartoonWire(function () {
-        var go = document.getElementById('cartoonGoBtn');
-        var other = document.getElementById('cartoonOtherBtn');
-        if (go) go.onclick = cartoonGenerate;
-        if (other) other.onclick = cartoonRenderPick;
-      });
+    async function avatarPicked(input) {
+      const f = input.files && input.files[0]; if (!f) return;
+      if (avatarJob.kind === 'human' && !(document.getElementById('av-ok') || {}).checked) { input.value = ''; toast('Tick the box first, please'); return; }
+      if (avatarJob.kind === 'pet') { avatarJob.species = val('av-species'); avatarJob.breed = val('av-breed').replace(/[^A-Za-z '&./-]/g, '').slice(0, 40); }
+      try { Object.assign(avatarJob, await avatarShrink(f)); } catch (e) { toast('⚠️ Couldn\'t read that photo — try another'); return; }
+      openSheet('✨ AI avatar',
+        '<div style="text-align:center;"><img src="' + avatarJob.preview + '" alt="" style="width:160px;height:160px;object-fit:cover;border-radius:18px;"></div>' +
+        '<button class="btn" onclick="avatarMake()">✨ Draw my avatar (uses 1 of ' + AVATAR.left + ' tries)</button>' +
+        '<button class="btn secondary" onclick="avatarRenderPick()">Pick a different photo</button>');
     }
-
-    function cartoonRenderWorking() {
-      cartoonSheet(
-        '<div style="text-align:center;padding:18px 0">' +
-          '<div style="font-size:40px;line-height:1;margin-bottom:12px">✨</div>' +
-          '<p style="margin:0;font-weight:600">Drawing… this takes about 20 seconds</p>' +
-          '<p style="margin:8px 0 0;font-size:13px;opacity:.7">Keep this sheet open.</p>' +
-        '</div>'
-      );
+    function avatarWorking(what) {
+      openSheet('✨ AI avatar', '<div style="text-align:center;padding:1.2rem 0;"><div style="font-size:2.6rem;">🎨</div>' +
+        '<p style="font-weight:700;margin-top:0.5rem;">' + esc(what) + '</p><p class="sub" style="font-size:0.8rem;">About 20 seconds. Keep this open.</p></div>');
     }
-
-    function cartoonGenerate() {
-      if (cartoonJob.busy || !cartoonJob.jpegBase64) return;
-      /* Vercel rejects request bodies over ~4.5 MB with a plain-text 413 that
-         carries no CORS headers, so the browser would surface it as a network
-         error. The downsize above keeps us far under this; guard anyway. */
-      if (cartoonJob.jpegBase64.length > 3 * 1024 * 1024) {
-        cartoonFail({ code: 413, body: {} });
+    async function avatarMake() {
+      if (avatarJob.busy || !avatarJob.b64) return;
+      avatarJob.busy = true; avatarWorking('Drawing your avatar…');
+      const r = await fnCall('petfi-avatar', 'make', { kind: avatarJob.kind, species: avatarJob.species || '', breed: avatarJob.breed || '', image: avatarJob.b64 });
+      avatarJob.busy = false;
+      avatarAfter(r);
+    }
+    function avatarAfter(r) {
+      if (typeof r.left === 'number') AVATAR.left = r.left;
+      if (r.url) {
+        avatarJob.url = r.url; avatarJob.b64 = '';
+        state.aiAvatar = { last: r.url, at: Date.now() }; saveState();
+        track('care_added', 'ai-avatar');
+        avatarRenderResult(false);
         return;
       }
-      cartoonJob.busy = true;
-      cartoonRenderWorking();
-
-      cartoonToken().then(function (token) {
-        if (!token) throw { code: 401 };
-        return fetch(CARTOON_API + '/api/cartoon', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-          body: JSON.stringify({
-            image: cartoonJob.jpegBase64,
-            species: (state && state.species) || 'pet',
-            name: (state && state.accountType === 'pet' && state.displayName) || ''
-          })
-        });
-      }).then(function (r) {
-        return r.json().catch(function () { return {}; }).then(function (j) {
-          if (!r.ok) throw { code: r.status, body: j };
-          return j;
-        });
-      }).then(function (j) {
-        if (!j.imageBase64) throw { code: 502 };
-        cartoonJob.pngBase64 = j.imageBase64;
-        cartoonJob.busy = false;
-        cartoonRenderResult();
-      }).catch(function (err) {
-        cartoonJob.busy = false;
-        cartoonFail(err);
+      const msg = {
+        no_tries_left: 'You\'ve used all your AI avatar tries.',
+        no_drawing: 'The AI couldn\'t draw that one (that try wasn\'t used). Try a clearer photo.',
+        not_verified: 'AI avatars come with ID verification.',
+        not_ready: 'AI avatars aren\'t available right now.',
+        bad_image: 'That file didn\'t look like a photo. Try a JPEG or PNG.',
+        too_big: 'That photo is too large. Try a smaller one.',
+        offline: 'No internet connection right now.', network: 'No internet connection right now.',
+      }[r.error] || 'Something went wrong. Try again in a minute.';
+      openSheet('✨ AI avatar', '<div class="note">' + esc(msg) + '</div>' +
+        (AVATAR.left > 0 && r.error !== 'not_verified' && r.error !== 'not_ready' ? '<button class="btn" onclick="avatarRenderPick()">Try again</button>' : '') +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    // The drawing, and the two ways on: keep perfecting it, or use it and carry on
+    function avatarRenderResult(resumed) {
+      const u = avatarJob.url;
+      openSheet('✨ ' + (resumed ? 'Your AI avatar' : 'Here\'s your avatar!'),
+        '<div style="text-align:center;"><img src="' + esc(u) + '" alt="Your AI avatar" style="width:220px;height:220px;object-fit:cover;border-radius:50%;border:4px solid var(--brand);"></div>' +
+        '<p class="sub" style="text-align:center;margin:0.5rem 0 0.7rem;">' + (AVATAR.left > 0 ? AVATAR.left + ' tr' + (AVATAR.left === 1 ? 'y' : 'ies') + ' left for changes or a new photo.' : 'That was your last try.') + '</p>' +
+        (AVATAR.left > 0 ? '<button class="btn" onclick="avatarRefineSheet()">✨ Continue creating and perfecting your avatar</button>' : '') +
+        '<button class="btn secondary" onclick="avatarUse(\'' + jsStr(u) + '\')">Finish later &amp; continue</button>' +
+        (AVATAR.left > 0 ? '<button class="btn secondary" onclick="avatarRenderPick()">📷 Start over with a new photo</button>' : '') +
+        '<p class="sub" style="font-size:0.72rem;text-align:center;margin-top:0.5rem;">Drawn by AI. Something wrong or offensive in it? <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="avatarReport(\'' + jsStr(u) + '\')">Report it</span></p>');
+    }
+    const AVATAR_FIXES = {
+      pet: ['Make the ears floppier', 'Make the ears stand up', 'The coat should be darker', 'The coat should be lighter', 'Add the white chest patch', 'Make the snout longer', 'Make the snout shorter', 'Give it a bigger smile'],
+      human: ['Make my hair shorter', 'Make my hair longer', 'My hair is darker', 'Add my glasses', 'Remove the glasses', 'Add my beard', 'Make my skin tone match the photo', 'Give me a bigger smile'],
+    };
+    function avatarRefineSheet() {
+      const fixes = AVATAR_FIXES[avatarJob.kind] || AVATAR_FIXES.pet;
+      openSheet('✨ Perfect your avatar',
+        '<div style="text-align:center;"><img src="' + esc(avatarJob.url) + '" alt="" style="width:120px;height:120px;object-fit:cover;border-radius:50%;"></div>' +
+        '<label for="av-note">What should change?</label><input id="av-note" maxlength="200" placeholder="e.g. Her ears fold over at the tips">' +
+        '<div class="chips" style="flex-wrap:wrap;margin-top:0.5rem;">' + fixes.map(f => '<div class="chip" role="button" tabindex="0" onclick="document.getElementById(\'av-note\').value=' + esc(JSON.stringify(f)) + '">' + esc(f) + '</div>').join('') + '</div>' +
+        '<button class="btn" onclick="avatarRefine()">✨ Make the change (uses 1 of ' + AVATAR.left + ')</button>' +
+        '<button class="btn secondary" onclick="avatarRenderResult(true)">Back</button>');
+    }
+    async function avatarRefine() {
+      const note = val('av-note'); if (note.length < 3) { toast('Say what should change'); return; }
+      if (avatarJob.busy) return;
+      avatarJob.busy = true; avatarWorking('Making the change…');
+      const r = await fnCall('petfi-avatar', 'refine', { base: avatarJob.url, note });
+      avatarJob.busy = false;
+      avatarAfter(r);
+    }
+    function avatarUse(url, keepOld) {
+      if (!url || !safeAvatarUrl(url)) return;
+      const old = state.avatarUrl;
+      state.avatarUrl = url; saveState(); cloudSaveProfile(); refreshTopAvatar();
+      if (old && old !== url && !keepOld && !/\/ai-avatar-/.test(old)) removeAvatarFile(old);
+      closeSheet(); if (state.tab === 'profile') openTab('profile');
+      toast('✨ Your new avatar is on — tap ✨ AI avatar in your profile any time to keep perfecting it');
+    }
+    async function avatarReport(url) {
+      if (cloud && cloudUser) await cloud.from('feedback').insert({ user_id: cloudUser.id, content: { type: '🚩 AI avatar report', text: url, from: state.displayName || '', version: APP_VERSION } });
+      toast('Thanks — we\'ll take a look');
+    }
+    // After the ID check passes: say the avatar is unlocked
+    function avatarAfterVerified() {
+      loadAvatarStatus(true).then(a => {
+        if (!a.ready || a.left <= 0) return;
+        setTimeout(() => openSheet('✨ Your AI avatar is unlocked',
+          '<p class="sub">Verification includes an AI avatar made from ' + (avatarIsPet() ? 'a photo of your pet' : 'your selfie') + ' — ' + a.left + ' tries to get it just right.</p>' +
+          '<button class="btn" onclick="openAvatarMaker()">✨ Make my avatar</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Later</button>'), 1800);
       });
     }
-
-    function cartoonToken() {
-      if (typeof cloud === 'undefined' || !cloud || !cloud.auth) return Promise.resolve(null);
-      return cloud.auth.getSession().then(function (res) {
-        return (res && res.data && res.data.session && res.data.session.access_token) || null;
-      }).catch(function () { return null; });
-    }
-
-    function cartoonFail(err) {
-      var code = (err && err.code) || 0;
-      var body = (err && err.body) || {};
-      var msg;
-      if (code === 401) {
-        msg = 'Please sign in again, then try once more.';
-      } else if (code === 413) {
-        msg = body.error === 'not_an_image'
-          ? 'That file did not look like a photo. Try a JPEG or PNG.'
-          : 'That photo is too large. Try a smaller one.';
-      } else if (code === 429) {
-        msg = 'You have used all 3 cartoons for this week.' + cartoonResetText(body.resetAt);
-      } else if (code === 504) {
-        msg = 'The artist took too long. Try again in a minute.';
-      } else if (code === 502 || code === 503) {
-        msg = 'The cartoon service is having a moment. Try again shortly.';
-      } else {
-        msg = 'Something went wrong. Try again.';
-      }
-
-      cartoonSheet(
-        '<div style="text-align:center">' +
-          '<p style="margin:0 0 16px;line-height:1.45">' + esc(msg) + '</p>' +
-          (code === 429
-            ? '<button class="btn secondary" id="cartoonCloseBtn" style="width:100%">Close</button>'
-            : '<button class="btn" id="cartoonRetryBtn" style="width:100%">Try again</button>' +
-              '<button class="btn secondary" id="cartoonCloseBtn" style="width:100%;margin-top:8px">Close</button>') +
-        '</div>'
-      );
-      cartoonWire(function () {
-        var retry = document.getElementById('cartoonRetryBtn');
-        var close = document.getElementById('cartoonCloseBtn');
-        if (retry) retry.onclick = function () {
-          if (cartoonJob.jpegBase64) cartoonGenerate(); else cartoonRenderPick();
-        };
-        if (close) close.onclick = closeSheet;
-      });
-    }
-
-    function cartoonResetText(resetAt) {
-      if (!resetAt) return '';
-      var d = new Date(resetAt);
-      if (isNaN(d.getTime())) return '';
-      return ' You get another one on ' + d.toLocaleDateString() + '.';
-    }
-
-    function cartoonRenderResult() {
-      cartoonSheet(
-        '<div style="text-align:center">' +
-          '<img src="data:image/png;base64,' + cartoonJob.pngBase64 + '" alt="" ' +
-            'style="width:220px;height:220px;object-fit:cover;border-radius:24px;display:block;margin:0 auto 16px">' +
-          '<button class="btn" id="cartoonUseBtn" style="width:100%">Use it as my icon</button>' +
-          '<button class="btn secondary" id="cartoonAgainBtn" style="width:100%;margin-top:8px">Try again</button>' +
-          '<p style="margin:12px 0 0;font-size:13px;opacity:.7">Trying again uses one of your 3 weekly cartoons.</p>' +
-        '</div>'
-      );
-      cartoonWire(function () {
-        var use = document.getElementById('cartoonUseBtn');
-        var again = document.getElementById('cartoonAgainBtn');
-        if (use) use.onclick = cartoonUseAsIcon;
-        if (again) again.onclick = cartoonGenerate;
-      });
-    }
-
-    function cartoonUseAsIcon() {
-      if (cartoonJob.busy || !cartoonJob.pngBase64) return;
-      var uid = (typeof cloudUser !== 'undefined' && cloudUser && cloudUser.id) || null;
-      if (!uid || typeof cloud === 'undefined' || !cloud) { toast('Please sign in first.'); return; }
-
-      cartoonJob.busy = true;
-      var btn = document.getElementById('cartoonUseBtn');
-      if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-
-      var blob = cartoonBlob(cartoonJob.pngBase64);
-      var path = uid + '/avatar-' + Date.now() + '.png';
-
-      cloud.storage.from('photos').upload(path, blob, {
-        contentType: 'image/png',
-        cacheControl: '31536000',
-        upsert: false
-      }).then(function (res) {
-        if (res && res.error) throw res.error;
-        var pub = cloud.storage.from('photos').getPublicUrl(path);
-        var url = pub && pub.data && pub.data.publicUrl;
-        if (!url) throw new Error('no public url');
-        state.avatarUrl = url;
-        saveState();
-        return Promise.resolve(cloudSaveProfile());
-      }).then(function () {
-        cartoonJob.busy = false;
-        refreshTopAvatar();
-        closeSheet();
-        openTab('profile');
-        toast('Your cartoon is now your icon ✨');
-      }).catch(function () {
-        cartoonJob.busy = false;
-        if (btn) { btn.disabled = false; btn.textContent = 'Use it as my icon'; }
-        toast('Could not save the icon. Try again.');
-      });
-    }
-
-    function cartoonBlob(b64) {
-      var bin = atob(b64);
-      var bytes = new Uint8Array(bin.length);
-      for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
-      return new Blob([bytes], { type: 'image/png' });
-    }
-
-    /* openSheet may swap the DOM on the next frame; wire on both ticks. */
-    function cartoonWire(fn) {
-      fn();
-      requestAnimationFrame(fn);
-    }
-
 
     // ---- Blocking: blocked users vanish from feed, nearby & messages ----
     function isBlocked(id) { return !!id && (state.blocked || []).some(b => b.id === id); }
@@ -6690,7 +6724,7 @@
         '<textarea id="sell-desc" maxlength="300" placeholder="Size, condition, what makes it great…" style="width:100%;min-height:70px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:0.95rem;"></textarea>' +
         '<label>Your price</label><input id="sell-price" type="text" inputmode="decimal" placeholder="e.g. $12.99">' +
         '<p class="sub" style="font-size:0.78rem;margin:0.3rem 0 0;">💡 Buyers message you in Petfi and you arrange payment and pickup or shipping together. Petfi takes no fee.</p>' +
-        '<label>Category</label><select id="sell-cat" onchange="sellCatNote()"><option>Products</option><option>Food</option><option>Pets</option><option>Services</option></select>' +
+        '<label>Category</label><select id="sell-cat" onchange="sellCatNote()"><option value="Products">Products</option><option value="Food">Food</option><option value="Pets">Pets</option><option value="Services">Services</option></select>' +
         '<div class="note" id="sell-food-note" style="background:#fdeef0;color:#a03a5a;">🚫 <b>No homemade food or treats.</b> Consumables must be sealed, commercially licensed products — the same regulations real pet stores follow. It keeps pets safe.</div>' +
         '<label>Link (optional) <small style="color:var(--muted);font-weight:400;">your shop, a product page…</small></label><input id="sell-url" type="url" placeholder="https://...">' +
         '<button class="btn" onclick="saveListing()">List it 🛒</button>');
@@ -6779,7 +6813,7 @@
         '<label>Group name</label><input id="grp-name" placeholder="e.g. South Beach Corgi Club">' +
         '<label>What\'s it about?</label>' +
         '<textarea id="grp-desc" maxlength="200" placeholder="Tell people what your group is for…" style="width:100%;min-height:70px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:0.95rem;"></textarea>' +
-        '<label>Visibility</label><select id="grp-vis" onchange="grpVisNote()"><option>Public</option><option>Private</option></select>' +
+        '<label>Visibility</label><select id="grp-vis" onchange="grpVisNote()"><option value="Public">Public</option><option value="Private">Private</option></select>' +
         '<div class="note" id="grp-vis-note">🌍 <b>Public</b> — anyone can join instantly, and everyone can see the posts.</div>' +
         '<button class="btn" onclick="saveGroup()">Create group 👥</button>');
     }
@@ -7573,7 +7607,7 @@
         '<label>Terms — fee or trade</label><input type="text" id="br-comp" placeholder="e.g. $500 stud fee · pick of the litter · trade">' +
         '<label>Papers &amp; registration</label><select id="br-purity">' +
           '<option value=""' + (purity ? '' : ' selected') + '>Not stated</option>' +
-          PURITY.map(p => '<option' + (p === purity ? ' selected' : '') + '>' + esc(p) + '</option>').join('') +
+          PURITY.map(p => '<option value="' + esc(p) + '"' + (p === purity ? ' selected' : '') + '>' + esc(p) + '</option>').join('') +
           (purity && PURITY.indexOf(purity) < 0 ? '<option selected>' + esc(purity) + '</option>' : '') + '</select>' +
         '<label>Health — anything a partner should know</label><input type="text" id="br-health" placeholder="None">' +
         '<div class="mm-step"><span class="n">4</span>Photos <small>(optional, up to 3)</small></div>' +
@@ -7750,8 +7784,8 @@
       const petPrefs = [['none','No preference'], ['dog','Has a dog 🐶'], ['cat','Has a cat 🐱'], ['any','Has any pet 🐾']];
       openSheet('💘 About you & your type',
         '<label>Your age</label><input type="number" id="dp-age" min="18" max="120" value="' + esc(d.age || state.age || '') + '" placeholder="18+">' +
-        '<label>I am</label><select id="dp-gender">' + genders.map(g => '<option' + (d.gender === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
-        '<label>Interested in</label><select id="dp-interest">' + interests.map(g => '<option' + (d.interestedIn === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
+        '<label>I am</label><select id="dp-gender">' + genders.map(g => '<option value="' + g + '"' + (d.gender === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
+        '<label>Interested in</label><select id="dp-interest">' + interests.map(g => '<option value="' + g + '"' + (d.interestedIn === g ? ' selected' : '') + '>' + g + '</option>').join('') + '</select>' +
         '<label>Age range</label><div style="display:flex;gap:0.6rem;">' +
           '<input type="number" id="dp-agemin" min="18" max="120" value="' + esc(d.ageMin || 21) + '" placeholder="From">' +
           '<input type="number" id="dp-agemax" min="18" max="120" value="' + esc(d.ageMax || 45) + '" placeholder="To"></div>' +
@@ -8183,7 +8217,7 @@
       }
       openSheet('🪪 ID verification', '<div class="note">⏳ One moment…</div>');
       const mySeq = sheetSeq;
-      const info = await verifyCall('status');
+      const [info] = await Promise.all([verifyCall('status'), loadAvatarStatus()]);
       if (sheetSeq !== mySeq) return;
       if (info.verified) { markVerifiedLocally(); return; }
       if (info.error || !info.ready) { renderVerifyWaitlist(); return; }
@@ -8214,12 +8248,12 @@
         h += row.status === 'failed'
           ? '<div class="note" style="background:#fdeef0;color:#a03a5a;">Last time ' + esc(verifyFailText(row.fail_reason)) + '. You can try again — <b>no extra charge</b>.</div>'
           : '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Paid. Finish the ID check to get your badge.</div>';
-        h += verifyStepsHtml() +
+        h += verifyStepsHtml() + avatarPerkHtml() +
           '<button class="btn blue" id="vf-btn" onclick="continueVerify()">🪪 ' + (row.status === 'failed' ? 'Try the ID check again' : 'Finish my ID check') + '</button>' +
           '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
       } else {
         h += '<p class="sub">Verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
-          verifyStepsHtml() +
+          verifyStepsHtml() + avatarPerkHtml() +
           '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
           '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
           '<button class="btn blue" id="vf-btn" onclick="beginVerifyPayment()">🪪 Verify now · ' + esc(price) + '</button>' +
@@ -8248,6 +8282,7 @@
       state.verified = true; state.verifiedBy = 'petfi'; saveState();
       closeSheet(); if (state.tab === 'profile') openTab('profile');
       confetti(); toast('Verified ✔︎ — your trust badge is live');
+      avatarAfterVerified();
     }
     async function beginVerifyPayment() {
       verifyBusy('Opening…');
@@ -8436,7 +8471,7 @@
     function hxDate(ymd) {
       if (!hxValidYmd(ymd)) return '';
       const d = new Date(ymd + 'T12:00:00');
-      return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+      return d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
     }
     function hxWhen(days) {
       if (days === 0) return 'today';
@@ -8831,7 +8866,7 @@
       let h = '<div class="hx-card">' +
         line('For', hxPetName(m.petId)) +
         line('Dose', medDoseText(m) + ' ' + f.label.toLowerCase() + (f.ms && m.time ? ' at ' + hxTime(m.time) : '')) +
-        line('Next reminder', rem ? new Date(rem.next).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
+        line('Next reminder', rem ? new Date(rem.next).toLocaleString(esLocale(), { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
         line('On hand', left == null ? '' : medUnit(left, m.unit) + (dl != null && medNeedsRefill(m) ? ' — runs out ~' + hxDate(hxYmd(new Date(medRunOut(m)))) : '')) +
         line('Refills left', typeof m.refills === 'number' ? String(m.refills) : '') +
         line('Last given', m.lastGiven ? hxAgo(m.lastGiven) : '') +
@@ -9167,7 +9202,7 @@
     function openPetInfoForm(petId) {
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {};
-      const sel = (id, opts, cur) => '<select id="' + id + '"><option value="">—</option>' + opts.map(o => '<option' + (o === cur ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
+      const sel = (id, opts, cur) => '<select id="' + id + '"><option value="">—</option>' + opts.map(o => '<option value="' + o + '"' + (o === cur ? ' selected' : '') + '>' + o + '</option>').join('') + '</select>';
       const txt = (id, label, v, ph, max) => '<label>' + label + '</label><input type="text" id="' + id + '" maxlength="' + (max || 80) + '" value="' + esc(v || '') + '" placeholder="' + esc(ph || '') + '">';
       openSheet('✏️ ' + esc(p.name) + '\'s details',
         '<label>Sex</label>' + sel('pi-sex', ['Male', 'Female'], info.sex) +
@@ -9694,7 +9729,7 @@
       const k = jKind(kind), now = new Date();
       const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
       let h = '';
-      if (k.opts) h += '<label>How was it?</label><select id="jn-val">' + k.opts.map(o => '<option>' + esc(o) + '</option>').join('') + '</select>';
+      if (k.opts) h += '<label>How was it?</label><select id="jn-val">' + k.opts.map(o => '<option value="' + esc(o) + '">' + esc(o) + '</option>').join('') + '</select>';
       if (k.num) h += '<label>' + esc(k.label) + ' <small style="color:var(--muted);font-weight:400;">(' + esc(k.num) + ')</small></label><input id="jn-val" type="number" inputmode="decimal" step="any" min="0">';
       h += '<div style="display:flex;gap:0.5rem;"><div style="flex:1;"><label>Day</label><input id="jn-d" type="date" value="' + hxToday() + '" max="' + hxToday() + '"></div>' +
         '<div style="flex:1;"><label>Time</label><input id="jn-t" type="time" value="' + hm + '"></div></div>' +
@@ -9824,12 +9859,12 @@
       const p = PROFILE_BY_ID[uid];
       return p && p.username ? String(p.username).split(' ')[0] : 'Someone';
     }
-    function careClock(iso) { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+    function careClock(iso) { return new Date(iso).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' }); }
     function careDay(iso) {
       const d = new Date(iso), t = new Date();
       if (d.toDateString() === t.toDateString()) return 'Today';
       if (d.toDateString() === new Date(t.getTime() - DAY_MS).toDateString()) return 'Yesterday';
-      return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      return d.toLocaleDateString(esLocale(), { weekday: 'short', month: 'short', day: 'numeric' });
     }
     function careEntryText(l) {
       const k = careKind(l.kind);
@@ -10171,6 +10206,51 @@
     }
     setTimeout(renderCareInviteSlot, 1500);
 
+    // ======================= ADOPTABLE PETS NEAR YOU =======================
+    // Dogs and cats up for adoption within 50 miles of the member's ZIP, from
+    // RescueGroups.org via petfi-adoptables (cached there 12 hours). Hidden
+    // until the server has its key. RescueGroups' terms: the "adoption tracker"
+    // image goes on any view of one pet — it's in the detail sheet.
+    let ADOPT = { zip: '', ready: false, pets: [], at: 0, loading: false };
+    async function loadAdoptables() {
+      const zip = state.zip || '';
+      if (!cloudUser || !/^\d{5}$/.test(zip) || ADOPT.loading) return;
+      if (ADOPT.zip === zip && Date.now() - ADOPT.at < 3600000) return;
+      ADOPT.loading = true;
+      const r = await fnCall('petfi-adoptables', 'near', { zip });
+      ADOPT.loading = false;
+      if (r.error) { ADOPT.zip = zip; ADOPT.at = Date.now(); return; } // back off for an hour
+      ADOPT = { zip, ready: !!r.ready, pets: Array.isArray(r.pets) ? r.pets.slice(0, 40) : [], at: Date.now(), loading: false };
+      if (ADOPT.pets.length && state.tab === 'nearby') openTab('nearby');
+    }
+    function adoptSection() {
+      loadAdoptables();
+      if (!ADOPT.ready || !ADOPT.pets.length || ADOPT.zip !== state.zip) return '';
+      return '<div class="sec"><h3>🏠 Adoptable near you</h3><span class="link" onclick="openAdoptList()">See all ' + ADOPT.pets.length + '</span></div>' +
+        '<div class="adopt-row">' + ADOPT.pets.slice(0, 12).map((x, i) => adoptCard(x, i)).join('') + '</div>' +
+        '<p class="sub" style="font-size:0.7rem;margin:0.2rem 0 0.6rem;">From shelters and rescues · Powered by <a href="https://rescuegroups.org" target="_blank" rel="noopener" style="color:var(--muted);">RescueGroups.org</a></p>';
+    }
+    function adoptCard(x, i) {
+      return '<div class="adopt-card" role="button" tabindex="0" onclick="openAdoptable(' + i + ')"><img src="' + esc(x.photo) + '" alt="" loading="lazy">' +
+        '<b>' + esc(x.name) + '</b><small>' + esc([x.breed, x.miles != null ? x.miles + ' mi' : ''].filter(Boolean).join(' · ')) + '</small></div>';
+    }
+    function openAdoptList() {
+      openSheet('🏠 Adoptable near you', '<div class="adopt-grid">' + ADOPT.pets.map((x, i) => adoptCard(x, i)).join('') + '</div>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Within 50 miles of ' + esc(state.zip) + ' · Powered by RescueGroups.org</p>');
+    }
+    function openAdoptable(i) {
+      const x = ADOPT.pets[i]; if (!x) return;
+      const go = x.url || (x.org && x.org.url) || '';
+      openSheet('🏠 ' + esc(x.name),
+        '<div style="text-align:center;"><img src="' + esc(x.photo) + '" alt="' + esc(x.name) + '" style="max-width:100%;max-height:300px;border-radius:16px;object-fit:cover;"></div>' +
+        '<p style="font-weight:700;margin:0.6rem 0 0.2rem;">' + esc([x.breed, x.age, x.sex, x.size].filter(Boolean).join(' · ')) + '</p>' +
+        '<p class="sub" style="margin:0 0 0.5rem;">' + esc([x.org && x.org.name, [x.org && x.org.city, x.org && x.org.state].filter(Boolean).join(', '), x.miles != null ? x.miles + ' miles away' : ''].filter(Boolean).join(' · ')) + '</p>' +
+        (x.about ? '<p class="sub" style="font-size:0.85rem;white-space:pre-wrap;" translate="no">' + esc(x.about) + '</p>' : '') +
+        (go ? '<button class="btn" onclick="openLink(\'' + jsStr(go) + '\')">🏠 Ask ' + esc((x.org && x.org.name) || 'the shelter') + ' about ' + esc(x.name) + '</button>' : '') +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Adoptions are handled by the shelter or rescue, not Petfi.</p>' +
+        '<img src="' + esc(x.tracker) + '" alt="" width="1" height="1" style="opacity:0;position:absolute;">');
+    }
+
     // ======================= INSURANCE QUOTES & VET CHAT =======================
     // Referral links, not advice: insurers pay per quote lead (~$24-36; as of
     // 2026-11 Pets Best and Healthy Paws take applications by form, Fetch by
@@ -10509,7 +10589,7 @@
       if (days === -1) return 'yesterday';
       if (days < 0) return Math.abs(days) + ' days ago';
       if (days < 14) return 'in ' + days + ' days';
-      return 'on ' + d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return 'on ' + d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric' });
     }
     function openAddCal(prefWhat, prefType) {
       const opts = Object.keys(CAL_TYPES).map(k =>
@@ -11421,9 +11501,9 @@
       const d = new Date(iso), now = new Date();
       const sameDay = d.toDateString() === now.toDateString();
       const yest = new Date(now.getTime() - 86400000).toDateString() === d.toDateString();
-      return sameDay ? 'Today' : yest ? 'Yesterday' : d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+      return sameDay ? 'Today' : yest ? 'Yesterday' : d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric' });
     }
-    function clock(iso) { return new Date(iso).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }); }
+    function clock(iso) { return new Date(iso).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' }); }
     function renderDMThread(rows) {
       const th = document.getElementById('dm-thread'); if (!th) return;
       let html = '', lastDay = '', lastMine = null, lastAt = 0;
