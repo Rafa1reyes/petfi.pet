@@ -4758,6 +4758,7 @@
         '<div class="link-row" onclick="openReport(\'general\',\'a problem\')"><span class="li">🚩</span><div>Report a problem</div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openTab(\'groups\')"><span class="li">👥</span><div>Groups<small>Breed clubs, walk crews, local packs</small></div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openBlockedList()"><span class="li">🚫</span><div>Blocked users' + ((state.blocked || []).length ? '<small>' + state.blocked.length + ' blocked</small>' : '') + '</div><span class="chev">›</span></div>' +
+        (isAdmin() ? '<div class="link-row" onclick="openUsage()"><span class="li">📊</span><div>Usage<small>Where new members drop off, what they use (admin)</small></div><span class="chev">›</span></div>' : '') +
         (isAdmin() ? '<div class="link-row" onclick="openModeration()"><span class="li">🛡️</span><div>Moderation<small>Open reports — remove posts or suspend accounts</small></div><span class="chev">›</span></div>' : '') +
         '<div class="link-row" onclick="openAbout()"><span class="li">🐾</span><div>About Petfi<small>Version ' + APP_VERSION + ' · Terms &amp; Privacy</small></div><span class="chev">›</span></div>' +
       '</div>';
@@ -5395,7 +5396,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.10.1';
+    const APP_VERSION = '1.10.2';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5650,6 +5651,40 @@
         '<button class="btn" onclick="closeSheet();logOut()">OK</button>');
     }
     let MOD_REPORTS = [], MOD_POSTS = {};
+    // ---- Usage counts (admin): where new members drop off (petfi_events_summary) ----
+    async function openUsage(days) {
+      if (!isAdmin() || !cloud) return;
+      days = days || 30;
+      openSheet('📊 Usage', '<div class="note">⏳ Loading…</div>');
+      const seq = sheetSeq;
+      const { data, error } = await cloud.rpc('petfi_events_summary', { days });
+      if (seq !== sheetSeq) return;
+      if (error) { openSheet('📊 Usage', '<div class="note">⚠️ ' + esc(error.message) + '</div>'); return; }
+      const rows = data || [];
+      const n = (name, detail) => rows.filter(r => r.name === name && (detail == null || r.detail === detail)).reduce((a, r) => a + Number(r.devices || 0), 0);
+      const line = (label, v, of) => '<div class="hx-kv"><span>' + esc(label) + '</span><b>' + v +
+        (of ? ' <small style="color:var(--muted);font-weight:600;">' + Math.round(v / of * 100) + '%</small>' : '') + '</b></div>';
+      const welcome = n('open', 'welcome'), start = n('signup_start');
+      let h = '<div class="chips" style="margin-bottom:0.5rem;">' + [7, 30, 90].map(d => '<div class="chip' + (d === days ? ' active' : '') + '" role="button" tabindex="0" onclick="openUsage(' + d + ')">' + d + ' days</div>').join('') + '</div>' +
+        '<p class="sub" style="font-size:0.75rem;">Phones and computers, not page views · last ' + days + ' days · counting started with 1.10 on Nov 2, 2026.</p>';
+      h += '<div class="sec"><h3>🚪 Sign-up</h3></div>' +
+        line('Saw the welcome screen', welcome) + line('Tapped Pet or Owner', start, welcome) +
+        line('· as a Pet', n('signup_start', 'pet')) + line('· as an Owner', n('signup_start', 'owner'));
+      [['name', 'Pet: name'], ['bday', 'Pet: birthday'], ['species', 'Pet: species'], ['avatar', 'Pet: icon'], ['invite', 'Pet: ZIP'],
+       ['owner', 'Owner: about you'], ['owner-interests', 'Owner: interests'], ['owner-pet', 'Owner: their pet'], ['account', 'Login screen']].forEach(x => {
+        const v = n('signup_screen', x[0]); if (v) h += line(x[1], v, start);
+      });
+      h += line('Waiting on the email link', n('confirm_wait'), start) + line('Account created', n('account_created'), start);
+      h += '<div class="sec"><h3>🐾 In the app</h3></div>' +
+        line('Opened the app', n('open', 'app')) + line('Turned on notifications', n('push_on')) + line('Made an ID tag', n('tag_made')) +
+        line('Shared a health passport', n('passport_made')) + line('First post', n('first_post')) + line('Logged care (meds, journal, care team)', n('care_added')) +
+        line('Opened a share or invite', n('share_open')) + line('Reported a lost pet', n('lost_reported'));
+      const steps = rows.filter(r => r.name === 'start_step');
+      if (steps.length) h += '<div class="sec"><h3>✅ Getting started taps</h3></div>' + steps.map(r => line(r.detail || '—', Number(r.devices))).join('');
+      const from = rows.filter(r => r.name === 'from');
+      if (from.length) h += '<div class="sec"><h3>🔗 Arrived from</h3></div>' + from.map(r => line(r.detail === 'direct' ? 'Direct / other' : r.detail === 'tag' ? 'A pet ID tag page' : r.detail === 'passport' ? 'A health passport page' : r.detail, Number(r.devices))).join('');
+      openSheet('📊 Usage · last ' + days + ' days', h);
+    }
     async function openModeration() {
       if (!isAdmin()) return;
       openSheet('🛡️ Moderation', '<div class="note">⏳ Loading reports…</div>');
