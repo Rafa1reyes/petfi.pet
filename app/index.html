@@ -3709,6 +3709,7 @@
       const zip = state.zip || '';
       let h = lostNearSection(); // a missing pet nearby beats everything else here
       h += adoptSection();       // shelter pets near this ZIP (once the RescueGroups key is in)
+      h += servicesSection('nearby'); // walkers, sitters, groomers… from ID-verified members
       // Members first — the people (and pets) you can actually talk to
       h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
       if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
@@ -4565,6 +4566,7 @@
       h += '<div class="sec"><h3>🛒 Pet Store</h3><span class="link" onclick="openSell()">+ Sell something</span></div>';
       h += pledgeCard(true);
       h += hotOnAmazon();
+      if (state.storeCat === 'All' || state.storeCat === 'Members') h += servicesSection('store');
       // Filter bar: who it's for → what kind of thing → price → sort
       ensureCatalog(); // first open fetches store.json; re-renders when it lands
       if (!STORE_SORTS[state.storeSort]) state.storeSort = 'popular';
@@ -5563,7 +5565,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.12.0';
+    const APP_VERSION = '1.13.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6785,6 +6787,7 @@
       sellCatNote();
     }
     function sellCatNote() {
+      if (val('sell-cat') === 'Services') { closeSheet(); openOfferService(); return; }
       const n = document.getElementById('sell-food-note');
       if (n) n.style.display = (val('sell-cat') || 'Products') === 'Food' ? 'block' : 'none';
     }
@@ -6842,8 +6845,82 @@
         toast('Listed on this device 🛒 (no connection)'); return;
       }
       toast(photos.length ? 'Uploading photos… 📷' : 'Publishing your listing…');
+      if (await publishListing(item, photos)) toast('Listed for every Petfi member 🛒');
+    }
+
+    // ======================= PET SERVICES (ID-verified members) =======================
+    // Walkers, sitters, poop scoopers, groomers, trainers, custom pet art…
+    // A service is a member listing with cat 'Services', a type, a rate, a
+    // service area around the provider's ZIP (or "ships anywhere"), and a
+    // rounded location so Nearby can sort by distance. Only members with the
+    // $3 ID badge can offer one (the database enforces it too:
+    // petfi-services-2026-11-03.sql).
+    const SERVICE_TYPES = [
+      { k: 'walking',  emo: '🦮', label: 'Dog walking',              rate: 'e.g. $20 per 30-min walk' },
+      { k: 'sitting',  emo: '🏠', label: 'Pet sitting & drop-ins',   rate: 'e.g. $25 per visit' },
+      { k: 'boarding', emo: '🛏️', label: 'Boarding or daycare at my home', rate: 'e.g. $40 per night' },
+      { k: 'poop',     emo: '💩', label: 'Poop scooping & yard cleanup', rate: 'e.g. $15 per week' },
+      { k: 'grooming', emo: '✂️', label: 'Grooming & bathing',       rate: 'e.g. $45 per groom' },
+      { k: 'training', emo: '🎓', label: 'Training',                 rate: 'e.g. $60 per session' },
+      { k: 'taxi',     emo: '🚗', label: 'Pet taxi & vet rides',     rate: 'e.g. $20 per ride' },
+      { k: 'photo',    emo: '📸', label: 'Pet photography',          rate: 'e.g. $150 per session' },
+      { k: 'custom',   emo: '🧸', label: 'Custom pet art & replicas', rate: 'e.g. from $120', ships: true },
+      { k: 'other',    emo: '🧰', label: 'Other pet service',        rate: 'e.g. $30 per hour' },
+    ];
+    function svcType(k) { return SERVICE_TYPES.find(x => x.k === k) || SERVICE_TYPES[SERVICE_TYPES.length - 1]; }
+    let svcPick = 'walking';
+    async function openOfferService() {
+      if (!requireSeller('offer a service')) return;
+      if (!state.verified) {
+        openSheet('🧑‍🔧 Offer a pet service',
+          '<p class="sub">Dog walking, sitting, poop scooping, grooming, training, custom pet art — list it here and pet owners near you can message you.</p>' +
+          '<div class="note">🪪 <b>Services are offered by ID-verified members only</b>, so owners know who\'s coming to their home or handling their pet. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
+          '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and offer my service</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+        return;
+      }
+      openSheet('🧑‍🔧 What service do you offer?',
+        '<div class="grid">' + SERVICE_TYPES.map(t => '<div class="pick" role="button" tabindex="0" onclick="svcPick=\'' + t.k + '\';openServiceForm()"><span class="e">' + t.emo + '</span>' + esc(t.label) + '</div>').join('') + '</div>');
+    }
+    function openServiceForm() {
+      const t = svcType(svcPick);
+      sellPhotos = [];
+      openSheet(t.emo + ' ' + esc(t.label),
+        '<label for="sv-title">Title</label><input id="sv-title" maxlength="80" value="' + esc(t.k === 'other' ? '' : t.label) + '" placeholder="What you offer">' +
+        '<label for="sv-desc">About your service</label>' +
+        '<textarea id="sv-desc" maxlength="400" placeholder="' + (t.k === 'custom' ? 'e.g. Hand-sewn plush look-alikes of your pet from photos. 3-4 weeks.' : 'Experience, what\'s included, which pets, days and times…') + '" style="width:100%;min-height:80px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:0.95rem;"></textarea>' +
+        '<label for="sv-rate">Your rate</label><input id="sv-rate" maxlength="40" placeholder="' + esc(t.rate) + '">' +
+        '<label for="sv-area">Where</label><select id="sv-area">' +
+          (t.ships ? '<option value="ship">Ships anywhere</option>' : '') +
+          [5, 10, 15, 25, 50].map(n => '<option value="' + n + '"' + (n === 10 && !t.ships ? ' selected' : '') + '>Within ' + n + ' miles of me</option>').join('') + '</select>' +
+        (state.zip ? '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Measured from your ZIP ' + esc(state.zip) + '. Your exact address is never shown.</p>' : '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;color:#a03a5a;">Set your ZIP in Nearby so people near you can find this.</p>') +
+        '<label>Photos <small style="color:var(--muted);font-weight:400;">(up to 3 — your work, your setup)</small></label>' +
+        '<div class="id-drop" style="margin-top:0.3rem;" onclick="document.getElementById(\'sell-photos\').click()"><div class="e">📷</div><strong>Add photos</strong>' +
+          '<input type="file" id="sell-photos" accept="image/*" multiple onchange="sellPhotosPicked(this)"></div>' +
+        '<div id="sell-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
+        '<label for="sell-url">Link (optional) <small style="color:var(--muted);font-weight:400;">your website, Instagram, reviews…</small></label><input id="sell-url" type="url" placeholder="https://...">' +
+        '<p class="sub" style="font-size:0.78rem;margin:0.5rem 0 0;">💬 People message you in Petfi and you arrange the details and payment together. Petfi takes no fee.</p>' +
+        '<button class="btn" onclick="saveService()">List my service 🧑‍🔧</button>');
+    }
+    async function saveService() {
+      if (!canSaveToCloud('list a service')) return;
+      const t = svcType(svcPick), title = val('sv-title'), desc = val('sv-desc'), rate = val('sv-rate');
+      if (!title) { toast('Add a title'); return; }
+      if (!rate) { toast('Add your rate (it can be "ask me")'); return; }
+      const area = val('sv-area');
+      const g = state.zip ? await geocodeZip(state.zip) : null;
+      let url = val('sell-url'); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+      const item = { title, desc, price: rate, seller: state.displayName, cat: 'Services', svc: t.k, url: url || '', photos: [],
+        ships: area === 'ship', areaMi: area === 'ship' ? 0 : (parseInt(area, 10) || 10),
+        loc: g ? { lat: Math.round(g.lat * 100) / 100, lon: Math.round(g.lon * 100) / 100, area: String(g.area || '').slice(0, 60) } : null };
+      const photos = sellPhotos.slice(); sellPhotos = [];
+      closeSheet(); toast(photos.length ? 'Uploading photos… 📷' : 'Publishing your service…');
+      const ok = await publishListing(item, photos);
+      if (ok) { track('share_open', 'service'); toast('🧑‍🔧 Your service is listed — members nearby can message you'); state.storeCat = 'Members'; openTab('store'); }
+    }
+    // Shared by products and services: photos to our bucket, then the row
+    async function publishListing(item, photos) {
       try {
-        // Photos go to cloud storage; the listing keeps their public links
         for (let i = 0; i < photos.length; i++) {
           const blob = await (await fetch(photos[i])).blob();
           const path = cloudUser.id + '/' + Date.now() + '-' + i + '.jpg';
@@ -6855,11 +6932,48 @@
         if (ins.error) throw ins.error;
         LISTINGS.unshift(Object.assign({}, item, { cloudId: ins.data.id, sellerId: cloudUser.id, mine: true, emo: '🐾', bg: '#fff3d6' }));
         if (state.tab === 'store') openTab('store');
-        toast('Listed for every Petfi member 🛒');
+        return true;
       } catch (e) {
         console.warn('listing:', e.message);
-        toast('⚠️ Couldn\'t publish the listing — check your connection and try again');
+        toast(/verified/i.test(e.message || '') ? '🪪 Services need ID verification first' : '⚠️ Couldn\'t publish — check your connection and try again');
+        return false;
       }
+    }
+    // Services that reach me: inside the provider's area of my ZIP, or ship anywhere
+    function servicesNearMe() {
+      const me = myGeo();
+      return LISTINGS.filter(l => l.cat === 'Services' && !hiddenUser(l.sellerId)).map(l => {
+        const d = me && l.loc && typeof l.loc.lat === 'number' ? Math.round(haversineMi(me.lat, me.lon, l.loc.lat, l.loc.lon)) : null;
+        return Object.assign({ _d: d }, l);
+      }).filter(l => l.ships || l.mine || (l._d != null && l._d <= (l.areaMi || 10)))
+        .sort((a, b) => (a.ships - b.ships) || ((a._d == null ? 999 : a._d) - (b._d == null ? 999 : b._d)));
+    }
+    let SVC_VIEW = [];
+    function servicesSection(where) {
+      if (!cloudUser) return '';
+      if (where === 'nearby') loadListings();
+      SVC_VIEW = servicesNearMe();
+      let h = '<div class="sec"><h3>🧑‍🔧 Pet services near you</h3><span class="link" onclick="openOfferService()">+ Offer a service</span></div>';
+      if (!SVC_VIEW.length) {
+        return h + '<p class="sub" style="font-size:0.8rem;margin-top:-0.2rem;">Walk dogs, pet-sit, scoop yards, groom, or make custom pet art? <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="openOfferService()">Offer it here</span> and pet owners near you can message you.</p>';
+      }
+      return h + SVC_VIEW.slice(0, where === 'nearby' ? 6 : 12).map((l, i) => {
+        const t = svcType(l.svc);
+        return '<div class="row" style="cursor:pointer;" onclick="openService(' + i + ')"><div class="ricon">' + t.emo + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(l.title) + ' ' + vbadge() + '</div><div class="rmeta">' + esc([l.seller, l.price, l.ships ? 'ships anywhere' : (l._d != null ? (l._d < 1 ? 'under a mile' : l._d + ' mi') : '')].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>';
+      }).join('');
+    }
+    function openService(i) {
+      const l = SVC_VIEW[i]; if (!l) return;
+      const t = svcType(l.svc), photos = (l.photos || []).slice(0, 3);
+      openSheet(t.emo + ' ' + esc(l.title),
+        (photos.length ? '<div style="display:flex;gap:0.4rem;overflow-x:auto;margin-bottom:0.6rem;">' + photos.map(u => '<img src="' + esc(u) + '" alt="" style="height:140px;border-radius:12px;object-fit:cover;">').join('') + '</div>' : '') +
+        '<p style="font-weight:700;margin:0 0 0.2rem;">' + esc(l.seller) + ' ' + vbadge() + ' <small style="color:var(--muted);font-weight:600;">ID verified</small></p>' +
+        '<p class="sub" style="margin:0 0 0.5rem;">' + esc([t.label, l.price, l.ships ? 'Ships anywhere' : 'Serves within ' + (l.areaMi || 10) + ' miles' + (l.loc && l.loc.area ? ' of ' + l.loc.area : '')].join(' · ')) + '</p>' +
+        (l.desc ? '<p class="sub" style="white-space:pre-wrap;" translate="no">' + esc(l.desc) + '</p>' : '') +
+        (l.mine ? '<div class="note">This is your listing.</div>' : '<button class="btn" onclick="closeSheet();openCloudDMWithProfile(\'' + jsStr(l.sellerId) + '\',\'' + jsStr(l.seller) + '\')">💬 Message ' + esc(String(l.seller || '').split(' ')[0]) + '</button>') +
+        (l.url && /^https:\/\//.test(l.url) ? '<button class="btn secondary" onclick="openLink(\'' + jsStr(l.url) + '\')">🔗 Their website</button>' : '') +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Providers verified their ID with Petfi. Agree on details, rates and payment directly, meet somewhere public first if you like, and report anything that feels off.</p>');
     }
 
     function openCreateGroup() {
