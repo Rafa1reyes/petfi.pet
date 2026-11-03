@@ -854,6 +854,54 @@
     .notif .ne { font-size: 1.4rem; }
     .notif .nt { flex: 1; }
     .notif .nt small { color: var(--muted); display: block; }
+
+    /* ---- Bigger screens ----------------------------------------------------
+       Phones keep the app exactly as it is. Tablets get a wider column and
+       roomier grids. Computers get a side menu, a wide centred column and
+       sheets that open as dialogs. Screen only: print keeps its own layout. */
+    @media screen and (min-width: 700px) {
+      .phone { max-width: 760px; }
+      .bottom-nav { max-width: 760px; }
+      .screen:not(#s-app) { max-width: 480px; margin: 0 auto; }
+      #tab-content { padding: 1.3rem 1.8rem 7rem; }
+      .app-topbar { padding: 0.8rem 1.8rem; }
+      .store-grid { grid-template-columns: repeat(3, 1fr); }
+      .nearby { grid-template-columns: repeat(3, 1fr); }
+      .sheet { max-width: 560px; }
+      .install-bar { max-width: 520px; }
+    }
+    @media screen and (min-width: 1100px) {
+      html { scrollbar-gutter: stable; }
+      .phone { max-width: 1040px; box-shadow: none; overflow: visible; }
+      #s-app.active { display: grid; grid-template-columns: 230px minmax(0, 1fr); column-gap: 2rem; padding: 0 1.5rem; }
+      #s-app > .app-topbar { grid-column: 2; grid-row: 1; padding: 0.9rem 0.2rem; }
+      #s-app > #tab-content { grid-column: 2; grid-row: 2; max-width: 760px; width: 100%; padding: 1.4rem 0.2rem 3rem; }
+      /* The bottom bar becomes a side menu */
+      #s-app > .bottom-nav {
+        grid-column: 1; grid-row: 1 / span 2; position: sticky; top: 0; left: auto; transform: none;
+        align-self: start; height: 100vh; width: auto; max-width: none;
+        flex-direction: column; gap: 0.25rem; padding: 5.2rem 0.6rem 1rem;
+        background: transparent; backdrop-filter: none; -webkit-backdrop-filter: none;
+        border-top: none; border-right: 1px solid var(--line);
+      }
+      #s-app > .bottom-nav .nav-btn {
+        flex: none; flex-direction: row; justify-content: flex-start; gap: 0.75rem;
+        padding: 0.7rem 0.9rem; border-radius: 14px; font-size: 0.98rem; color: var(--ink);
+      }
+      #s-app > .bottom-nav .nav-btn .ic { font-size: 1.35rem; }
+      #s-app > .bottom-nav .nav-btn:hover { background: var(--card); }
+      #s-app > .bottom-nav .nav-btn.active { background: var(--card); color: var(--brand); box-shadow: 0 2px 10px rgba(45,42,50,0.06); }
+      #s-app > .bottom-nav .nav-btn.active .ic { transform: none; }
+      .store-grid { grid-template-columns: repeat(4, 1fr); }
+      /* Sheets open as centred dialogs */
+      .sheet-backdrop { align-items: center; justify-content: center; }
+      .sheet { max-width: 600px; border-radius: 24px; max-height: 86vh; padding-bottom: 1.6rem; }
+      .toast { bottom: 32px; }
+      .install-bar { bottom: 24px; }
+    }
+    @media screen and (min-width: 1100px) {
+      body.dark #s-app > .bottom-nav { background: transparent; }
+    }
   </style>
 </head>
 <body>
@@ -5574,7 +5622,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.16.0';
+    const APP_VERSION = '1.17.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
