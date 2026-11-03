@@ -421,6 +421,32 @@
     .pill-btn:active { transform: scale(0.95); }
     .pill-btn.ghost { background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
     .pill-btn.blue { background: var(--blue); }
+    /* ---- New member: Getting started ---- */
+    .start-card { background: var(--card); border: 2px solid var(--brand); border-radius: 16px; padding: 0.7rem 0.8rem 0.55rem; margin: 0 0 0.9rem; }
+    .sc-top { display: flex; justify-content: space-between; align-items: center; font-size: 0.82rem; color: var(--muted); margin-bottom: 0.45rem; }
+    .sc-x { cursor: pointer; min-width: 32px; min-height: 32px; display: inline-flex; align-items: center; justify-content: center; }
+    .sc-step { display: flex; align-items: center; gap: 0.7rem; cursor: pointer; padding: 0.2rem 0; }
+    .sc-step > div { flex: 1; }
+    .sc-step small { display: block; color: var(--muted); font-weight: 500; font-size: 0.78rem; margin-top: 0.1rem; }
+    .sc-emo { font-size: 1.7rem; width: 44px; height: 44px; border-radius: 12px; background: var(--bg); display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .sc-foot { font-size: 0.74rem; color: var(--muted); margin-top: 0.45rem; }
+    .sc-foot span { color: var(--blue); font-weight: 700; cursor: pointer; }
+    /* ---- Printing one summary (symptom journal → vet) ---- */
+    #print-area { display: none; }
+    @media print {
+      body.printing > *:not(#print-area) { display: none !important; }
+      body.printing #print-area { display: block; }
+      #print-area pre { white-space: pre-wrap; font: 12pt/1.45 -apple-system, "Segoe UI", sans-serif; color: #000; }
+    }
+    /* ---- Care team: the Today box ---- */
+    .ct-card { padding: 0.65rem 0.8rem; }
+    .ct-head { display: flex; align-items: baseline; gap: 0.5rem; cursor: pointer; }
+    .ct-head b { font-size: 0.98rem; }
+    .ct-head small { flex: 1; color: var(--muted); font-size: 0.75rem; }
+    .ct-last { font-size: 0.82rem; margin: 0.35rem 0 0.5rem; line-height: 1.45; }
+    .ct-last span { color: var(--muted); font-size: 0.75rem; }
+    .ct-btns { display: flex; gap: 0.4rem; }
+    .ct-btns .pill-btn { min-height: 38px; padding: 0.4rem 0.75rem; font-size: 0.82rem; }
     /* ---- Pet health (My care) ---- */
     .hx-attn { background: #fff8e6; border: 2px solid #ffe0a3; border-radius: 16px; padding: 0.7rem 0.8rem 0.3rem; margin: 0.8rem 0 0.4rem; }
     .hx-attn > b { display: block; font-size: 0.9rem; margin-bottom: 0.45rem; }
@@ -831,13 +857,13 @@
       <h2 style="text-align:center; margin-top:1.5rem;">How do you want to join?</h2>
       <p class="sub" style="text-align:center;">You can change this later.</p>
 
-      <div class="choice" onclick="startSocial()">
+      <div class="choice" role="button" tabindex="0" onclick="startSocial()">
         <div class="big">🐶</div>
         <h3>I'm a Pet 🐾</h3>
         <p>A fun social account. Pick your species, get an animated icon, make friends, and bark or meow at pals nearby.</p>
       </div>
 
-      <div class="choice owner" onclick="startOwner()">
+      <div class="choice owner" role="button" tabindex="0" onclick="startOwner()">
         <div class="big">🧑‍🦰</div>
         <h3>I'm an Owner</h3>
         <p>An account for real people — show off your pets, sell products or services, find a breeding match, and meet other pet people.</p>
@@ -884,24 +910,24 @@
       <h1>What kind of critter are you?</h1>
       <p class="sub">Your icon comes to life based on this.</p>
       <div class="grid" id="species-grid">
-        <div class="pick" data-species="Dog" data-emoji="🐶" onclick="pickSpecies(this)"><span class="e">🐶</span>Dog</div>
-        <div class="pick" data-species="Cat" data-emoji="🐱" onclick="pickSpecies(this)"><span class="e">🐱</span>Cat</div>
-        <div class="pick" data-species="Bird" data-emoji="🐦" onclick="pickSpecies(this)"><span class="e">🐦</span>Bird</div>
-        <div class="pick" data-species="Rabbit" data-emoji="🐰" onclick="pickSpecies(this)"><span class="e">🐰</span>Rabbit</div>
-        <div class="pick" data-species="Hamster" data-emoji="🐹" onclick="pickSpecies(this)"><span class="e">🐹</span>Hamster</div>
-        <div class="pick" data-species="Reptile" data-emoji="🦎" onclick="pickSpecies(this)"><span class="e">🦎</span>Reptile</div>
-        <div class="pick" data-species="Fish" data-emoji="🐟" onclick="pickSpecies(this)"><span class="e">🐟</span>Fish</div>
-        <div class="pick" data-species="Snake" data-emoji="🐍" onclick="pickSpecies(this)"><span class="e">🐍</span>Snake</div>
-        <div class="pick" data-species="Other" data-emoji="🐾" onclick="pickSpecies(this)"><span class="e">🐾</span>Other</div>
+        <div class="pick" role="button" tabindex="0" data-species="Dog" data-emoji="🐶" onclick="pickSpecies(this)"><span class="e">🐶</span>Dog</div>
+        <div class="pick" role="button" tabindex="0" data-species="Cat" data-emoji="🐱" onclick="pickSpecies(this)"><span class="e">🐱</span>Cat</div>
+        <div class="pick" role="button" tabindex="0" data-species="Bird" data-emoji="🐦" onclick="pickSpecies(this)"><span class="e">🐦</span>Bird</div>
+        <div class="pick" role="button" tabindex="0" data-species="Rabbit" data-emoji="🐰" onclick="pickSpecies(this)"><span class="e">🐰</span>Rabbit</div>
+        <div class="pick" role="button" tabindex="0" data-species="Hamster" data-emoji="🐹" onclick="pickSpecies(this)"><span class="e">🐹</span>Hamster</div>
+        <div class="pick" role="button" tabindex="0" data-species="Reptile" data-emoji="🦎" onclick="pickSpecies(this)"><span class="e">🦎</span>Reptile</div>
+        <div class="pick" role="button" tabindex="0" data-species="Fish" data-emoji="🐟" onclick="pickSpecies(this)"><span class="e">🐟</span>Fish</div>
+        <div class="pick" role="button" tabindex="0" data-species="Snake" data-emoji="🐍" onclick="pickSpecies(this)"><span class="e">🐍</span>Snake</div>
+        <div class="pick" role="button" tabindex="0" data-species="Other" data-emoji="🐾" onclick="pickSpecies(this)"><span class="e">🐾</span>Other</div>
       </div>
       <p class="sub" style="margin-top:1rem;font-size:0.85rem;font-weight:600;">Farm &amp; ranch</p>
       <div class="grid" id="farm-grid">
-        <div class="pick" data-species="Cattle" data-emoji="🐄" onclick="pickSpecies(this)"><span class="e">🐄</span>Cattle</div>
-        <div class="pick" data-species="Goat" data-emoji="🐐" onclick="pickSpecies(this)"><span class="e">🐐</span>Goat</div>
-        <div class="pick" data-species="Sheep" data-emoji="🐑" onclick="pickSpecies(this)"><span class="e">🐑</span>Sheep</div>
-        <div class="pick" data-species="Horse" data-emoji="🐴" onclick="pickSpecies(this)"><span class="e">🐴</span>Horse</div>
-        <div class="pick" data-species="Pig" data-emoji="🐖" onclick="pickSpecies(this)"><span class="e">🐖</span>Pig</div>
-        <div class="pick" data-species="Chicken" data-emoji="🐔" onclick="pickSpecies(this)"><span class="e">🐔</span>Chicken</div>
+        <div class="pick" role="button" tabindex="0" data-species="Cattle" data-emoji="🐄" onclick="pickSpecies(this)"><span class="e">🐄</span>Cattle</div>
+        <div class="pick" role="button" tabindex="0" data-species="Goat" data-emoji="🐐" onclick="pickSpecies(this)"><span class="e">🐐</span>Goat</div>
+        <div class="pick" role="button" tabindex="0" data-species="Sheep" data-emoji="🐑" onclick="pickSpecies(this)"><span class="e">🐑</span>Sheep</div>
+        <div class="pick" role="button" tabindex="0" data-species="Horse" data-emoji="🐴" onclick="pickSpecies(this)"><span class="e">🐴</span>Horse</div>
+        <div class="pick" role="button" tabindex="0" data-species="Pig" data-emoji="🐖" onclick="pickSpecies(this)"><span class="e">🐖</span>Pig</div>
+        <div class="pick" role="button" tabindex="0" data-species="Chicken" data-emoji="🐔" onclick="pickSpecies(this)"><span class="e">🐔</span>Chicken</div>
       </div>
       <label>Breed (optional)</label>
       <input type="text" id="pet-breed" placeholder="e.g. Golden Retriever" />
@@ -944,11 +970,6 @@
       <p class="sub">Your ZIP finds real dog parks, vets and Petfi members near you. It's never shown to anyone.</p>
       <label>ZIP code <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
       <input type="text" id="pet-zip" inputmode="numeric" maxlength="5" placeholder="e.g. 33130" />
-      <label style="margin-top:1.4rem;">Invite your pack 🐾</label>
-      <div class="link-box">
-        <input type="text" id="invite-link" readonly />
-        <button class="btn small" onclick="copyLink()">Copy</button>
-      </div>
       <button class="btn" onclick="goAccount('pet')">Let's go →</button>
     </section>
 
@@ -977,15 +998,31 @@
       <h1>What brings you here?</h1>
       <p class="sub">Pick what you're into — we'll put shortcuts to it at the top of your home page.</p>
       <div class="grid">
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
-        <div class="pick" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🛒</span>Sell products</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🐕</span>Sell pets</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">💘</span>Find a mate</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🐄</span>Farm animals</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">🤝</span>Connect</div>
+        <div class="pick" role="button" tabindex="0" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
       </div>
 
-      <button class="btn blue" onclick="goAccount('owner')">Build my home page</button>
+      <button class="btn blue" onclick="showOwnerPet()">Continue</button>
+    </section>
+
+    <!-- ================= OWNER: FIRST PET ================= -->
+    <section class="screen" id="s-owner-pet">
+      <button class="back" onclick="show('s-owner-interests')">← Back</button>
+      <div class="steps"><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div></div>
+      <h1>Who's your pet? 🐾</h1>
+      <p class="sub">Their name sets up reminders, a free ID tag and a health record. You can add more pets later.</p>
+      <label for="owner-pet-name">Pet name</label>
+      <input type="text" id="owner-pet-name" maxlength="40" placeholder="e.g. Biscuit" />
+      <label for="owner-pet-species">Species</label>
+      <select id="owner-pet-species"></select>
+      <label for="owner-pet-breed">Breed <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
+      <input type="text" id="owner-pet-breed" maxlength="60" placeholder="e.g. Golden Retriever" />
+      <button class="btn blue" onclick="goOwnerPet(true)">Build my home page</button>
+      <button class="btn secondary" onclick="goOwnerPet(false)">I don't have a pet yet</button>
     </section>
 
     <!-- ================= CREATE LOGIN (both flows) ================= -->
@@ -1070,6 +1107,46 @@
     const SUPA_URL = 'https://zddvxvjxokxtgnwqjnzm.supabase.co';
     const SUPA_KEY = 'sb_publishable_KegUckkbv_nTuQjDwH66aQ_HCzkBpGL';
     const cloud = window.supabase ? window.supabase.createClient(SUPA_URL, SUPA_KEY) : null;
+
+    // ---- Usage counts (Petfi's own petfi_events table, no third parties) ----
+    // Which steps people reach, so we can see where new members drop off.
+    // Never content: an event name, a short detail, where they came from.
+    const EV_DEVICE = (() => {
+      try {
+        let d = localStorage.getItem('petfi-device');
+        if (!/^[a-f0-9]{24}$/.test(d || '')) {
+          d = Array.from(crypto.getRandomValues(new Uint8Array(12)), b => b.toString(16).padStart(2, '0')).join('');
+          localStorage.setItem('petfi-device', d);
+        }
+        return d;
+      } catch (e) { return '000000000000000000000000'; }
+    })();
+    const EV_SRC = (() => {
+      try {
+        const q = new URLSearchParams(location.search).get('src');
+        if (q && /^[a-z]{2,16}$/.test(q)) { localStorage.setItem('petfi-src', q); return q; }
+        return localStorage.getItem('petfi-src') || '';
+      } catch (e) { return ''; }
+    })();
+    const EV_SENT = {};
+    function track(name, detail) {
+      try {
+        if (!cloud) return;
+        const d = detail ? String(detail).toLowerCase().replace(/[^a-z0-9_-]/g, '').slice(0, 40) : '';
+        if (EV_SENT[name + ':' + d]) return; // once per page load
+        EV_SENT[name + ':' + d] = 1;
+        cloud.from('petfi_events').insert({ device: EV_DEVICE, name, src: EV_SRC || null, detail: d || null }).then(() => {}, () => {});
+      } catch (e) {}
+    }
+    // One "open" a day per device: in the app, or still on the welcome screen
+    function trackOpen(where) {
+      try {
+        const day = new Date().toISOString().slice(0, 10);
+        if (localStorage.getItem('petfi-ev-open') === day + where) return;
+        localStorage.setItem('petfi-ev-open', day + where);
+      } catch (e) {}
+      track('open', where);
+    }
     let cloudUser = null; // set once someone signs up or logs in
 
     // ---------- Crash reporting ----------
@@ -2026,6 +2103,7 @@
     function show(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
+      if (id !== 's-welcome' && /^s-/.test(id)) track('signup_screen', id.slice(2));
       document.querySelector('.phone').scrollTop = 0;
       window.scrollTo(0, 0);
     }
@@ -2039,8 +2117,9 @@
     }
 
     // ---------- Flow entry ----------
-    function startSocial() { show('s-name'); }
-    function startOwner() { show('s-owner'); }
+    setTimeout(() => { try { if (document.getElementById('s-welcome').classList.contains('active')) trackOpen('welcome'); } catch (e) {} }, 3000);
+    function startSocial() { track('signup_start', 'pet'); show('s-name'); }
+    function startOwner() { track('signup_start', 'owner'); show('s-owner'); }
 
     // ---------- Social flow ----------
     function goPetBirthday() {
@@ -2099,15 +2178,7 @@
       document.getElementById('the-avatar').innerHTML = petAvatar(state.species, state.breed, 128);
       const breedTxt = state.breed ? state.breed : state.species;
       document.getElementById('avatar-caption').textContent = state.name + " the " + breedTxt;
-      document.getElementById('invite-link').value = INVITE_URL;
       show('s-avatar');
-    }
-
-    function copyLink() {
-      const link = document.getElementById('invite-link');
-      link.select();
-      try { navigator.clipboard.writeText(link.value); } catch (e) {}
-      toast('Link copied! 🔗');
     }
 
     // Read the pet onboarding screens into state (no entering yet — the
@@ -2157,8 +2228,23 @@
       state.sellerApproved = true;
       state.visible = true;
       state.friendsOnly = false;
+      // The first pet from sign-up (once, even if this runs twice)
+      const pn = val('owner-pet-name').slice(0, 40);
+      if (pn && !(state.pets || []).some(x => x.name === pn)) {
+        state.pets = (state.pets || []).concat([{ id: 'p' + hxId(), name: pn, species: (val('owner-pet-species') || 'dog').toLowerCase(), breed: val('owner-pet-breed').slice(0, 60) }]);
+      }
     }
     function enterOwnerHome() { applyOwnerHome(); enterApp(); }
+    function showOwnerPet() {
+      const sel = document.getElementById('owner-pet-species');
+      if (sel && !sel.options.length) sel.innerHTML = speciesOptions('dog');
+      show('s-owner-pet');
+    }
+    function goOwnerPet(has) {
+      if (has && !val('owner-pet-name')) { toast('What\'s your pet\'s name?'); return; }
+      if (!has) document.getElementById('owner-pet-name').value = '';
+      goAccount('owner');
+    }
 
     // =====================================================
     //  MAIN APP — feed, nearby, store, groups, profile
@@ -2224,6 +2310,7 @@
     function enterApp() {
       // Adults only: nobody gets in until this login has confirmed MIN_AGE+ on this device
       if (ageStatus() !== 'adult') { askAge(); return; }
+      trackOpen('app');
       if (!state.favorites) state.favorites = DEFAULT_FAVS.map(f => Object.assign({}, f));
       if (!state.favsCleaned) {
         // Placeholder favorites seeded by an older version: only drop the exact
@@ -2266,7 +2353,9 @@
       setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
       setTimeout(syncShareAvatar, 6000);  // keep the link-preview icon current
       setTimeout(() => ensurePushSubscription(false), 3000); // reminders by push when notifications are allowed
-      setTimeout(() => loadTags(true), 4500);               // pet ID tags, finder messages, lost pets nearby
+      setTimeout(() => loadTags(true), 4500);
+      setTimeout(careJoinPending, 2500);                     // arrived on a care-team invite link
+      setTimeout(() => loadCare(true), 5000);                // shared pets and the care log               // pet ID tags, finder messages, lost pets nearby
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2291,8 +2380,9 @@
         '<div class="row"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle">' + title + '</div><div class="rmeta">' + sub + '</div></div></div>';
       openSheet('🎉 Welcome to Petfi, ' + esc((state.displayName || '').split(' ')[0] || 'friend') + '!',
         '<p class="sub" style="font-size:0.88rem;">Here\'s your world in 20 seconds — everything you see is real, from real members:</p>' +
-        row('💘', 'Mate Match', 'The heart of Petfi — find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
-        row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly) — plus 🔒 My care') +
+        row('🔒', 'My care', 'Meds, vaccines and refill reminders, a health record, and a free QR ID tag for your pet\'s collar') +
+        row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly)') +
+        row('💘', 'Mate Match', 'Find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
         row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
@@ -2767,28 +2857,57 @@
       return '<div class="chips" style="margin-bottom:0.8rem;">' + list.map(x => '<div class="chip" onclick="' + x[2] + '">' + x[0] + ' ' + x[1] + '</div>').join('') +
         '<div class="chip" title="Hide these shortcuts" onclick="state.hideShortcuts=true;saveState();openTab(\'home\')">✕</div></div>';
     }
+    // ---- New member: one next step at a time ----
+    function startSteps() {
+      const pets = hxPets(), pet = pets[0], skip = state.startSkip || [], s = [];
+      if (state.accountType === 'owner' && !pets.length) s.push({ k: 'pet', emo: '🐾', t: 'Add your pet', sub: 'Their reminders, free ID tag and health record start here', go: 'openAddPet()' });
+      if (pet && cloudUser && tagsLoadedAt && !TAGS[pet.id]) s.push({ k: 'tag', emo: '🏷️', t: 'Make ' + pet.name + '\'s free ID tag', sub: 'A QR code for the collar: whoever finds ' + pet.name + ' can message you', go: "renderPetTag('" + jsStr(pet.id) + "')" });
+      if (cloudUser && ('Notification' in window) && Notification.permission === 'default') s.push({ k: 'push', emo: '🔔', t: 'Turn on notifications', sub: 'Messages, friend requests, finders and care reminders, even with Petfi closed', go: 'askNotifPermission()' });
+      if (pet && !(state.vaccines || []).length && !(state.meds || []).length) s.push({ k: 'care', emo: '💉', t: 'Add ' + pet.name + '\'s vaccines', sub: 'We remind you two weeks before each one is due', go: "openVaccineForm('','" + jsStr(pet.id) + "')" });
+      if (cloudUser && !state.invitedAt) s.push({ k: 'invite', emo: '💌', t: 'Invite a friend', sub: 'Petfi is better with your pet\'s pals on it', go: 'startInvite()' });
+      return s.filter(x => skip.indexOf(x.k) < 0);
+    }
+    function startCard() {
+      if (state.startHidden) return '';
+      const s = startSteps(); if (!s.length) return '';
+      const x = s[0];
+      return '<div class="start-card"><div class="sc-top"><b>Getting started</b><span class="sc-x" role="button" tabindex="0" aria-label="Hide getting started" onclick="state.startHidden=true;saveState();openTab(\'home\')">✕</span></div>' +
+        '<div class="sc-step" role="button" tabindex="0" onclick="track(\'start_step\',\'' + x.k + '\');' + x.go + '"><span class="sc-emo">' + x.emo + '</span><div><b>' + esc(x.t) + '</b><small>' + esc(x.sub) + '</small></div><span class="chev">›</span></div>' +
+        '<div class="sc-foot">' + (s.length > 1 ? (s.length - 1) + ' more after this' : 'Last one!') + ' · <span role="button" tabindex="0" onclick="startSkip(\'' + x.k + '\')">Skip</span></div></div>';
+    }
+    function startSkip(k) { state.startSkip = (state.startSkip || []).concat([k]); saveState(); openTab('home'); }
+    function startInvite() { state.invitedAt = Date.now(); saveState(); inviteFriends(); }
     function renderHome() {
       let h = '';
       // Sub-tabs: the two public feeds, groups, and your private care page
       const sub = state.homeTab === 'care' ? 'care' : 'feed';
-      const scope = feedScope(), me = myGeo();
+      let scope = feedScope();
+      const me = myGeo();
+      // Until they pick a feed, an empty Local shows Everyone instead
+      const fellBack = !state.feedScope && scope === 'local' && feedLoadedOnce && !feedFor('local').length && feedFor('national').length > 0;
+      if (fellBack) scope = 'national';
       h += '<div class="chips" style="margin-bottom:0.9rem;">' +
         '<div class="chip ' + (sub === 'feed' && scope === 'local' ? 'active' : '') + '" onclick="setFeedScope(\'local\')">🏡 Local</div>' +
         '<div class="chip ' + (sub === 'feed' && scope === 'national' ? 'active' : '') + '" onclick="setFeedScope(\'national\')">🌎 Everyone</div>' +
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
 
-      h += interestShortcuts() + pledgeTrackerStrip() + (tagHomeStrip() || hxHomeStrip());
+      // A new member gets one next step instead of a stack of cards
+      const start = startCard();
+      h += interestShortcuts() + (start
+        ? (tagHomeStrip() || (hxAttention().length ? hxHomeStrip() : '')) + start
+        : pledgeTrackerStrip() + (tagHomeStrip() || hxHomeStrip()));
       const first = esc((state.displayName || 'friend').split(' ')[0]);
       h += '<div class="composer" onclick="openCompose()">' +
              '<div class="ca">' + myAvatar(36) + '</div>' +
              '<div class="fake-input">' + (scope === 'local' ? 'Shout it out, ' + first + ' — what\'s happening?' : 'What\'s new with you, ' + first + '?') + '</div>' +
              '<span style="font-size:1.2rem;">📷</span></div>';
       // Petfi's reason for existing, one tap from the feed
-      h += '<div class="mm-banner" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Looking for a breeding partner?</b><small>Dogs, cats, goats, cattle, chickens — find one near you</small></div><span class="chev">›</span></div>';
-
-      h += streakCard();
-      h += promptCard();
+      if (!start) {
+        h += '<div class="mm-banner" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Looking for a breeding partner?</b><small>Dogs, cats, goats, cattle, chickens — find one near you</small></div><span class="chev">›</span></div>';
+        h += streakCard();
+        h += promptCard();
+      }
 
       // Which feed is this, in one line
       h += scope === 'local'
@@ -2796,7 +2915,7 @@
             (state.zip ? 'within ' + LOCAL_RADIUS_MI + ' miles of ' + esc(me && me.area ? me.area : 'ZIP ' + state.zip) : 'your neighborhood') +
             '. Unfiltered — talk like you would at the dog park.' +
             (!state.zip ? ' <span class="link" onclick="openTab(\'nearby\')">Set my ZIP ›</span>' : '') + '</div>'
-        : '<div class="feed-note">🌎 <b>Everyone</b> — the whole country, family-friendly. Posts with slurs or profanity can\'t be published here.</div>';
+        : '<div class="feed-note">🌎 <b>Everyone</b> — ' + (fellBack ? 'nothing posted near you yet, so here\'s the whole country' : 'the whole country') + ', family-friendly. Posts with slurs or profanity can\'t be published here.</div>';
 
       const list = feedFor(scope);
       if (!list.length) {
@@ -5107,6 +5226,7 @@
     let SHARE_NOW = null;   // { url, text, subject } of the sheet on screen (kept out of onclick attributes)
     const IS_MOBILE = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || '');
     function openShareSheet(kind, id) {
+      track('share_open', kind);
       let title, lead, text, url, qrUrl, subject = 'Come join me on Petfi 🐾', who = null;
       if (kind === 'me') {
         if (!(cloud && cloudUser)) { toast('Connect to the internet to share your profile link'); return; }
@@ -5271,10 +5391,11 @@
       closeSheet();
       const id = INVITE_OPEN_AFTER_TOUR; INVITE_OPEN_AFTER_TOUR = null;
       if (id) setTimeout(() => openPersonSheetById(id), 250);
+      else setTimeout(askPushAfterTour, 400);
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.9.1';
+    const APP_VERSION = '1.10.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5336,10 +5457,12 @@
         '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
         '<li><b>Recent searches:</b> your last 5 in-app searches are saved with your private account data. Never shown to others.</li>' +
         '<li><b>Crash reports:</b> when the app hits an error it sends the error message, stack trace, app version, page address, your browser\'s user agent and your user id — at most 5 per visit, readable only by Petfi admins.</li>' +
-        '<li><b>Care data:</b> reminders, calendar entries and your pets\' health records — meds and prescriptions, vaccines, vet visits, weight, vet and microchip details, supplies and what you logged spending. These are <b>private to you</b> and never shown to other users unless you share a health passport. Petfi isn\'t a vet or a pharmacy and doesn\'t send them to one.</li>' +
+        '<li><b>Care data:</b> reminders, calendar entries and your pets\' health records — meds and prescriptions, vaccines, vet visits, weight, symptom journal entries, vet and microchip details, supplies and what you logged spending. These are <b>private to you</b> and never shown to other users unless you share a health passport. Petfi isn\'t a vet or a pharmacy and doesn\'t send them to one.</li>' +
         '<li><b>Health passport links (optional):</b> when you share one, the parts you tick (for example vaccines, meds, allergies, the vet\'s number and an emergency phone) are stored with the link, and <b>anyone who has the link can see them</b> until it expires or you turn it off.</li>' +
         '<li><b>Pet ID tags (optional):</b> anyone who scans your pet\'s tag sees the pet\'s name, species, breed, the note you add and — only if you add one — a phone number. When you mark a pet lost, the area you describe, a point for the ZIP you give (rounded to about 1 km), the date and any reward are shown on the tag page and to members within 25 miles, who may get one alert. A finder\'s message, the contact they leave and — only if they tick the box — their location are stored for you.</li>' +
-        '<li><b>Notifications (optional):</b> if you allow alerts, your device\'s push address is stored so reminders, refill and vaccine alerts and messages from finders reach you with the app closed.</li>' +
+        '<li><b>Notifications (optional):</b> if you allow alerts, your device\'s push address is stored so reminders, refill and vaccine alerts, messages from finders, and the social alerts you leave on (messages, friend requests, comments, likes, Mate Match) reach you with the app closed. The alert shows the sender\'s name and, for a message or comment, the start of what they wrote.</li>' +
+        '<li><b>Care team (optional):</b> if you invite someone to a pet\'s care team, they see that pet\'s name, breed and age, meds and dosing, vaccines, food, allergies, conditions, microchip and vet, and everyone on the team sees what each person logs (fed, walked, meds given, notes) with their name and the time. Your other records, reminders and calendar stay private. Leave or stop sharing any time; stopping deletes the shared log.</li>' +
+        '<li><b>Usage counts:</b> Petfi records which steps are used — for example "opened the app", "reached the ZIP screen", "made a tag" — with a random ID for this device, the link you arrived from (like a tag page) and, if you\'re signed in, your account. Never what you write. It stays in Petfi\'s own database: no third-party analytics or ad trackers.</li>' +
         '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position. A new spot you add is saved with a pin rounded to about 100 m and your account.</li></ul>' +
         '<h3>How it\'s used</h3>' +
         '<ul><li>To run the app: show your profile to others (if visible), deliver messages, display listings.</li>' +
@@ -6070,6 +6193,7 @@
       FEED.length = 0; feedLoadedOnce = false;
       PEOPLE = []; FRIENDSHIPS = []; MY_MESSAGES = []; CLOUD_GROUPS = []; LISTINGS = []; CLOUD_MATES = []; CLOUD_ADS = []; CLOUD_HUMANS = []; TERRITORY = [];
       TAGS = {}; TAG_REPORTS = []; LOST_NEAR = []; tagsLoadedAt = 0;
+      CARE_TEAMS = []; CARE_MEMBERS = {}; CARE_LOG = {}; careLoadedAt = 0;
       Object.keys(PROFILE_BY_ID).forEach(k => delete PROFILE_BY_ID[k]);
       lastPostsFetch = 0; lastPeopleFetch = 0; lastGroupsFetch = 0; lastListingsFetch = 0; lastMatesFetch = 0; lastTerritoryFetch = 0;
       updateBadges(); renderResume();
@@ -6088,8 +6212,11 @@
     function setHomeTab(t) { state.homeTab = t; openTab('home'); }
     function refreshCare() { state.homeTab = 'care'; openTab('home'); }
     function renderCare() {
-      let h = '<div class="note" style="margin-top:0;">🔒 Your pets\' health records, reminders and calendar are <b>private</b> — only you can see them.</div>';
+      const shared = CARE_TEAMS.some(careIsMine);
+      let h = '<div class="note" style="margin-top:0;">🔒 Your pets\' health records, reminders and calendar are <b>private</b> — only you can see them' +
+        (shared ? ', plus the care team you invite (they see the pet\'s meds, vaccines due, food, allergies and vet)' : '') + '.</div>';
       h += hxAttentionBox();
+      h += careTodayBox();
       h += hxCareSections();
 
       // Reminders
@@ -6157,6 +6284,11 @@
       setTimeout(() => { try { if (document.body.classList.contains('sheet-open')) sh.focus({ preventScroll: true }); } catch (e) {} }, 30);
     }
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('sheet-open')) closeSheet(); });
+    // Clickable divs marked role="button" answer Enter and Space like buttons
+    document.addEventListener('keydown', e => {
+      const t = e.target;
+      if ((e.key === 'Enter' || e.key === ' ') && t && t.tagName !== 'BUTTON' && t.getAttribute && t.getAttribute('role') === 'button') { e.preventDefault(); t.click(); }
+    });
     function closeSheet() {
       sheetSeq++;
       document.getElementById('sheet-backdrop').classList.remove('show');
@@ -6451,6 +6583,7 @@
         const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content }).select('id').single();
         if (error) throw error;
         post.cloudId = data.id;
+        if (!state.postedAt) { state.postedAt = Date.now(); track('first_post'); }
         toast(post.scope === 'local' ? 'Posted to your Local feed 🏡' : 'Posted for everyone to see 🐾');
       } catch (e) {
         console.warn('post save:', e.message);
@@ -6922,6 +7055,8 @@
       { key: 'comments',  label: '💬 Comments on my posts',    sub: 'When someone replies to you' },
       { key: 'reminders', label: '⏰ Care reminders & calendar', sub: 'Feeding times, vet visits, meds, refills…' },
       { key: 'lostPets',  label: '🚨 Lost pets near me',        sub: 'When a pet goes missing within 25 miles' },
+      { key: 'mate',      label: '💘 Mate Match',               sub: 'When a possible match for your listing is posted' },
+      { key: 'careTeam',  label: '👨‍👩‍👧 Care team',               sub: 'When someone on a care team gives meds or joins' },
     ];
     function notifPref(key) {
       const p = state.notifyPrefs || {};
@@ -7129,11 +7264,11 @@
       if (!cloudUser) return h + '<div class="note">Log in to see and post breeding listings.</div>';
       if (mine.length) {
         h += '<div class="sec" style="margin-top:0.4rem;"><h3>🐾 My listings</h3></div>';
-        mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), isClosedListing(m) ? 'Closed — only you can see this one. Tap to reopen.' : n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — you\'ll be told the moment one appears'); });
+        mine.forEach(m => { const n = matchesFor(m).length; h += mateRow(m, MATES_VIEW.indexOf(m), isClosedListing(m) ? 'Closed — only you can see this one. Tap to reopen.' : n ? '🎯 ' + n + ' possible match' + (n === 1 ? '' : 'es') + ' nearby — tap to see' : 'No matches yet — with notifications on, we\'ll ping you when one is listed'); });
       }
       if ((state.matePicks || []).length) h += '<div class="link-row" style="margin:0.4rem 0;" onclick="openMyPicks()"><span class="li">⭐</span><div>My picks<small>' + state.matePicks.length + ' saved listing' + (state.matePicks.length === 1 ? '' : 's') + '</small></div><span class="chev">›</span></div>';
       const me = myGeo();
-      h += '<div class="sec" id="mm-browse"><h3>🔍 Listings near you</h3>' +
+      h += '<div class="sec" id="mm-browse"><h3>🔍 Listings, nearest first</h3>' +
         (state.zip ? '<span class="link" onclick="openTab(\'nearby\')">📍 ' + esc(me && me.area ? me.area : 'ZIP ' + state.zip) + '</span>' : '<span class="link" onclick="openTab(\'nearby\')">Set my ZIP ›</span>') + '</div>';
       h += mateFilterChips();
       const list = filteredMates();
@@ -8233,7 +8368,7 @@
     // ---- ids, pets, dates ----
     function hxId() { return Math.random().toString(36).slice(2, 10); }
     function hxInit() {
-      ['meds', 'vaccines', 'visits', 'supplies', 'spend'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
+      ['meds', 'vaccines', 'visits', 'supplies', 'spend', 'journal'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
       if (!state.petInfo || typeof state.petInfo !== 'object' || Array.isArray(state.petInfo)) state.petInfo = {};
       if (!state.hxFired || typeof state.hxFired !== 'object') state.hxFired = {};
       (state.pets || []).forEach(p => { if (!p.id) p.id = 'p' + hxId(); });
@@ -8502,6 +8637,9 @@
           '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(meta) + '</div></div><span class="chev">›</span></div>';
       }).join('');
 
+      if (cloudUser && pets.length && !CARE_TEAMS.length) {
+        h += '<p class="sub" style="font-size:0.8rem;margin:0.1rem 0 0.4rem;">Two of you looking after ' + esc(pets[0].name) + '? <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="openCareTeamForPet(\'' + jsStr(pets[0].id) + '\')">Share care</span> so you both see who fed and gave meds.</p>';
+      }
       // Meds & prescriptions
       h += '<div class="sec"><h3>💊 Meds &amp; prescriptions</h3><span class="link" onclick="openMedForm()">+ Add</span></div>';
       const meds = (state.meds || []).filter(medActive);
@@ -8623,6 +8761,7 @@
       const petId = val('md-pet'); if (!hxPet(petId)) { toast('Pick a pet'); return; }
       let m = id ? hxMed(id) : null;
       const isNew = !m;
+      if (isNew) track('care_added', 'med');
       const before = m ? medLeft(m) : null;
       if (!m) m = { id: 'm' + hxId(), created: Date.now() };
       m.petId = petId; m.name = name.slice(0, 80); m.strength = val('md-str').slice(0, 40);
@@ -8684,6 +8823,7 @@
       m.lastGiven = Date.now();
       // As-needed meds don't count down on a schedule, so a dose comes off by hand
       if (!medFreq(m).ms && medHasCount(m)) m.qty = Math.max(0, Math.round((m.qty - medPer(m)) * 100) / 100);
+      careLogFromMed(m);
       haptic(); hxDone('', '✓ Logged — ' + medDoseText(m) + ' of ' + m.name);
     }
     function stopMed(id) {
@@ -8943,9 +9083,11 @@
         line('Conditions', info.conditions) + line('Food', info.diet) + line('Insurance', [info.insurer, info.policy].filter(Boolean).join(' · ')) +
         (info.vetName || info.chip || info.allergies || info.fixed ? '' : '<p class="sub" style="margin:0;font-size:0.82rem;">Add the vet\'s number, microchip, allergies and insurance — handy at the vet, the groomer and in an emergency.</p>') +
         '<button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openPetInfoForm(\'' + pid + '\')">✏️ Edit details</button>' +
+        (cloudUser ? ' ' + careShareLink(p.id) : '') +
         (info.insurer ? '' : ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openInsurance()">🛡️ Insurance quotes</button>') +
         ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openVetChat()">💬 Ask a vet online</button>' +
         (info.vetPhone ? ' ' + '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;" href="tel:' + esc(hxTel(info.vetPhone)) + '">📞 Call vet</a>' : '') + '</div>';
+      h += journalSection(p.id);
       // Meds
       const meds = (state.meds || []).filter(m => m.petId === p.id && medActive(m));
       h += '<div class="sec"><h3>💊 Meds</h3><span class="link" onclick="openMedForm(\'\',\'' + pid + '\',\'' + pid + '\')">+ Add</span></div>';
@@ -9093,11 +9235,14 @@
     // A pet removed from the profile takes its health record with it
     function hxForgetPet(petId) {
       if (!petId) return;
+      const team = myCareTeam(petId);
+      if (team && cloud) { cloud.from('petfi_care_teams').delete().eq('id', team.id).then(() => {}, () => {}); CARE_TEAMS = CARE_TEAMS.filter(t => t !== team); }
       const gone = new Set((state.meds || []).filter(m => m.petId === petId).map(m => m.id));
       state.meds = (state.meds || []).filter(m => m.petId !== petId);
       state.reminders = (state.reminders || []).filter(r => !gone.has(r.medId));
       state.vaccines = (state.vaccines || []).filter(v => v.petId !== petId);
       state.visits = (state.visits || []).filter(v => v.petId !== petId);
+      state.journal = (state.journal || []).filter(e => e.petId !== petId);
       (state.supplies || []).forEach(s => { if (s.petId === petId) s.petId = ''; });
       if (state.petInfo) delete state.petInfo[petId];
     }
@@ -9186,6 +9331,7 @@
       const card = hxPassportCard(p); if (!card) return;
       const { error } = await cloud.from('petfi_health_cards').insert({ token: p.token, user_id: cloudUser.id, pet_id: petId, card, expires_at: p.expires ? new Date(p.expires).toISOString() : null });
       if (error) { toast(/row-level|policy/i.test(error.message) ? '⚠️ You have 20 links already — turn one off first' : '⚠️ Could not make the link — try again'); return; }
+      track('passport_made');
       p.sig = JSON.stringify(card);
       state.passports = (state.passports || []).concat([p]);
       saveState();
@@ -9342,6 +9488,7 @@
           '<button class="btn secondary" onclick="postLostPet(\'' + pid + '\')">📣 Post it on my Local feed</button>' +
           '<button class="btn secondary" onclick="markPetFound(\'' + pid + '\')">🎉 ' + esc(pet.name) + ' is home — turn off lost mode</button>';
       }
+      h += pushNote('Turn on notifications so a finder\'s message reaches you the moment they send it.');
       h += '<div id="tag-qr" style="text-align:center;margin:0.6rem 0 0.3rem;min-height:40px;"></div>' +
         '<p class="sub" style="text-align:center;font-size:0.8rem;margin-bottom:0.6rem;">' + esc(url.replace('https://', '')) + '</p>';
       if (n) h += '<button class="btn" onclick="openTagReports(\'' + jsStr(t.code) + '\')">📨 Messages from finders (' + n + ')</button>';
@@ -9360,7 +9507,7 @@
       for (let i = 0; i < 3; i++) {
         const row = { code: hxTagCode(), user_id: cloudUser.id, pet_id: petId, pet_name: pet.name.slice(0, 40), species: String(pet.species || '').slice(0, 20), breed: String(pet.breed || '').slice(0, 40), photo_url: photo };
         const { error } = await cloud.from('petfi_pet_tags').insert(row);
-        if (!error) { TAGS[petId] = Object.assign({ note: '', phone: '', lost: false }, row); haptic(); toast('🏷️ ' + pet.name + '\'s tag is ready'); renderPetTag(petId); return; }
+        if (!error) { TAGS[petId] = Object.assign({ note: '', phone: '', lost: false }, row); haptic(); toast('🏷️ ' + pet.name + '\'s tag is ready'); track('tag_made'); renderPetTag(petId); return; }
         if (error.code === '23505' && /pet_id/.test(error.message || '')) { await loadTags(true); renderPetTag(petId); return; }
         if (error.code !== '23505') { toast(/row-level|policy/i.test(error.message) ? '⚠️ 10 tags is the limit for now' : '⚠️ Could not make the tag — try again'); return; }
       }
@@ -9407,6 +9554,7 @@
       const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
       if (error) { toast('⚠️ Could not mark lost — try again'); return; }
       Object.assign(t, upd);
+      track('lost_reported');
       let sent = 0;
       if (alertNearby) {
         const r = await cloud.rpc('petfi_tag_alert', { c: t.code, radius_mi: 25 });
@@ -9457,6 +9605,536 @@
       TAG_REPORTS = TAG_REPORTS.filter(r => r.id !== id);
       openTagReports(code || undefined);
     }
+
+    // ======================= SYMPTOM JOURNAL =======================
+    // Private, like the rest of My care (state.journal). Quick logs for the
+    // things a vet asks about — vomiting, stool, appetite, drinking, energy,
+    // seizures, blood glucose, insulin — and a summary to copy, send or print
+    // for the visit. People with diabetic or epileptic pets were keeping
+    // these in spreadsheets. Tracking only: no advice, no dosing.
+    const JOURNAL_KINDS = [
+      { k: 'vomit',    emo: '🤮', label: 'Vomited' },
+      { k: 'stool',    emo: '💩', label: 'Stool', opts: ['Normal', 'Soft', 'Diarrhea', 'Blood in it', 'Constipated'] },
+      { k: 'appetite', emo: '🍽️', label: 'Appetite', opts: ['Ate it all', 'Ate some', 'Barely ate', 'Didn\'t eat'] },
+      { k: 'water',    emo: '💧', label: 'Drinking', opts: ['Normal', 'More than usual', 'Less than usual'] },
+      { k: 'energy',   emo: '⚡', label: 'Energy', opts: ['Normal', 'Low', 'Very low'] },
+      { k: 'cough',    emo: '🤧', label: 'Cough / sneeze' },
+      { k: 'itch',     emo: '🐾', label: 'Itching / licking' },
+      { k: 'limp',     emo: '🦴', label: 'Limping' },
+      { k: 'seizure',  emo: '🌀', label: 'Seizure', num: 'minutes' },
+      { k: 'glucose',  emo: '🩸', label: 'Blood glucose', num: 'mg/dL' },
+      { k: 'insulin',  emo: '💉', label: 'Insulin', num: 'units' },
+      { k: 'temp',     emo: '🌡️', label: 'Temperature', num: '°F' },
+      { k: 'other',    emo: '📝', label: 'Note' },
+    ];
+    function jKind(k) { return JOURNAL_KINDS.find(x => x.k === k) || JOURNAL_KINDS[JOURNAL_KINDS.length - 1]; }
+    function jEntries(petId, days) {
+      const from = days ? hxAddDays(hxToday(), -days + 1) : '';
+      return (state.journal || []).filter(e => e.petId === petId && (!from || e.d >= from))
+        .sort((a, b) => (b.d + (b.t || '')) < (a.d + (a.t || '')) ? -1 : 1);
+    }
+    function jText(e) {
+      const k = jKind(e.kind);
+      const v = e.val != null && e.val !== '' ? (k.num ? e.val + ' ' + k.num : e.val) : '';
+      return k.emo + ' ' + k.label + (v ? ': ' + v : '') + (e.note ? ' — ' + e.note : '');
+    }
+    // In the pet's health record: the last few entries and a way in
+    function journalSection(petId) {
+      const pid = jsStr(petId), list = jEntries(petId, 30);
+      let h = '<div class="sec"><h3>📓 Symptom journal</h3><span class="link" onclick="openJournalForm(\'' + pid + '\')">+ Log</span></div>';
+      if (!list.length) return h + '<p class="sub" style="font-size:0.82rem;margin-top:-0.2rem;">Vomiting, stool, appetite, seizures, glucose… log it when it happens and hand the vet a clear summary instead of trying to remember.</p>';
+      h += list.slice(0, 3).map(e => '<div class="hx-kv"><span style="color:var(--ink);">' + esc(jText(e)) + '</span><b style="font-weight:600;color:var(--muted);">' + esc(hxDate(e.d)) + '</b></div>').join('');
+      h += '<button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="openJournal(\'' + pid + '\')">📓 All entries (' + jEntries(petId).length + ')</button>' +
+        ' <button class="pill-btn ghost" style="margin-top:0.4rem;" onclick="openJournalSummary(\'' + pid + '\')">🩺 Summary for the vet</button>';
+      return h;
+    }
+    function openJournalForm(petId, kind) {
+      const pet = hxPet(petId); if (!pet) return;
+      const pid = jsStr(petId);
+      if (!kind) {
+        openSheet('📓 What happened with ' + esc(pet.name) + '?',
+          '<div class="grid">' + JOURNAL_KINDS.map(k => '<div class="pick" role="button" tabindex="0" onclick="openJournalForm(\'' + pid + '\',\'' + k.k + '\')"><span class="e">' + k.emo + '</span>' + esc(k.label) + '</div>').join('') + '</div>');
+        return;
+      }
+      const k = jKind(kind), now = new Date();
+      const hm = String(now.getHours()).padStart(2, '0') + ':' + String(now.getMinutes()).padStart(2, '0');
+      let h = '';
+      if (k.opts) h += '<label>How was it?</label><select id="jn-val">' + k.opts.map(o => '<option>' + esc(o) + '</option>').join('') + '</select>';
+      if (k.num) h += '<label>' + esc(k.label) + ' <small style="color:var(--muted);font-weight:400;">(' + esc(k.num) + ')</small></label><input id="jn-val" type="number" inputmode="decimal" step="any" min="0">';
+      h += '<div style="display:flex;gap:0.5rem;"><div style="flex:1;"><label>Day</label><input id="jn-d" type="date" value="' + hxToday() + '" max="' + hxToday() + '"></div>' +
+        '<div style="flex:1;"><label>Time</label><input id="jn-t" type="time" value="' + hm + '"></div></div>' +
+        '<label>Notes <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input id="jn-note" maxlength="200" placeholder="' + (kind === 'vomit' ? 'e.g. right after breakfast, yellow foam' : 'Anything the vet should know') + '">' +
+        '<button class="btn" onclick="saveJournal(\'' + pid + '\',\'' + k.k + '\')">Save</button>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">For tracking only — call your vet about anything worrying, and poison control or an emergency vet if it can\'t wait.</p>';
+      openSheet(k.emo + ' ' + esc(k.label) + ' · ' + esc(pet.name), h);
+    }
+    function saveJournal(petId, kind) {
+      const k = jKind(kind), d = val('jn-d') || hxToday();
+      if (!hxValidYmd(d) || d > hxToday()) { toast('Pick a day up to today'); return; }
+      let v = val('jn-val');
+      if (k.num) {
+        if (v === '' && kind !== 'seizure') { toast('Enter the ' + k.label.toLowerCase()); return; }
+        if (v !== '') { const n = parseFloat(v); if (!(n >= 0 && n < 10000)) { toast('That number doesn\'t look right'); return; } v = String(Math.round(n * 10) / 10); }
+      }
+      const note = val('jn-note').slice(0, 200);
+      if (kind === 'other' && !note) { toast('Write the note first'); return; }
+      state.journal = (state.journal || []).concat([{ id: 'j' + hxId(), petId, d, t: val('jn-t') || '', kind, val: v, note }]).slice(-2000);
+      track('care_added', 'journal');
+      haptic(); hxDone(petId, k.emo + ' Logged for ' + hxPetName(petId));
+    }
+    function deleteJournal(id, petId) {
+      state.journal = (state.journal || []).filter(e => e.id !== id);
+      saveState(); openJournal(petId);
+    }
+    function openJournal(petId) {
+      const pet = hxPet(petId); if (!pet) return;
+      const pid = jsStr(petId), list = jEntries(petId);
+      let h = '<button class="btn" onclick="openJournalForm(\'' + pid + '\')">+ Log something</button>' +
+        '<button class="btn secondary" onclick="openJournalSummary(\'' + pid + '\')">🩺 Summary for the vet</button>';
+      const g = jGlucose(petId, 30);
+      if (g.length > 1) h += '<div class="hx-card" style="margin-top:0.6rem;"><div style="font-size:0.75rem;color:var(--muted);font-weight:700;">BLOOD GLUCOSE · 30 DAYS</div>' + hxSpark(g) + '</div>';
+      let day = '';
+      list.slice(0, 200).forEach(e => {
+        if (e.d !== day) { day = e.d; h += '<p class="sub" style="font-size:0.75rem;font-weight:800;margin:0.7rem 0 0.2rem;">' + esc(hxDate(e.d).toUpperCase()) + '</p>'; }
+        h += '<div class="hx-kv"><span style="color:var(--ink);">' + esc(jText(e)) + '</span><b style="font-weight:600;color:var(--muted);">' + esc(e.t ? hxTime(e.t) : '') +
+          ' <span role="button" tabindex="0" aria-label="Delete entry" style="cursor:pointer;margin-left:0.3rem;" onclick="deleteJournal(\'' + jsStr(e.id) + '\',\'' + pid + '\')">✕</span></b></div>';
+      });
+      if (!list.length) h += '<p class="sub" style="margin-top:0.6rem;">Nothing logged yet.</p>';
+      openSheet('📓 ' + esc(pet.name) + '\'s journal', h);
+    }
+    // hxSpark wants weight-shaped points: { v, d }
+    function jGlucose(petId, days) {
+      return jEntries(petId, days).filter(e => e.kind === 'glucose' && e.val !== '').reverse().map(e => ({ v: parseFloat(e.val), d: e.d }));
+    }
+    function journalSummaryText(petId, days) {
+      const pet = hxPet(petId) || { name: 'My pet' }, list = jEntries(petId, days);
+      const from = hxAddDays(hxToday(), -days + 1);
+      const lines = [pet.name + ' — symptom journal, ' + hxDate(from) + ' to ' + hxDate(hxToday()) + ' (' + list.length + ' entries, kept in Petfi)'];
+      const by = {};
+      list.forEach(e => { (by[e.kind] = by[e.kind] || []).push(e); });
+      lines.push('');
+      JOURNAL_KINDS.forEach(k => {
+        const es = by[k.k]; if (!es) return;
+        if (k.num) {
+          const ns = es.map(e => parseFloat(e.val)).filter(n => n >= 0);
+          lines.push(k.emo + ' ' + k.label + ': ' + es.length + (es.length === 1 ? ' entry' : ' entries') +
+            (ns.length < 2 ? (ns.length ? ' · ' + ns[0] + ' ' + k.num : '') : ' · ' + Math.min.apply(null, ns) + '–' + Math.max.apply(null, ns) + ' ' + k.num + ', average ' + Math.round(ns.reduce((a, b) => a + b, 0) / ns.length * 10) / 10));
+        } else if (k.opts) {
+          const c = {}; es.forEach(e => { c[e.val] = (c[e.val] || 0) + 1; });
+          lines.push(k.emo + ' ' + k.label + ': ' + Object.keys(c).map(x => x + ' ×' + c[x]).join(', '));
+        } else {
+          lines.push(k.emo + ' ' + k.label + ': ' + es.length + (es.length === 1 ? ' time' : ' times') + ' (' + es.slice().reverse().map(e => hxDate(e.d)).join(', ') + ')');
+        }
+      });
+      lines.push('', 'Day by day:');
+      list.slice().reverse().forEach(e => lines.push(hxDate(e.d) + (e.t ? ' ' + hxTime(e.t) : '') + ' — ' + jText(e).replace(/^\S+ /, '')));
+      return lines.join('\n');
+    }
+    function openJournalSummary(petId, days) {
+      const pet = hxPet(petId); if (!pet) return;
+      days = days || 30;
+      const pid = jsStr(petId), txt = journalSummaryText(petId, days);
+      JOURNAL_SUMMARY = txt;
+      openSheet('🩺 For the vet · ' + esc(pet.name),
+        '<div class="chips" style="margin-bottom:0.6rem;">' + [7, 30, 90].map(n => '<div class="chip' + (n === days ? ' active' : '') + '" role="button" tabindex="0" onclick="openJournalSummary(\'' + pid + '\',' + n + ')">' + n + ' days</div>').join('') + '</div>' +
+        '<pre style="white-space:pre-wrap;font-family:inherit;font-size:0.82rem;background:var(--bg);border:1px solid var(--line);border-radius:12px;padding:0.7rem;max-height:45vh;overflow:auto;">' + esc(txt) + '</pre>' +
+        '<button class="btn" onclick="journalShare()">📤 Send it</button>' +
+        '<button class="btn secondary" onclick="hxCopy(JOURNAL_SUMMARY, \'📋 Copied — paste it in an email or text to the vet\')">📋 Copy</button>' +
+        '<button class="btn secondary" onclick="journalPrint()">🖨️ Print</button>');
+    }
+    let JOURNAL_SUMMARY = '';
+    function journalShare() {
+      if (navigator.share) { navigator.share({ title: 'Symptom journal', text: JOURNAL_SUMMARY }).catch(() => {}); return; }
+      hxCopy(JOURNAL_SUMMARY, '📋 Copied — paste it in an email or text to the vet');
+    }
+    // Print just the summary: everything else hides while the dialog is open
+    function journalPrint() {
+      let box = document.getElementById('print-area');
+      if (!box) { box = document.createElement('div'); box.id = 'print-area'; document.body.appendChild(box); }
+      box.innerHTML = '<pre>' + esc(JOURNAL_SUMMARY) + '</pre>';
+      document.body.classList.add('printing');
+      const done = () => { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      setTimeout(() => { try { window.print(); } catch (e) {} setTimeout(done, 2000); }, 50);
+    }
+
+    // ======================= CARE TEAM =======================
+    // Family and housemates share one pet's care (petfi-care-team-2026-11-02.sql).
+    // The owner's records stay the truth: the app publishes a read-only
+    // snapshot into the team row (like a health passport). Everyone taps what
+    // they did into the shared log, so all see who fed, walked or gave meds,
+    // and a meds entry pings the rest of the team.
+    const CARE_KINDS = [
+      { k: 'fed',     emo: '🍖', label: 'Fed',     did: 'fed' },
+      { k: 'walked',  emo: '🦮', label: 'Walked',  did: 'walked' },
+      { k: 'meds',    emo: '💊', label: 'Meds',    did: 'gave meds' },
+      { k: 'litter',  emo: '🧻', label: 'Litter',  did: 'scooped the litter' },
+      { k: 'water',   emo: '💧', label: 'Water',   did: 'refilled the water' },
+      { k: 'potty',   emo: '🌳', label: 'Potty',   did: 'took out to potty' },
+      { k: 'groomed', emo: '✂️', label: 'Groomed', did: 'groomed' },
+      { k: 'other',   emo: '📝', label: 'Note',    did: 'noted' },
+    ];
+    const CARE_JOIN_KEY = 'petfi-care-join';
+    let CARE_TEAMS = [], CARE_MEMBERS = {}, CARE_LOG = {}, careLoadedAt = 0, careLoading = false;
+    function careKind(k) { return CARE_KINDS.find(x => x.k === k) || CARE_KINDS[CARE_KINDS.length - 1]; }
+    function careQuick(species) {
+      const s = String(species || '').toLowerCase();
+      return s === 'cat' ? ['fed', 'meds', 'litter'] : s === 'dog' ? ['fed', 'walked', 'meds'] : ['fed', 'water', 'meds'];
+    }
+    function careTeam(id) { return CARE_TEAMS.find(t => t.id === id) || null; }
+    function myCareTeam(petId) { return CARE_TEAMS.find(t => cloudUser && t.owner_id === cloudUser.id && t.pet_id === petId) || null; }
+    function careIsMine(t) { return !!(t && cloudUser && t.owner_id === cloudUser.id); }
+    function careWho(uid) {
+      if (cloudUser && uid === cloudUser.id) return 'You';
+      const p = PROFILE_BY_ID[uid];
+      return p && p.username ? String(p.username).split(' ')[0] : 'Someone';
+    }
+    function careClock(iso) { return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }); }
+    function careDay(iso) {
+      const d = new Date(iso), t = new Date();
+      if (d.toDateString() === t.toDateString()) return 'Today';
+      if (d.toDateString() === new Date(t.getTime() - DAY_MS).toDateString()) return 'Yesterday';
+      return d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    }
+    function careEntryText(l) {
+      const k = careKind(l.kind);
+      return k.emo + ' ' + careWho(l.user_id) + ' ' + (l.kind === 'meds' && l.note ? 'gave ' + l.note : l.kind === 'other' && l.note ? '· ' + l.note : k.did + (l.note ? ' · ' + l.note : ''));
+    }
+    // What the team sees: the passport card with everything a carer needs, plus med ids to log against
+    function careCard(petId) {
+      const c = hxPassportCard({ petId, inc: { basics: true, health: true, meds: true, vax: true, vet: true, chip: true } });
+      if (!c) return null;
+      const ms = (state.meds || []).filter(m => m.petId === petId && medActive(m)).slice(0, 30);
+      (c.meds || []).forEach((x, i) => { if (ms[i]) x.id = ms[i].id; });
+      return c;
+    }
+
+    async function loadCare(force) {
+      if (!cloud || !cloudUser || careLoading) return;
+      if (!force && Date.now() - careLoadedAt < 30000) return;
+      careLoading = true;
+      try {
+        const tq = await cloud.from('petfi_care_teams').select('id, owner_id, pet_id, pet_name, species, card, updated_at');
+        if (tq.error) throw tq.error;
+        const teams = tq.data || [], ids = teams.map(t => t.id), members = {}, log = {};
+        if (ids.length) {
+          const since = new Date(Date.now() - 3 * DAY_MS).toISOString();
+          const [mq, lq] = await Promise.all([
+            cloud.from('petfi_care_members').select('team_id, user_id, added_at').in('team_id', ids),
+            cloud.from('petfi_care_log').select('id, team_id, user_id, kind, med_id, note, at').in('team_id', ids).gte('at', since).order('at', { ascending: false }).limit(300),
+          ]);
+          (mq.data || []).forEach(m => { (members[m.team_id] = members[m.team_id] || []).push(m); });
+          (lq.data || []).forEach(l => { (log[l.team_id] = log[l.team_id] || []).push(l); });
+          const who = {};
+          teams.forEach(t => { who[t.owner_id] = 1; });
+          Object.keys(members).forEach(k => members[k].forEach(m => { who[m.user_id] = 1; }));
+          Object.keys(log).forEach(k => log[k].forEach(l => { who[l.user_id] = 1; }));
+          await ensureProfiles(Object.keys(who));
+        }
+        CARE_TEAMS = teams; CARE_MEMBERS = members; CARE_LOG = log;
+        careLoadedAt = Date.now();
+        careApplyMedsGiven();
+      } catch (e) { console.warn('care team:', e && e.message); }
+      finally { careLoading = false; }
+      if (state.tab === 'home' && state.homeTab === 'care') openTab('home');
+    }
+    // A dose someone else logged on my pet's team counts in my own records too
+    function careApplyMedsGiven() {
+      const seen = state.careSeen || [];
+      let changed = false;
+      CARE_TEAMS.filter(careIsMine).forEach(t => (CARE_LOG[t.id] || []).forEach(l => {
+        if (l.kind !== 'meds' || !l.med_id || l.user_id === cloudUser.id || seen.indexOf(l.id) >= 0) return;
+        const m = hxMed(l.med_id); seen.push(l.id);
+        if (!m) return;
+        const at = new Date(l.at).getTime();
+        if (!m.lastGiven || at > m.lastGiven) m.lastGiven = at;
+        if (!medFreq(m).ms && medHasCount(m)) m.qty = Math.max(0, Math.round((m.qty - medPer(m)) * 100) / 100);
+        changed = true;
+      }));
+      if (changed || seen.length !== (state.careSeen || []).length) { state.careSeen = seen.slice(-300); saveState(); }
+    }
+    // The owner's team row, made on first use
+    async function ensureCareTeam(petId) {
+      const have = myCareTeam(petId); if (have) return have;
+      const pet = hxPet(petId); if (!pet || !canSaveToCloud('share care')) return null;
+      const card = careCard(petId) || {};
+      const { data, error } = await cloud.from('petfi_care_teams')
+        .insert({ pet_id: petId, pet_name: pet.name.slice(0, 40), species: String(pet.species || '').slice(0, 20), card })
+        .select('id, owner_id, pet_id, pet_name, species, card, updated_at').single();
+      if (error) {
+        if (error.code === '23505') { await loadCare(true); return myCareTeam(petId); }
+        toast(/row-level|policy/i.test(error.message) ? '⚠️ 20 care teams is the limit for now' : '⚠️ Could not set that up — try again');
+        return null;
+      }
+      data._sig = JSON.stringify(card);
+      CARE_TEAMS.push(data);
+      return data;
+    }
+    // Keep each of my teams' snapshot in step with my records (debounced from saveState)
+    let careSyncTimer = null;
+    function scheduleCareSync() {
+      if (!cloud || !cloudUser || !CARE_TEAMS.some(careIsMine)) return;
+      clearTimeout(careSyncTimer);
+      careSyncTimer = setTimeout(syncCareCards, 4000);
+    }
+    async function syncCareCards() {
+      for (const t of CARE_TEAMS.filter(careIsMine)) {
+        const pet = hxPet(t.pet_id);
+        if (!pet) continue;
+        const card = careCard(t.pet_id) || {}, sig = JSON.stringify(card);
+        if (sig === (t._sig || JSON.stringify(t.card || {}))) { t._sig = sig; continue; }
+        const { error } = await cloud.from('petfi_care_teams').update({ card, pet_name: pet.name.slice(0, 40), species: String(pet.species || '').slice(0, 20), updated_at: new Date().toISOString() }).eq('id', t.id);
+        if (!error) { t.card = card; t._sig = sig; t.pet_name = pet.name.slice(0, 40); }
+      }
+    }
+
+    // ---- Logging ----
+    async function careLog(teamId, kind, medId, note, quiet) {
+      const t = careTeam(teamId); if (!t || !canSaveToCloud('log it')) return false;
+      const row = { team_id: teamId, kind, med_id: medId || null, note: note ? String(note).slice(0, 120) : null };
+      const { data, error } = await cloud.from('petfi_care_log').insert(row).select('id, team_id, user_id, kind, med_id, note, at').single();
+      if (error) { toast(/too many/i.test(error.message) ? '⚠️ That\'s a lot of entries — try again in a bit' : '⚠️ Could not log it — try again'); return false; }
+      (CARE_LOG[teamId] = CARE_LOG[teamId] || []).unshift(data);
+      if (careIsMine(t) && kind === 'meds' && medId) { state.careSeen = (state.careSeen || []).concat([data.id]).slice(-300); }
+      track('care_added', 'log-' + kind);
+      if (!quiet) { haptic(); toast(careKind(kind).emo + ' Logged for ' + t.pet_name); }
+      if (state.tab === 'home' && state.homeTab === 'care') openTab('home');
+      return true;
+    }
+    // Tap on an owner's own pet with no team yet: make it, then log
+    async function careTapPet(petId, kind) {
+      const t = await ensureCareTeam(petId); if (!t) return;
+      careTap(t.id, kind);
+    }
+    function careTap(teamId, kind) {
+      const t = careTeam(teamId); if (!t) return;
+      if (kind === 'meds') { careMedsPick(teamId); return; }
+      careLog(teamId, kind);
+    }
+    function careMedsPick(teamId) {
+      const t = careTeam(teamId); if (!t) return;
+      const meds = (t.card && t.card.meds) || [];
+      if (meds.length === 1) { careMedsConfirm(teamId, 0); return; }
+      if (!meds.length) { careMedsConfirm(teamId, -1); return; }
+      openSheet('💊 Which med did ' + esc(t.pet_name) + ' get?',
+        meds.map((m, i) => '<div class="row" style="cursor:pointer;" onclick="careMedsConfirm(\'' + jsStr(teamId) + '\',' + i + ')"><div class="ricon">💊</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);">' + esc(m.strength) + '</span>' : '') + '</div>' +
+          '<div class="rmeta">' + esc([m.dose, m.freq, m.time].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>').join(''));
+    }
+    // Before logging a dose: someone may already have given it
+    function careMedsConfirm(teamId, i) {
+      const t = careTeam(teamId); if (!t) return;
+      const m = i >= 0 ? ((t.card && t.card.meds) || [])[i] : null;
+      const recent = (CARE_LOG[teamId] || []).find(l => l.kind === 'meds' && (m ? (l.med_id === m.id || l.note === m.name) : true) && Date.now() - new Date(l.at).getTime() < 8 * 3600 * 1000);
+      const go = () => careGiveMed(teamId, m);
+      if (!recent) { closeSheet(); go(); return; }
+      CARE_PENDING = go;
+      openSheet('⚠️ Already given?',
+        '<div class="note" style="margin-top:0;background:#fff1d6;color:#8a5a00;"><b>' + esc(careWho(recent.user_id)) + ' logged ' + esc(recent.note || 'meds') + ' at ' + esc(careClock(recent.at)) + '</b> (' + esc(hxAgo(new Date(recent.at).getTime())) + ').' +
+          ' Give another dose only if that\'s what the vet prescribed.</div>' +
+        '<button class="btn secondary" onclick="closeSheet()">Don\'t log it</button>' +
+        '<button class="btn" onclick="closeSheet();careRunPending()">Log another dose</button>');
+    }
+    let CARE_PENDING = null;
+    function careRunPending() { const f = CARE_PENDING; CARE_PENDING = null; if (f) f(); }
+    async function careGiveMed(teamId, m) {
+      const t = careTeam(teamId); if (!t) return;
+      const ok = await careLog(teamId, 'meds', m && m.id, m ? m.name : '', true);
+      if (!ok) return;
+      // My own pet: the same dose counts in my med record
+      const mine = careIsMine(t) && m && m.id ? hxMed(m.id) : null;
+      if (mine) {
+        mine.lastGiven = Date.now();
+        if (!medFreq(mine).ms && medHasCount(mine)) mine.qty = Math.max(0, Math.round((mine.qty - medPer(mine)) * 100) / 100);
+        saveState();
+      }
+      haptic(); toast('💊 Logged' + (m ? ' — ' + m.name : '') + '. The rest of the team gets a heads-up.');
+      if (state.tab === 'home' && state.homeTab === 'care') openTab('home');
+    }
+    // "Given" from my own med sheet also lands on the pet's team log
+    function careLogFromMed(m) {
+      const t = m && myCareTeam(m.petId);
+      if (t) careLog(t.id, 'meds', m.id, m.name, true);
+    }
+    function openCareMore(teamId) {
+      const t = careTeam(teamId); if (!t) return;
+      openSheet('📝 Log for ' + esc(t.pet_name),
+        '<div class="ct-btns" style="flex-wrap:wrap;">' + CARE_KINDS.filter(k => k.k !== 'other').map(k =>
+          '<button class="pill-btn ghost" onclick="closeSheet();careTap(\'' + jsStr(teamId) + '\',\'' + k.k + '\')">' + k.emo + ' ' + k.label + '</button>').join('') + '</div>' +
+        '<label>Or a note <small style="color:var(--muted);font-weight:400;">(everyone on the team sees it)</small></label>' +
+        '<input id="ct-note" maxlength="120" placeholder="e.g. Ate half his breakfast, a bit sleepy">' +
+        '<button class="btn" onclick="careSaveNote(\'' + jsStr(teamId) + '\')">Save note</button>');
+    }
+    async function careSaveNote(teamId) {
+      const n = val('ct-note'); if (!n) { toast('Write the note first'); return; }
+      if (await careLog(teamId, 'other', null, n)) closeSheet();
+    }
+
+    // ---- My care: the Today box ----
+    function careTodayBox() {
+      if (!cloudUser) return '';
+      const rows = [];
+      CARE_TEAMS.forEach(t => {
+        const own = careIsMine(t), pet = own ? hxPet(t.pet_id) : null;
+        if (own && !pet) return;
+        rows.push({ t, name: own ? pet.name : t.pet_name, species: own ? pet.species : t.species, sub: own ? careTeamSize(t) : 'Shared by ' + careWho(t.owner_id) });
+      });
+      if (!rows.length) return '';
+      let h = '<div class="sec"><h3>✅ Today</h3><span class="link" onclick="loadCare(true)">↻</span></div>';
+      rows.forEach(r => {
+        const today = (CARE_LOG[r.t.id] || []).filter(l => careDay(l.at) === 'Today');
+        const tid = jsStr(r.t.id);
+        h += '<div class="hx-card ct-card"><div class="ct-head" onclick="openCareTeam(\'' + tid + '\')"><b>' + esc(r.name) + '</b><small>' + esc(r.sub) + '</small><span class="chev">›</span></div>' +
+          '<div class="ct-last">' + (today.length ? today.slice(0, 3).map(l => esc(careEntryText(l)) + ' <span>' + esc(careClock(l.at)) + '</span>').join('<br>') : 'Nothing logged yet today') + '</div>' +
+          '<div class="ct-btns">' + careQuick(r.species).map(k => '<button class="pill-btn ghost" onclick="careTap(\'' + tid + '\',\'' + k + '\')">' + careKind(k).emo + ' ' + careKind(k).label + '</button>').join('') +
+          '<button class="pill-btn ghost" aria-label="More" onclick="openCareMore(\'' + tid + '\')">＋</button></div></div>';
+      });
+      return h;
+    }
+    function careTeamSize(t) {
+      const n = (CARE_MEMBERS[t.id] || []).length;
+      return n ? 'You + ' + n + (n === 1 ? ' person' : ' people') : 'Just you so far — tap to invite family';
+    }
+    // A quiet way in from a pet's health record and My care
+    function careShareLink(petId) {
+      const t = myCareTeam(petId), n = t ? (CARE_MEMBERS[t.id] || []).length : 0;
+      return '<button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openCareTeamForPet(\'' + jsStr(petId) + '\')">👨‍👩‍👧 ' + (n ? 'Care team (' + (n + 1) + ')' : 'Share care with family') + '</button>';
+    }
+    async function openCareTeamForPet(petId) {
+      const t = await ensureCareTeam(petId); if (!t) return;
+      openCareTeam(t.id);
+    }
+
+    // ---- The team sheet ----
+    function openCareTeam(teamId) {
+      const t = careTeam(teamId); if (!t) return;
+      const own = careIsMine(t), tid = jsStr(teamId), c = t.card || {};
+      const members = CARE_MEMBERS[teamId] || [];
+      let h = '';
+      if (!own) {
+        // What a carer needs, from the owner's records
+        const line = (k, v) => v ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
+        h += '<div class="hx-card">' + line('Breed', c.breed) + line('Age', c.age) + line('Food', c.diet) + line('Allergies', c.allergies) + line('Conditions', c.conditions) +
+          line('Vet', c.vet ? [c.vet.name, c.vet.phone].filter(Boolean).join(' · ') : '') + line('Microchip', c.chip) +
+          (c.vet && c.vet.phone ? '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;display:inline-block;" href="tel:' + esc(hxTel(c.vet.phone)) + '">📞 Call the vet</a>' : '') + '</div>';
+        if ((c.meds || []).length) h += '<div class="sec"><h3>💊 Meds</h3></div>' + c.meds.map(m => '<div class="row"><div class="ricon">💊</div><div class="rmain"><div class="rtitle">' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);">' + esc(m.strength) + '</span>' : '') + '</div>' +
+          '<div class="rmeta">' + esc([m.dose, m.freq, m.time].filter(Boolean).join(' · ')) + (m.notes ? '<br>' + esc(m.notes) : '') + '</div></div></div>').join('');
+        const due = (c.vaccines || []).filter(v => v.due).slice(0, 6);
+        if (due.length) h += '<div class="sec"><h3>💉 Vaccines due</h3></div>' + due.map(v => '<div class="hx-kv"><span>' + esc(v.name) + '</span><b>' + esc(hxDate(v.due)) + '</b></div>').join('');
+      }
+      // The log, newest first, grouped by day
+      const log = CARE_LOG[teamId] || [];
+      h += '<div class="sec"><h3>📋 Log</h3><span class="link" onclick="openCareMore(\'' + tid + '\')">+ Log</span></div>';
+      if (!log.length) h += '<p class="sub" style="font-size:0.85rem;">Nothing logged in the last 3 days.</p>';
+      let day = '';
+      log.slice(0, 60).forEach(l => {
+        const d = careDay(l.at);
+        if (d !== day) { day = d; h += '<p class="sub" style="font-size:0.75rem;font-weight:800;margin:0.6rem 0 0.2rem;">' + esc(d.toUpperCase()) + '</p>'; }
+        const del = l.user_id === cloudUser.id || own;
+        h += '<div class="hx-kv"><span style="color:var(--ink);">' + esc(careEntryText(l)) + '</span><b style="font-weight:600;color:var(--muted);">' + esc(careClock(l.at)) +
+          (del ? ' <span role="button" tabindex="0" aria-label="Delete entry" style="cursor:pointer;margin-left:0.3rem;" onclick="careDeleteEntry(\'' + tid + '\',' + Number(l.id) + ')">✕</span>' : '') + '</b></div>';
+      });
+      // Who's on it
+      h += '<div class="sec" style="margin-top:0.8rem;"><h3>👨‍👩‍👧 Team</h3></div>';
+      h += '<div class="hx-kv"><span>' + esc(careWho(t.owner_id)) + '</span><b>Owner</b></div>';
+      h += members.map(m => '<div class="hx-kv"><span>' + esc(careWho(m.user_id)) + '</span><b>' +
+        (own ? '<span role="button" tabindex="0" style="cursor:pointer;color:var(--blue);" onclick="careRemoveMember(\'' + tid + '\',\'' + jsStr(m.user_id) + '\')">Remove</span>' : 'Helper') + '</b></div>').join('');
+      if (own) {
+        h += '<button class="btn" style="margin-top:0.7rem;" onclick="careInvite(\'' + tid + '\')">➕ Invite someone</button>' +
+          '<p class="sub" style="font-size:0.75rem;margin-top:0.4rem;">They see ' + esc(t.pet_name) + '\'s meds, vaccines due, food, allergies and vet, and log what they do. Your other records and reminders stay private.</p>' +
+          '<button class="btn secondary" onclick="careStopSharing(\'' + tid + '\')">Stop sharing ' + esc(t.pet_name) + '\'s care</button>';
+      } else {
+        h += '<button class="btn secondary" style="margin-top:0.7rem;" onclick="careLeave(\'' + tid + '\')">Leave this care team</button>';
+      }
+      openSheet('🐾 ' + esc(t.pet_name) + (own ? '\'s care team' : ' · shared by ' + esc(careWho(t.owner_id))), h);
+    }
+    async function careDeleteEntry(teamId, id) {
+      if (!canSaveToCloud('delete it')) return;
+      const { error } = await cloud.from('petfi_care_log').delete().eq('id', id);
+      if (error) { toast('⚠️ Could not delete — try again'); return; }
+      CARE_LOG[teamId] = (CARE_LOG[teamId] || []).filter(l => l.id !== id);
+      openCareTeam(teamId);
+    }
+    async function careInvite(teamId) {
+      const t = careTeam(teamId); if (!t || !canSaveToCloud('invite someone')) return;
+      const token = hxToken();
+      const { error } = await cloud.from('petfi_care_invites').insert({ token, team_id: teamId });
+      if (error) { toast(/row-level|policy/i.test(error.message) ? '⚠️ 10 open invites is the limit — wait for some to be used' : '⚠️ Could not make the invite — try again'); return; }
+      track('share_open', 'care');
+      const url = 'https://petfi.pet/app/?care=' + token;
+      openSheet('➕ Invite someone to ' + esc(t.pet_name) + '\'s care team',
+        '<p class="sub" style="margin-bottom:0.6rem;">Send this to one person — a partner, a roommate, the kids, a regular sitter. It works once and expires in 7 days.</p>' +
+        '<div id="ct-qr" style="text-align:center;margin:0.3rem 0 0.6rem;min-height:40px;"></div>' +
+        '<button class="btn" onclick="hxShareLink(\'' + jsStr(url) + '\',\'' + jsStr('Help me take care of ' + t.pet_name + ' on Petfi') + '\')">📤 Send the invite</button>' +
+        '<button class="btn secondary" onclick="hxCopy(\'' + jsStr(url) + '\',\'🔗 Invite link copied\')">📋 Copy the link</button>');
+      const seq = sheetSeq;
+      try { const q = await qrFor(url); const box = document.getElementById('ct-qr'); if (box && seq === sheetSeq) box.innerHTML = qrSvg(q, 170); } catch (e) {}
+    }
+    async function careRemoveMember(teamId, uid) {
+      if (!canSaveToCloud('remove them')) return;
+      const { error } = await cloud.from('petfi_care_members').delete().eq('team_id', teamId).eq('user_id', uid);
+      if (error) { toast('⚠️ Could not remove — try again'); return; }
+      CARE_MEMBERS[teamId] = (CARE_MEMBERS[teamId] || []).filter(m => m.user_id !== uid);
+      toast('Removed from the care team'); openCareTeam(teamId);
+    }
+    async function careLeave(teamId) {
+      if (!canSaveToCloud('leave')) return;
+      const { error } = await cloud.from('petfi_care_members').delete().eq('team_id', teamId).eq('user_id', cloudUser.id);
+      if (error) { toast('⚠️ Could not leave — try again'); return; }
+      CARE_TEAMS = CARE_TEAMS.filter(t => t.id !== teamId);
+      closeSheet(); toast('You left the care team'); refreshCare();
+    }
+    function careStopSharing(teamId) {
+      const t = careTeam(teamId); if (!t) return;
+      openSheet('Stop sharing ' + esc(t.pet_name) + '\'s care?',
+        '<p class="sub">Everyone on the team loses access and the shared log is deleted. ' + esc(t.pet_name) + '\'s own records stay with you.</p>' +
+        '<button class="btn" style="background:#c62828;" onclick="careDeleteTeam(\'' + jsStr(teamId) + '\')">Stop sharing</button>' +
+        '<button class="btn secondary" onclick="openCareTeam(\'' + jsStr(teamId) + '\')">Keep sharing</button>');
+    }
+    async function careDeleteTeam(teamId) {
+      if (!canSaveToCloud('stop sharing')) return;
+      const { error } = await cloud.from('petfi_care_teams').delete().eq('id', teamId);
+      if (error) { toast('⚠️ Could not stop sharing — try again'); return; }
+      CARE_TEAMS = CARE_TEAMS.filter(t => t.id !== teamId); delete CARE_LOG[teamId]; delete CARE_MEMBERS[teamId];
+      closeSheet(); toast('Sharing stopped'); refreshCare();
+    }
+
+    // ---- Joining from an invite link (petfi.pet/app/?care=TOKEN) ----
+    (function () {
+      try {
+        const t = new URLSearchParams(location.search).get('care');
+        if (t && /^[A-Za-z0-9_-]{22,40}$/.test(t)) localStorage.setItem(CARE_JOIN_KEY, JSON.stringify({ t, at: Date.now() }));
+      } catch (e) {}
+    })();
+    function careJoinToken() {
+      try {
+        const j = JSON.parse(localStorage.getItem(CARE_JOIN_KEY) || 'null');
+        if (j && j.t && Date.now() - (j.at || 0) < 14 * DAY_MS) return j.t;
+      } catch (e) {}
+      return '';
+    }
+    async function careJoinPending() {
+      const t = careJoinToken(); if (!t || !cloud || !cloudUser) return;
+      const { data, error } = await cloud.rpc('petfi_care_join', { t });
+      try { localStorage.removeItem(CARE_JOIN_KEY); } catch (e) {}
+      if (error) { toast('⚠️ ' + (/expired|used|full/i.test(error.message) ? 'That care-team invite ' + (/full/i.test(error.message) ? 'is for a full team' : /used/i.test(error.message) ? 'was already used' : 'has expired') + ' — ask for a new one' : 'Could not join the care team')); return; }
+      await loadCare(true);
+      const team = careTeam(data);
+      toast('👨‍👩‍👧 You\'re on ' + (team ? team.pet_name + '\'s' : 'the') + ' care team');
+      state.homeTab = 'care'; openTab('home');
+    }
+    // Signed out on the welcome screen with a care invite: say who's asking
+    async function renderCareInviteSlot() {
+      const t = careJoinToken(), slot = document.getElementById('invite-slot');
+      if (!t || !slot || !cloud || slot.innerHTML) return;
+      try {
+        const { data } = await cloud.rpc('petfi_care_invite_info', { t });
+        const r = data && data[0]; if (!r || slot.innerHTML) return;
+        slot.innerHTML = '<div class="note" style="text-align:center;">👨‍👩‍👧 <b>' + esc(r.inviter) + '</b> invited you to help take care of <b>' + esc(r.pet_name) + '</b>. ' +
+          'Join Petfi (it\'s free) or log in, and you\'ll see when ' + esc(r.pet_name) + '\'s been fed, walked and given meds.</div>';
+      } catch (e) {}
+    }
+    setTimeout(renderCareInviteSlot, 1500);
 
     // ======================= INSURANCE QUOTES & VET CHAT =======================
     // Referral links, not advice: insurers pay per quote lead (~$24-36; as of
@@ -9548,6 +10226,29 @@
         toast(p === 'granted' ? (PUSH_ACTIVE ? '🔔 Notifications on — they reach you even when Petfi is closed' : '🔔 Notifications enabled!') : 'You can enable them later in browser settings');
       });
     }
+    // Right after they set something that only works with alerts on
+    function askPushNow() {
+      if (!('Notification' in window) || Notification.permission !== 'default') return;
+      Notification.requestPermission().then(p => { if (p === 'granted') ensurePushSubscription(false); if (state.tab === 'home') openTab('home'); });
+    }
+    // After the welcome tour, a short "why" comes first: a "Block" in the
+    // browser's own prompt can't be undone from the app. Asked once.
+    function askPushAfterTour() {
+      if (!('Notification' in window) || !cloudUser || Notification.permission !== 'default' || state.pushAskedAt) return;
+      state.pushAskedAt = Date.now(); saveState();
+      openSheet('🔔 Want a heads-up?',
+        '<p class="sub" style="margin-bottom:0.8rem;">Petfi can ping you when someone messages you, sends a friend request or finds your pet, and when a dose or vaccine is due — even with the app closed. You choose which ones in Me → Notification settings.</p>' +
+        '<button class="btn" onclick="closeSheet();askNotifPermission()">🔔 Turn on notifications</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+    }
+    // Inline, never a pop-up: shown where an alert matters until alerts work
+    function pushNote(why) {
+      if (!('Notification' in window) || !cloudUser) return '';
+      const link = fn => ' <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="' + fn + '()">Turn on</span>';
+      if (Notification.permission === 'denied') return '<div class="note" style="margin-top:0;">🔕 Notifications are blocked for Petfi in this browser\'s settings — unblock them so alerts reach you.</div>';
+      if (Notification.permission === 'default') return '<div class="note" style="margin-top:0;">🔔 ' + why + link('askNotifPermission') + '</div>';
+      return PUSH_ACTIVE || !pushSupported() ? '' : '<div class="note" style="margin-top:0;">🔔 ' + why + link('turnOnClosedAlerts') + '</div>';
+    }
     function openAddReminder() {
       openSheet('⏰ New reminder',
         '<label>What should we remind you about?</label><input id="rem-what" placeholder="e.g. Feed Tank, clean litter box">' +
@@ -9574,7 +10275,7 @@
       }
       state.reminders.push({ what, freqLabel: f.label, ms: f.ms, months: f.months || 0, day: new Date(next).getDate(), next: next, time: time || '' });
       saveState();
-      if (('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(() => { if (state.tab === 'home') openTab('home'); });
+      askPushNow();
       closeSheet(); refreshCare(); toast('Reminder set ⏰' + (time ? ' for ' + time : ''));
     }
     function deleteReminder(i) {
@@ -9630,6 +10331,7 @@
         }, { onConflict: 'endpoint' });
         if (error) { console.warn('push subscribe:', error.message); PUSH_ACTIVE = false; return false; }
         PUSH_ACTIVE = true;
+        track('push_on');
         state.pushSyncedSig = ''; schedulePushSync(0);
         if (sendTest) { try { await cloud.functions.invoke('petfi-push', { method: 'POST', body: { test: true } }); } catch (e) {} }
         return true;
@@ -9679,7 +10381,9 @@
       if (sig === state.pushSyncedSig) return;
       pushSyncing = true;
       try {
-        const del = await cloud.from('petfi_push_schedule').delete().eq('user_id', cloudUser.id);
+        // Server-queued alerts (finder messages, lost pets, social) aren't the app's to replace
+        const del = await cloud.from('petfi_push_schedule').delete().eq('user_id', cloudUser.id)
+          .not('tag', 'like', 'srv:%').not('tag', 'like', 'found:%').not('tag', 'like', 'lost:%');
         if (del.error) throw del.error;
         if (rows.length) {
           const ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
@@ -9789,7 +10493,7 @@
       if (!date) { toast('Pick a date'); return; }
       state.calendar.push({ what, type: val('cal-type') || 'other', date, time: val('cal-time'), followUpAsked: false, notified: false });
       saveState();
-      if (('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(() => { if (state.tab === 'home') openTab('home'); });
+      askPushNow();
       closeSheet(); refreshCare(); toast('Added to your pet calendar 🗓️');
     }
     function deleteCal(i) {
@@ -9904,7 +10608,7 @@
       document.getElementById('acct-age-err').textContent = '';
       show('s-account');
     }
-    function accountBack() { show(pendingFinish === 'owner' ? 's-owner-interests' : 's-invite'); }
+    function accountBack() { show(pendingFinish === 'owner' ? 's-owner-pet' : 's-invite'); }
     function finishOnboard() {
       if (pendingFinish === 'owner') enterOwnerHome(); else enterSocialHome();
     }
@@ -9934,6 +10638,7 @@
       state.lastEmail = email || ''; state.ageId = cloudUser.id;
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSaveProfile(); syncCloud(); enterApp();
+      track('account_created', 'confirmed');
       if (appActive()) { confetti(); toast('Email confirmed — welcome to Petfi 🐾'); }
     }
     async function resendConfirm(email) {
@@ -9968,6 +10673,7 @@
       }
       if (!data.session) {
         // Email confirmation is on: no session until they click the link
+        track('confirm_wait', pendingFinish);
         if (data.user && data.user.id) rememberAge(true, data.user.id); // ticked here; keyed to the new login so confirming the email doesn't ask again
         stashPendingSignup(email); // their onboarding answers wait here for the first login
         err.style.display = 'none';
@@ -9986,6 +10692,7 @@
       syncCloud();
       confetti();
       toast('Account created — you\'re in 🐾');
+      track('account_created', pendingFinish);
     }
 
     function openLogin() {
@@ -10955,7 +11662,7 @@
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
       if (!cloud || !cloudUser) return;
-      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); loadTags(); }
+      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); loadTags(); loadCare(); }
       else if (name === 'groups') loadGroups();
       else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
       else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); loadTags(); }
@@ -10987,6 +11694,7 @@
       cloudSaveState();
       schedulePushSync(); // reminders or the calendar may have changed (no-op unless they did)
       schedulePassportSync(); // shared health passports follow the record
+      scheduleCareSync();     // and so do care-team snapshots
     }
     // opts.ageBlock (the under-age answer): end only THIS device's session,
     // keep this device's saved copy, and skip the goodbye toast.
@@ -11003,6 +11711,7 @@
       FEED.length = 0; feedLoadedOnce = false;
       PEOPLE = []; FRIENDSHIPS = []; MY_MESSAGES = []; CLOUD_GROUPS = []; LISTINGS = []; CLOUD_MATES = []; CLOUD_ADS = []; CLOUD_HUMANS = []; TERRITORY = [];
       TAGS = {}; TAG_REPORTS = []; LOST_NEAR = []; tagsLoadedAt = 0;
+      CARE_TEAMS = []; CARE_MEMBERS = {}; CARE_LOG = {}; careLoadedAt = 0;
       LOCAL_LISTINGS.length = 0; LOCAL_GROUPS.length = 0; LOCAL_MATES.length = 0;
       Object.keys(PROFILE_BY_ID).forEach(k => delete PROFILE_BY_ID[k]);
       clearInterval(dmPollTimer); dmOpenWith = null; lastSeenMsgId = 0; firstMsgLoad = true;
