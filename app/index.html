@@ -3949,51 +3949,104 @@
     // =====================================================
     //  AFFILIATE CONFIG  ——  THIS IS HOW PETFI EARNS MONEY
     // -----------------------------------------------------
-    //  Paste your OWN tracking IDs here after you're approved. Until then
-    //  the links still work (they just don't earn a commission yet).
-    //
-    //  • Amazon Associates  → https://affiliate-program.amazon.com  (approval
-    //      needed; ~3% on pet supplies, and you earn on the WHOLE cart). Your
-    //      tag looks like "yourname-20". Put it in AFFILIATE.amazonTag.
-    //  • Chewy: Impact pays 1% (15-day cookie) and Impact DECLINED the Petfi
-    //      partner account on 2026-09-14; FlexOffers lists Chewy at 3.2%
-    //      (15-day). Pharmacy and Rx food earn nothing. Paste a function into
-    //      AFFILIATE.chewyLink once approved.
-    //  • One FlexOffers account (flexoffers.com, accepts apps, no traffic
-    //      minimum) covers PetSmart 8%/30d → AFFILIATE.petsmartLink,
-    //      1-800-PetMeds 6%/30d → AFFILIATE.petmedsLink, and Chewy 3.2%.
+    //  Which programs, where they show, the rules, and who has approved us:
+    //  PETFI-AFFILIATE-PLAN.md. Paste IDs below as approvals come in. Until
+    //  a program's ID is here its rows are plain links that work but don't
+    //  earn; pasting one never adds anything new to the app, the same row
+    //  just becomes a "Paid link". Brand-direct rows (a food or litter brand)
+    //  only ever appear for an owner who already tracks that brand by name.
     //  Pet prescriptions pay ~0 everywhere: the money is food, litter and
     //  over-the-counter reorders ("Never run out" in My care).
-    //  FTC: because these pay us, the store shows an affiliate disclosure.
+    //  FTC: every paid row says "Paid link" and each sheet has a disclosure.
     const AFFILIATE = {
       amazonTag: 'petfi-20',  // Amazon Associates tag (approved 2026-09-14)
-      chewyLink: null,        // e.g. q => 'https://chewy.pxf.io/....?u=' + encodeURIComponent('https://www.chewy.com/s?query=' + q)
-      petsmartLink: null,     // q => tracked PetSmart search link
-      petmedsLink: null,      // q => tracked 1-800-PetMeds search link
-      insurance: {},          // { fetch: 'https://…tracked…', petsbest: … } keys as in INSURERS
-      vet: {},                // { vetster: 'https://…tracked…' } keys as in VET_CHATS
+      awin: '',               // Awin publisher id, pasted once after joining Awin
+      // Per brand, as each one approves (keys as in AFF_PROGRAMS):
+      //  • Awin brands: the advertiser id, e.g. tuftpaw: '59149'
+      //  • FlexOffers brands: the brand's deep link from FlexOffers' link
+      //    generator, cut off right after "url=" (their terms say links come
+      //    from their tools, so Petfi only appends the page)
+      ids: {},
+      // Whole tracked links from direct programs that hand out one link
+      links: {},              // e.g. { fetch: 'https://…' }
     };
+    // Every program Petfi may link to, and who tracks it
+    const AFF_PROGRAMS = {
+      // Kept after vetting each company; PETFI-AFFILIATE-PLAN.md says why the rest were skipped
+      chewy: { net: 'flexoffers' }, petsmart: { net: 'flexoffers' }, tractor: { net: 'flexoffers' },
+      petmeds: { net: 'link' },  // its program moved to Ascend; pays on OTC items, not Rx
+      openfarm: { net: 'flexoffers' }, tuftpaw: { net: 'awin' },
+      // Insurance pays per lead or quote only (a fee tied to a policy sale can need a producer license)
+      fetch: { net: 'link' }, healthypaws: { net: 'link' }, spot: { net: 'link' }, lemonade: { net: 'awin' },
+      dutch: { net: 'flexoffers' },
+    };
+    // The tracked version of a link, keeping the exact page (a search, a
+    // product). Returns the plain link until that program is set up. `where`
+    // tags the click (reorder, search, rx…) so the network reports show
+    // which spot earns; letters only.
+    const FLEX_PREFIX = /^https:\/\/track\.flexlinkspro\.com\/\S+[?&]url=$/;
+    function affDeep(key, url, where) {
+      if (AFFILIATE.links[key]) return AFFILIATE.links[key];
+      if (!affOn(key)) return url;
+      const id = AFFILIATE.ids[key], tag = 'petfi' + String(where || '').replace(/[^a-z]/gi, '').slice(0, 20);
+      if (AFF_PROGRAMS[key].net === 'awin') {
+        return 'https://www.awin1.com/cread.php?awinmid=' + encodeURIComponent(id) + '&awinaffid=' + encodeURIComponent(AFFILIATE.awin) +
+          '&clickref=' + tag + '&ued=' + encodeURIComponent(url);
+      }
+      return id + encodeURIComponent(url) + '&fobs=' + tag;  // FlexOffers
+    }
+    function affOn(key) {
+      if (key === 'amazon') return !!AFFILIATE.amazonTag;
+      const P = AFF_PROGRAMS[key], id = AFFILIATE.ids[key];
+      if (AFFILIATE.links[key]) return /^https:\/\//.test(AFFILIATE.links[key]);
+      if (!P || !id) return false;
+      if (P.net === 'awin') return /^\d+$/.test(String(AFFILIATE.awin)) && /^\d+$/.test(String(id));
+      if (P.net === 'flexoffers') return FLEX_PREFIX.test(String(id));
+      return false;
+    }
+    function affLabel(key, plain) { return affOn(key) ? 'Paid link ↗' : (plain || 'Open ↗'); }
     function amazonLink(query) {
       return 'https://www.amazon.com/s?k=' + encodeURIComponent(query) +
         (AFFILIATE.amazonTag ? '&tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
     }
-    // The buy link for a store product — prefers Chewy if you've set it up.
+    // The buy link for a store product (best-seller rows go straight to the
+    // product page, which converts far better than a search)
     function affiliateUrl(p) {
-      if (p.chewy && AFFILIATE.chewyLink) return AFFILIATE.chewyLink(p.q || p.title);
-      // Best-seller rows link straight to the product page (converts far better than a search)
+      if (p.chewy && affOn('chewy')) return affDeep('chewy', 'https://www.chewy.com/s?query=' + encodeURIComponent(p.q || p.title));
       if (p.asin && /^[A-Z0-9]{10}$/.test(p.asin)) {
         return 'https://www.amazon.com/dp/' + p.asin + '/' + (AFFILIATE.amazonTag ? '?tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
       }
       return amazonLink(p.q || p.title);
     }
+    // The big pet stores. Tractor Supply only shows for horses and farm animals.
     const RETAILERS = [
-      // Amazon carries your tag automatically; add tracked links for the rest
-      // once you're approved with each program (Chewy = Impact, etc.).
-      { name: 'Amazon',   emo: '📦', url: q => amazonLink(q) },
-      { name: 'Chewy',    emo: '🐾', url: q => (AFFILIATE.chewyLink ? AFFILIATE.chewyLink(q) : 'https://www.chewy.com/s?query=' + encodeURIComponent(q)) },
-      { name: 'Petco',    emo: '🐶', url: q => 'https://www.petco.com/shop/en/petcostore/search?query=' + encodeURIComponent(q) },
-      { name: 'PetSmart', emo: '🦴', url: q => (AFFILIATE.petsmartLink ? AFFILIATE.petsmartLink(q) : 'https://www.petsmart.com/search/?q=' + encodeURIComponent(q)) },
+      { key: 'amazon',   name: 'Amazon',   emo: '📦', url: q => amazonLink(q) },
+      { key: 'chewy',    name: 'Chewy',    emo: '🐾', url: (q, w) => affDeep('chewy', 'https://www.chewy.com/s?query=' + encodeURIComponent(q), w) },
+      { key: 'petco',    name: 'Petco',    emo: '🐶', url: q => 'https://www.petco.com/shop/en/petcostore/search?query=' + encodeURIComponent(q) },
+      { key: 'petsmart', name: 'PetSmart', emo: '🦴', url: (q, w) => affDeep('petsmart', 'https://www.petsmart.com/search/?q=' + encodeURIComponent(q), w) },
+      { key: 'tractor',  name: 'Tractor Supply', emo: '🚜', farm: true, url: (q, w) => affDeep('tractor', 'https://www.tractorsupply.com/tsc/search/' + encodeURIComponent(q), w) },
     ];
+    const FARM_RE = /\b(horses?|pony|ponies|donkeys?|goats?|sheep|cattle|cows?|pigs?|chickens?|ducks?|turkeys?|alpacas?|llamas?|livestock|poultry|hay|feed store)\b/i;
+    function hasFarmPet() { return hxPets().some(x => FARM_RE.test(String(x.species || ''))); }
+    // The stores for this moment, the owner's last-used one first. No setting
+    // to manage: tapping a store is what moves it to the front.
+    function retailersFor(farm) {
+      const list = RETAILERS.filter(r => !r.farm || farm), last = state.lastStore;
+      return last ? list.filter(r => r.key === last).concat(list.filter(r => r.key !== last)) : list;
+    }
+    function openStoreLink(key, url) {
+      if (state.lastStore !== key) { state.lastStore = key; saveState(); }
+      openLink(url);
+    }
+    // Brands sold direct. One shows on a Reorder sheet only when the owner
+    // already tracks that brand by name and its program is set up.
+    const DIRECT_BRANDS = [
+      // Only brands that pay on every order: subscription brands pay on new
+      // customers only, and someone reordering isn't a new customer
+      { key: 'openfarm', name: 'Open Farm',  re: /open\s*farm/i,              url: 'https://openfarmpet.com/' },
+      { key: 'tuftpaw',  name: 'Tuft + Paw', re: /tuft\s*(\+|&|and)?\s*paw/i, url: 'https://www.tuftandpaw.com/' },
+    ];
+    function directBrandFor(name) { return DIRECT_BRANDS.find(b => b.re.test(String(name || '')) && affOn(b.key)) || null; }
     // What kind of place is the user after? Maps words → map categories.
     const PLACE_TYPES = [
       { re: /groom|wash|bath|spa/i,                    icon: '🛁', sel: ['nwr["shop"="pet_grooming"]', 'nwr["amenity"="dog_wash"]'] },
@@ -4077,12 +4130,13 @@
       // 3) Clean links into the big pet shops (affiliate tags slot in later)
       const webQ = /\b(dog|cat|pet|pupp|kitten|bird|rabbit|hamster|reptile|fish|aquarium|paw)\b/i.test(q) ? q : q + ' pet';
       h += '<div class="sec"><h3>🌐 Shop the web <small style="color:var(--muted);font-weight:400;font-size:0.7rem;">straight to pet stores — no ads</small></h3></div>';
-      h += '<div class="nearby">' + RETAILERS.map(r =>
-        '<div class="user-card" style="cursor:pointer;" onclick="openLink(\'' + jsStr(r.url(webQ)) + '\')">' +
+      h += '<div class="nearby">' + retailersFor(FARM_RE.test(q)).map(r =>
+        '<div class="user-card" style="cursor:pointer;" onclick="openStoreLink(\'' + r.key + '\',\'' + jsStr(r.url(webQ, 'search')) + '\')">' +
           '<div class="u-avatar" style="animation:none;">' + r.emo + '</div>' +
           '<div class="u-name">' + r.name + '</div>' +
           '<div class="u-meta">"' + esc(webQ.slice(0, 20)) + (webQ.length > 20 ? '…' : '') + '"</div>' +
-        '</div>').join('') + '</div>';
+        '</div>').join('') + '</div>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.4rem;">Some of these are paid links: Petfi may earn a commission, at no cost to you.</p>';
 
       box.innerHTML = h;
     }
@@ -5622,7 +5676,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.17.0';
+    const APP_VERSION = '1.18.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8861,11 +8915,11 @@
       other: ['Rabies'],
     };
     // Licensed pet pharmacies. They contact the vet to approve a prescription.
-    // Pet Rx earns no commission at Chewy or Amazon; 1-800-PetMeds says it
-    // may (FlexOffers) — add a tracked link in AFFILIATE.petmedsLink if so.
+    // Pet Rx earns little or nothing anywhere; the tracked links mostly pay
+    // on the over-the-counter items in the same cart.
     const PET_PHARMACIES = [
-      { key: 'chewy',   emo: '🐾', name: 'Chewy Pharmacy', note: 'Contacts your vet for you · Autoship on refills', url: q => 'https://www.chewy.com/s?query=' + encodeURIComponent(q) },
-      { key: 'petmeds', emo: '💊', name: '1-800-PetMeds',  note: 'Contacts your vet for you', url: q => (AFFILIATE.petmedsLink ? AFFILIATE.petmedsLink(q) : 'https://www.1800petmeds.com/search?q=' + encodeURIComponent(q)) },
+      { key: 'chewy',   emo: '🐾', name: 'Chewy Pharmacy', note: 'Contacts your vet for you · Autoship on refills', url: q => affDeep('chewy', 'https://www.chewy.com/s?query=' + encodeURIComponent(q), 'rx') },
+      { key: 'petmeds', emo: '💊', name: '1-800-PetMeds',  note: 'Contacts your vet for you', url: q => affDeep('petmeds', 'https://www.1800petmeds.com/search?q=' + encodeURIComponent(q), 'rx') },
       { key: 'petco',   emo: '🐶', name: 'Petco Pharmacy', note: 'Online or pick up in store', url: q => 'https://www.petco.com/shop/en/petcostore/search?query=' + encodeURIComponent(q) },
       { key: 'walmart', emo: '🛒', name: 'Walmart Pet Rx', note: 'Online pet pharmacy', url: q => 'https://www.walmart.com/search?q=' + encodeURIComponent(q + ' pet rx') },
     ];
@@ -9369,11 +9423,12 @@
       h += '<div class="sec" style="margin-top:0.9rem;"><h3>Order from a pet pharmacy</h3></div>' +
         '<p class="sub" style="margin:-0.4rem 0 0.6rem;font-size:0.8rem;">For a prescription they get your vet\'s OK before shipping — usually 1–3 days, so order early and have the vet\'s name and phone handy (📋 below copies it all).</p>';
       h += PET_PHARMACIES.map(p => '<div class="fav-item" onclick="openLink(\'' + jsStr(p.url(q)) + '\')"><span class="fi">' + p.emo + '</span>' +
-        '<span class="ft">' + esc(p.name) + '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">' + esc(p.note) + '</small></span><span class="fl">Open ↗</span></div>').join('');
+        '<span class="ft">' + esc(p.name) + '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">' + esc(p.note) + '</small></span><span class="fl">' + affLabel(p.key) + '</span></div>').join('');
       h += '<button class="btn secondary" style="margin-top:0.6rem;" onclick="copyRxDetails(\'' + jsStr(id) + '\')">📋 Copy the prescription details</button>';
       h += '<button class="btn secondary" onclick="openRxRequest(\'' + jsStr(id) + '\')">✍️ Ask my vet for a written prescription</button>';
       h += '<button class="btn" onclick="openLogRefill(\'' + jsStr(id) + '\')">✅ Got it — update my count</button>';
-      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Petfi doesn\'t sell or fill prescriptions — your vet or a licensed pharmacy does.</p>';
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Petfi doesn\'t sell or fill prescriptions — your vet or a licensed pharmacy does.' +
+        (PET_PHARMACIES.some(p => affOn(p.key)) ? ' Paid links: Petfi may earn a commission, at no cost to you.' : '') + '</p>';
       openSheet('🔁 Refill ' + esc(m.name), h);
     }
     function hxRxText(m) {
@@ -9546,8 +9601,11 @@
       let h = '<p class="sub" style="margin-bottom:0.6rem;">' + (d == null ? '' : d <= 0 ? 'Ran out ' + hxDate(ro) : 'About ' + d + (d === 1 ? ' day' : ' days') + ' left') + '</p>';
       if (s.link) h += '<button class="btn" onclick="openLink(\'' + jsStr(hxTagLink(s.link)) + '\')">🛒 Reorder from my saved link</button>';
       h += '<div class="sec" style="margin-top:0.6rem;"><h3>Or find it at</h3></div>';
-      h += RETAILERS.map(r => '<div class="fav-item" onclick="openLink(\'' + jsStr(r.url(s.name)) + '\')"><span class="fi">' + r.emo + '</span><span class="ft">' + esc(r.name) +
-        (r.name === 'Chewy' ? '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">Autoship can deliver it on a schedule</small>' : '') + '</span><span class="fl">Search ↗</span></div>').join('');
+      const brand = directBrandFor(s.name), sp = hxPet(s.petId);
+      if (brand) h += '<div class="fav-item" onclick="openLink(\'' + jsStr(affDeep(brand.key, brand.url, 'brand')) + '\')"><span class="fi">🏷️</span><span class="ft">' + esc(brand.name) +
+        '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">Straight from the brand</small></span><span class="fl">Paid link ↗</span></div>';
+      h += retailersFor(sp ? FARM_RE.test(String(sp.species || '')) : hasFarmPet()).map(r => '<div class="fav-item" onclick="openStoreLink(\'' + r.key + '\',\'' + jsStr(r.url(s.name, 'reorder')) + '\')"><span class="fi">' + r.emo + '</span><span class="ft">' + esc(r.name) +
+        (r.key === 'chewy' ? '<small style="display:block;color:var(--muted);font-weight:500;font-size:0.72rem;">Autoship can deliver it on a schedule</small>' : '') + '</span><span class="fl">' + affLabel(r.key, 'Search ↗') + '</span></div>').join('');
       h += '<button class="btn" style="margin-top:0.6rem;" onclick="supplyBought(\'' + jsStr(id) + '\')">✅ Bought it — restart the countdown</button>';
       h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Paid links: Petfi may earn a commission on some purchases, at no cost to you.</p>';
       openSheet('🛒 Reorder ' + esc(s.name), h);
@@ -10002,7 +10060,10 @@
       h += '<button class="btn secondary" onclick="openLink(\'' + jsStr(url + '?print=tags') + '\')">🖨️ Print tag stickers</button>' +
         '<button class="btn secondary" onclick="openTagInfo(\'' + pid + '\')">✏️ What\'s on the tag' + (t.phone ? ' (shows your phone)' : '') + '</button>' +
         '<button class="btn secondary" onclick="openLink(\'' + jsStr(url) + '\')">👀 See what a finder sees</button>' +
-        '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Tip: print the stickers, or save this QR to your phone and order a blank QR pet tag — any engraver can print it.</p>';
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Tip: print the stickers, or save this QR to your phone and order a ' + (t.lost ? 'blank QR pet tag —' : '<span class="link" onclick="openLink(\'' + jsStr(amazonLink('blank metal qr code pet id tag')) + '\')">blank QR pet tag</span> (paid link) —') + ' any engraver can print it.</p>';
+      // Quiet tips, never while the pet is lost. The microchip check is free and unpaid.
+      if (!t.lost) h += '<p class="sub" style="font-size:0.72rem;margin-top:0.2rem;">Microchipped? Check it\'s registered to you with the free <span class="link" onclick="openLink(\'https://www.petmicrochiplookup.org/\')">AAHA chip lookup</span>.' +
+        (/^(dog|cat)$/i.test(String(pet.species || '')) ? ' Want live location too? See <span class="link" onclick="openLink(\'' + jsStr(amazonBestLink(String(pet.species).toLowerCase() + ' gps tracker')) + '\')">GPS trackers</span> (paid link).' : '') + '</p>';
       openSheet('🏷️ ' + esc(pet.name) + '\'s ID tag', h);
       const seq = sheetSeq;
       try { const q = await qrFor(url); const box = document.getElementById('tag-qr'); if (box && seq === sheetSeq) box.innerHTML = qrSvg(q, 180); } catch (e) {}
@@ -10691,8 +10752,8 @@
     // Referral links, not advice: insurers pay per quote lead (~$24-36; as of
     // 2026-11 Pets Best and Healthy Paws take applications by form, Fetch by
     // contact form, Trupanion and Lemonade through Impact, which declined
-    // Petfi on 2026-09-14) and Vetster pays per booked visit. Until a tracked link is pasted
-    // into AFFILIATE.insurance / AFFILIATE.vet, these are plain links. Keep the
+    // Petfi on 2026-09-14) and Vetster pays per booked visit. Until a program is set
+    // up in AFFILIATE (ids or links, same keys), these are plain links. Keep the
     // copy neutral: in some states only a licensed agent may discuss coverage
     // or be paid on a sale, so Petfi never compares plans or recommends one.
     const INSURERS = [
@@ -10709,6 +10770,7 @@
       { key: 'vetster', emo: '🩺', name: 'Vetster',  note: 'Book a video visit with a licensed vet, 24/7', url: 'https://vetster.com/en-us' },
       { key: 'airvet',  emo: '📱', name: 'Airvet',   note: 'Video call a vet from your phone', url: 'https://www.airvet.com/' },
       { key: 'pawp',    emo: '💬', name: 'Pawp',     note: 'Membership with unlimited vet chat', url: 'https://pawp.com/' },
+      { key: 'dutch',   emo: '🩺', name: 'Dutch',    note: 'Vet video visits by membership', url: 'https://www.dutch.com/' },
     ];
     function hxPaidRow(emo, name, note, url, paid) {
       return '<div class="fav-item" onclick="openLink(\'' + jsStr(url) + '\')"><span class="fi">' + emo + '</span>' +
@@ -10716,17 +10778,15 @@
         '<span class="fl">' + (paid ? 'Paid link ↗' : 'Open ↗') + '</span></div>';
     }
     function openInsurance() {
-      const tracked = AFFILIATE.insurance || {};
       openSheet('🛡️ Pet insurance quotes',
         '<p class="sub" style="margin-bottom:0.7rem;">Get a quote straight from the insurer — most take a couple of minutes with your pet\'s age and breed. Petfi doesn\'t sell insurance or recommend a plan; read each policy for what it covers.</p>' +
-        INSURERS.map(x => hxPaidRow('🛡️', x.name, '', tracked[x.key] || x.url, !!tracked[x.key])).join('') +
+        INSURERS.map(x => hxPaidRow('🛡️', x.name, '', affDeep(x.key, x.url), affOn(x.key))).join('') +
         '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Already insured? Add the company and policy number in your pet\'s details so it\'s handy at the vet.</p>');
     }
     function openVetChat() {
-      const tracked = AFFILIATE.vet || {};
       openSheet('💬 Talk to a vet online',
         '<p class="sub" style="margin-bottom:0.7rem;">Not sure it\'s an emergency? A vet or vet tech can look over a video or photos and tell you whether to go in. For poisoning or trouble breathing, call poison control or go to an emergency vet now.</p>' +
-        VET_CHATS.map(x => hxPaidRow(x.emo, x.name, x.note, tracked[x.key] || x.url, !!tracked[x.key])).join('') +
+        VET_CHATS.map(x => hxPaidRow(x.emo, x.name, x.note, affDeep(x.key, x.url), affOn(x.key))).join('') +
         '<button class="btn secondary" style="margin-top:0.6rem;" onclick="openPetEmergency()">🚨 Pet emergency numbers</button>');
     }
 
