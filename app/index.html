@@ -972,10 +972,11 @@
         <div class="t-label">Only chat with friends<small>Strangers can still bark/meow at you</small></div>
         <label class="switch"><input type="checkbox" id="tog-friendsonly"><span class="slider"></span></label>
       </div>
-      <div class="toggle-row">
-        <div class="t-label">Hide owner accounts<small>See only other pets — change it any time</small></div>
-        <label class="switch"><input type="checkbox" id="tog-petsonly"><span class="slider"></span></label>
-      </div>
+      <label style="margin-top:1.2rem;">Who do you want to connect with?</label>
+      <p class="sub" style="font-size:0.8rem;margin:0 0 0.4rem;">Pick one, two or all three. Tick only “Verified members” to hear just from ID-checked people. Change it any time in Settings.</p>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Fun, social Pet accounts: barks, meows and friends</small></div><input type="checkbox" id="aud-pets" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🧑‍💼 Owners &amp; businesses<small>Real people buying, selling, breeding and offering services</small></div><input type="checkbox" id="aud-owners" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">✔️ Verified members<small>Anyone who passed Petfi's ID check</small></div><input type="checkbox" id="aud-verified" checked style="width:22px;height:22px;"></label>
 
       <button class="btn" onclick="show('s-invite')">Continue</button>
     </section>
@@ -1023,6 +1024,11 @@
         <div class="pick" role="button" tabindex="0" data-i="Local spots" onclick="toggleInterest(this)"><span class="e">📍</span>Local spots</div>
       </div>
 
+      <label style="margin-top:1.2rem;">Who do you want to connect with?</label>
+      <p class="sub" style="font-size:0.8rem;margin:0 0 0.4rem;">Pick one, two or all three. Tick only “Verified members” to hear just from ID-checked people. Change it any time in Settings.</p>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Fun, social Pet accounts: barks, meows and friends</small></div><input type="checkbox" id="oaud-pets" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🧑‍💼 Owners &amp; businesses<small>Real people buying, selling, breeding and offering services</small></div><input type="checkbox" id="oaud-owners" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">✔️ Verified members<small>Anyone who passed Petfi's ID check</small></div><input type="checkbox" id="oaud-verified" checked style="width:22px;height:22px;"></label>
       <button class="btn blue" onclick="showOwnerPet()">Continue</button>
     </section>
 
@@ -2321,7 +2327,7 @@
       state.status = ''; // added later from the profile page
       state.visible = document.getElementById('tog-visible').checked;
       state.friendsOnly = document.getElementById('tog-friendsonly').checked;
-      state.petsOnly = document.getElementById('tog-petsonly').checked;
+      state.audience = audienceFromBoxes('aud-');
       const z = val('pet-zip');
       if (/^\d{5}$/.test(z)) state.zip = z;
       state.verified = false;
@@ -2360,6 +2366,7 @@
       state.sellerApproved = true;
       state.visible = true;
       state.friendsOnly = false;
+      state.audience = audienceFromBoxes('oaud-');
       // The first pet from sign-up (once, even if this runs twice)
       const pn = val('owner-pet-name').slice(0, 40);
       if (pn && !(state.pets || []).some(x => x.name === pn)) {
@@ -4863,7 +4870,7 @@
           '<div class="link-row" onclick="startVerify()"><span class="li">🪪</span><div>ID verification<small>' +
           (state.verified ? 'Verified ✔︎ — your trust badge is live'
             : state.verifyWaitlist ? 'You\'re on the list — tap to check if it\'s open'
-            : 'Earn a trust badge for selling &amp; breeding — government ID + selfie, one-time $3') +
+            : 'One-time $3: trust badge, sell, offer services, Mate Match' + (AVATAR.ready ? ', AI avatar' : '')) +
           '</small></div><span class="chev">›</span></div>' +
         '</div>';
       }
@@ -4908,7 +4915,7 @@
       h += '<div class="settings-card">';
       h += settingToggle('visible', 'Show me nearby', 'Let users in your area find you', state.visible);
       h += settingToggle('friendsOnly', 'Only friends can message', 'Strangers can still bark/meow at you', state.friendsOnly);
-      if (isPet) h += settingToggle('petsOnly', 'Hide owner accounts', 'Pets only: owners\' posts, comments, messages and barks are hidden from you', state.petsOnly);
+      h += audienceSettingsHtml();
       if (!isPet) h += settingToggle('showMates', 'Show my breeding picks', 'On = the pets you\'ve saved as breeding picks appear on your public profile', state.showMates);
       h += settingToggle('soundsSend', 'Play my bark/meow when I say hi', 'Hear your own voice when you tap 🔊', state.soundsSend !== false);
       h += settingToggle('soundsReceive', 'Sound when someone barks at me', 'Hear their bark or meow arrive', state.soundsReceive !== false);
@@ -5566,7 +5573,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.14.0';
+    const APP_VERSION = '1.15.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5595,7 +5602,7 @@
         '<ul><li>Petfi is a <b>venue</b> — sales, purchases and breeding arrangements happen directly between users. Petfi is not a party to those transactions and doesn\'t guarantee them.</li>' +
         '<li>Listings must be honest: real photos, true prices, and (for breeding) accurate age, health and pedigree information.</li>' +
         '<li>Farm and livestock breeding listings (cattle, goats, sheep, horses, pigs, poultry and others) are welcome. You are responsible for any state agriculture, health-certificate, brand-inspection and transport rules that apply to your animals.</li>' +
-        '<li>Selling anything in the Pet Store (products, food, pets or services) requires an Owner account and Petfi ID verification. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
+        '<li>Selling anything in the Pet Store (products, food, pets or services) requires an Owner account and Petfi ID verification. So does posting a breeding listing in Mate Match. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
         '<li><b>Payments:</b> Petfi does not process payments. Buyers and sellers arrange payment, pickup and shipping directly. Petfi currently charges no fee on member listings. Never pay a seller you haven\'t spoken with, and prefer in-person exchange for live animals.</li>' +
         '<li><b>No homemade consumables:</b> food, treats and anything a pet ingests must be sealed, commercially licensed products — the same regulations real pet stores follow.</li>' +
         '<li><b>Shipping &amp; refunds:</b> delivery and refunds are entirely between buyer and seller (and any retail partner, e.g. Amazon). Petfi is not responsible for an order at any point.</li>' +
@@ -6007,6 +6014,7 @@
         openSheet('✨ AI avatar',
           '<p class="sub">Turn ' + (avatarIsPet() ? 'a photo of your pet' : 'a selfie') + ' into a cartoon avatar that actually looks like ' + (avatarIsPet() ? 'them' : 'you') + '.</p>' +
           '<div class="note">🪪 It comes <b>free with ID verification</b> — the one-time $3 check that also gets you the trust badge. You get ' + AVATAR.cap + ' tries.</div>' +
+          verifyPerksHtml('One $3 check unlocks all of this') +
           '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and unlock it</button>' +
           '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
         return;
@@ -6144,10 +6152,14 @@
     // After the ID check passes: say the avatar is unlocked
     function avatarAfterVerified() {
       loadAvatarStatus(true).then(a => {
-        if (!a.ready || a.left <= 0) return;
-        setTimeout(() => openSheet('✨ Your AI avatar is unlocked',
-          '<p class="sub">Verification includes an AI avatar made from ' + (avatarIsPet() ? 'a photo of your pet' : 'your selfie') + ' — ' + a.left + ' tries to get it just right.</p>' +
-          '<button class="btn" onclick="openAvatarMaker()">✨ Make my avatar</button>' +
+        const owner = state.accountType === 'owner';
+        setTimeout(() => openSheet('🎉 You\'re verified!',
+          '<p class="sub">Your ' + vbadge() + ' trust badge is live. Here\'s everything you can do now:</p>' +
+          (a.ready && a.left > 0 ? '<button class="btn" onclick="openAvatarMaker()">✨ Make my AI avatar</button>' : '') +
+          (owner ? '<button class="btn secondary" onclick="closeSheet();openSell()">🛒 Sell something</button>' +
+            '<button class="btn secondary" onclick="closeSheet();openOfferService()">🧑‍🔧 Offer a pet service</button>' +
+            '<button class="btn secondary" onclick="closeSheet();startMateListing()">💘 List an animal in Mate Match</button>'
+            : '<p class="sub" style="font-size:0.8rem;">Selling, services and Mate Match listings use an Owner account.</p>') +
           '<button class="btn secondary" onclick="closeSheet()">Later</button>'), 1800);
       });
     }
@@ -6160,7 +6172,42 @@
       if (!id || (cloudUser && id === cloudUser.id)) return false;
       if (isBlocked(id) || isBannedUser(id)) return true;
       const p = PROFILE_BY_ID[id];
-      return !!(state.petsOnly && state.accountType === 'pet' && p && p.kind === 'owner');
+      return !!(p && !audienceShows(p));
+    }
+    // "Who do you want to connect with?": Pet pals, Owners & businesses,
+    // Verified members, any mix. A member shows if they're in ANY ticked
+    // group. The old "Hide owner accounts" switch becomes Pet pals only.
+    function myAudience() {
+      if (!state.audience && state.petsOnly && state.accountType === 'pet') state.audience = { pets: true, owners: false, verified: false };
+      const a = state.audience || {};
+      return (a.pets || a.owners || a.verified) ? a : { pets: true, owners: true, verified: true };
+    }
+    function audienceShows(p) {
+      const a = myAudience();
+      if (a.pets && a.owners) return true;
+      return !!((a.pets && p.kind !== 'owner') || (a.owners && p.kind === 'owner') || (a.verified && p.verified));
+    }
+    function audienceFromBoxes(prefix) {
+      const on = k => { const e = document.getElementById(prefix + k); return !e || e.checked; };
+      const a = { pets: on('pets'), owners: on('owners'), verified: on('verified') };
+      return (a.pets || a.owners || a.verified) ? a : { pets: true, owners: true, verified: true };
+    }
+    function audienceSettingsHtml() {
+      const a = myAudience();
+      const row = (k, t, sub) => '<label class="toggle-row" style="cursor:pointer;"><div class="t-label">' + t + '<small>' + sub + '</small></div>' +
+        '<input type="checkbox" ' + (a[k] ? 'checked' : '') + ' onchange="setAudience(\'' + k + '\',this)" style="width:22px;height:22px;"></label>';
+      return '<div class="t-label" style="margin:0.6rem 0 0.2rem;font-weight:800;">Who you connect with<small>Posts, messages and members from the groups you tick. Pick one, two or all three.</small></div>' +
+        row('pets', '🐾 Pet pals', 'Fun, social Pet accounts') +
+        row('owners', '🧑‍💼 Owners &amp; businesses', 'People buying, selling, breeding and offering services') +
+        row('verified', '✔️ Verified members', 'Anyone who passed Petfi\'s ID check');
+    }
+    function setAudience(k, box) {
+      const a = Object.assign({}, myAudience());
+      a[k] = !!box.checked;
+      if (!a.pets && !a.owners && !a.verified) { box.checked = true; toast('Keep at least one group'); return; }
+      state.audience = a; state.petsOnly = false; saveState();
+      lastPostsFetch = 0; lastPeopleFetch = 0;
+      toast(a.pets && a.owners ? 'Showing everyone' : 'Got it, showing only the groups you picked');
     }
     // Blocks live in the database too (petfi-fixes-2026-11-01.sql): they stop
     // messages and friend requests, and hide your profile from that person.
@@ -7083,11 +7130,12 @@
     }
     function sellGate(kind) {
       if (state.verified) return true;
-      const svc = kind === 'service';
-      openSheet(svc ? '🧑‍🔧 Offer a pet service' : '🛒 Sell in the Pet Store',
-        '<p class="sub">' + (svc ? 'Dog walking, sitting, poop scooping, grooming, training, custom pet art: list it here and pet owners near you can message you.' : 'List products, pets or services for Petfi members near you and across the country.') + '</p>' +
-        '<div class="note">🪪 <b>Selling on Petfi is for ID-verified members only</b>, so every seller and provider is accountable for what they offer. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
-        '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and start selling</button>' +
+      const svc = kind === 'service', mate = kind === 'mate';
+      openSheet(mate ? '💘 List an animal for breeding' : svc ? '🧑‍🔧 Offer a pet service' : '🛒 Sell in the Pet Store',
+        '<p class="sub">' + (mate ? 'Find a breeding partner near you: dogs, cats, horses, goats, cattle, chickens and more.' : svc ? 'Dog walking, sitting, poop scooping, grooming, training, custom pet art: list it here and pet owners near you can message you.' : 'List products, pets or services for Petfi members near you and across the country.') + '</p>' +
+        '<div class="note">🪪 <b>' + (mate ? 'Mate Match listings are' : 'Selling on Petfi is') + ' for ID-verified members only</b>, so every ' + (mate ? 'breeder' : 'seller and provider') + ' is accountable for what they offer. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
+        verifyPerksHtml('One $3 check unlocks all of this') +
+        '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 ' + (mate ? 'Verify and list my animal' : 'Verify and start selling') + '</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
       return false;
     }
@@ -7787,7 +7835,7 @@
     let brKeptPhotos = [];    // already-uploaded photos kept while editing
     let brEdit = null;        // the CLOUD_MATES entry being edited, or null when creating
     function startMateListing() {
-      if (!requireSeller('list an animal for breeding')) return;
+      if (!requireSeller('list an animal for breeding') || !sellGate('mate')) return;
       const pets = state.pets || [];
       if (pets.length) {
         openSheet('Which animal?',
@@ -7846,6 +7894,7 @@
         '<p class="sub" style="font-size:0.85rem;margin:0.35rem 0 0;">Others see only your <b>town and distance</b> — never your ZIP or address.</p>' +
         '<label>Farm, kennel or business name <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="text" id="br-biz" placeholder="e.g. Reyes Family Farm">' +
         '<div class="note" style="font-size:0.9rem;">Your listing shows your business name — or just your first name marked “Private breeder”. Interested owners message you inside Petfi.</div>' +
+        (listing ? '' : sellerTermsBox()) +
         '<button class="btn mm-publish" id="br-btn" onclick="saveBreedingListing()">' + (listing ? 'Save changes' : 'Publish my listing 💘') + '</button>' +
         '</div>');
       if (listing) {
@@ -7897,6 +7946,7 @@
     async function saveBreedingListing() {
       if (!canSaveToCloud('list an animal')) return;
       const editing = brEdit;
+      if (!editing && !sellerTermsOk()) return;
       const btnLabel = editing ? 'Save changes' : 'Publish my listing 💘';
       const name = val('br-name'), breed = val('br-breed'), age = val('br-age'), comp = val('br-comp'), zip = val('br-zip');
       const missing = [];
@@ -8460,6 +8510,21 @@
       if (typeof window.getDigitalGoodsService !== 'function') return null;
       try { return await window.getDigitalGoodsService(PLAY_BILLING); } catch (e) { return null; }
     }
+    // Everything the one-time $3 ID check unlocks (the AI avatar only once it's switched on)
+    function verifyPerks() {
+      return [
+        ['✔︎', 'Trust badge', 'on your profile and everything you post, sell or list'],
+        ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
+        ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
+        ['💘', 'List in Mate Match', 'find breeding partners for your dogs, cats, horses and farm animals'],
+      ].concat(AVATAR.ready ? [['✨', 'AI avatar', 'a cartoon of your pet or you, drawn from a photo, ' + AVATAR.cap + ' tries']] : [])
+       .concat([['🤝', 'Members know you\'re real', 'buyers, clients and breeders can see you\'re a verified, accountable person']]);
+    }
+    function verifyPerksHtml(title) {
+      return '<div class="hx-card" style="margin:0.6rem 0;"><div style="font-weight:800;margin-bottom:0.35rem;">' + esc(title || 'What you get for $3') + '</div>' +
+        verifyPerks().map(x => '<div style="display:flex;gap:0.55rem;align-items:flex-start;margin:0.35rem 0;"><span style="font-size:1.1rem;width:1.4rem;text-align:center;">' + x[0] + '</span>' +
+          '<div><b>' + esc(x[1]) + '</b><br><span style="color:var(--muted);font-size:0.82rem;">' + esc(x[2]) + '</span></div></div>').join('') + '</div>';
+    }
     function verifyStepsHtml() {
       return '<div class="vstep"><div class="vn">1</div><div><b>Photo of your government ID</b><br><span style="color:var(--muted);">Driver\'s license, passport or ID card</span></div></div>' +
         '<div class="vstep"><div class="vn">2</div><div><b>Quick selfie</b><br><span style="color:var(--muted);">Matched to your ID by Stripe Identity — Petfi never sees the photos</span></div></div>' +
@@ -8502,7 +8567,7 @@
     function renderVerifyWaitlist() {
       openSheet('🪪 ID verification',
         '<p class="sub">Soon, owners will be able to verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
-        verifyStepsHtml() +
+        verifyPerksHtml('What it will unlock') + verifyStepsHtml() +
         '<div class="note">💳 Verification will be a <b>one-time $3 fee</b>. Nothing is charged, uploaded or stored today.</div>' +
         (state.verifyWaitlist
           ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ You\'re on the list — we\'ll email <b>' + esc(cloudUser ? cloudUser.email : 'you') + '</b> when it opens.</div>' +
@@ -8523,13 +8588,13 @@
         h += row.status === 'failed'
           ? '<div class="note" style="background:#fdeef0;color:#a03a5a;">Last time ' + esc(verifyFailText(row.fail_reason)) + '. You can try again — <b>no extra charge</b>.</div>'
           : '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Paid. Finish the ID check to get your badge.</div>';
-        h += verifyStepsHtml() + avatarPerkHtml() +
+        h += verifyPerksHtml('What your $3 unlocks') + verifyStepsHtml() +
           '<button class="btn blue" id="vf-btn" onclick="continueVerify()">🪪 ' + (row.status === 'failed' ? 'Try the ID check again' : 'Finish my ID check') + '</button>' +
           '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
       } else {
         h += '<p class="sub">Verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
-          verifyStepsHtml() + avatarPerkHtml() +
-          '<div class="note">🛒 <b>Verified members can sell products and offer services</b> in the Pet Store, under the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand);font-weight:700;">Seller &amp; Service Provider Terms</a>: you\'re responsible for anything you sell or provide.</div>' +
+          verifyPerksHtml() + verifyStepsHtml() +
+          '<div class="note">🛒 Selling, services and Mate Match come with the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand);font-weight:700;">Seller &amp; Service Provider Terms</a>: you\'re responsible for anything you sell or provide.</div>' +
           sellerTermsBox() +
           '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
           '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
