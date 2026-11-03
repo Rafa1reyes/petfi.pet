@@ -3961,7 +3961,7 @@
     //  FTC: every paid row says "Paid link" and each sheet has a disclosure.
     const AFFILIATE = {
       amazonTag: 'petfi-20',  // Amazon Associates tag (approved 2026-09-14)
-      awin: '',               // Awin publisher id, pasted once after joining Awin
+      awin: '3143913',        // Awin publisher id (Spindola Software, approved 2026-11-03)
       // Per brand, as each one approves (keys as in AFF_PROGRAMS):
       //  • Awin brands: the advertiser id, e.g. tuftpaw: '59149'
       //  • FlexOffers brands: the brand's deep link from FlexOffers' link
@@ -4195,8 +4195,8 @@
 
     // ======================= THE PETFI PLEDGE & GIFTS =======================
     // Half of all Petfi profit (store commissions, ads, the badge) and 100% of
-    // gifts go to the Pledge fund. Half of the fund helps members with vet
-    // bills, cremation and adoption fees (members who give are first in line);
+    // gifts go to the Pledge fund. Half of the fund helps verified members with
+    // vet bills, cremation, pet food and adoption fees (requests: Pledge assistance below);
     // the other half goes to shelters and animal organizations.
     // Gifts: Play Billing inside the Android app (Play's rule for anything
     // paid in the app), Stripe Checkout on petfi.pet. The server (petfi-donate)
@@ -4205,7 +4205,7 @@
     const DONATE_PRESETS = [500, 1000, 2000];
     const PLAY_DONATE_SKUS = { 500: 'donate_5', 1000: 'donate_10', 2000: 'donate_20', 5000: 'donate_50', 10000: 'donate_100' };
     const LEDGER_KIND = {
-      vet: ['🚑', 'Vet bill'], cremation: ['🕊️', 'Cremation'], adoption: ['🏡', 'Adoption fee'],
+      vet: ['🚑', 'Vet bill'], cremation: ['🕊️', 'Cremation'], adoption: ['🏡', 'Adoption fee'], food: ['🥫', 'Pet food'],
       shelter: ['🏠', 'Shelter'], organization: ['🤝', 'Organization'], other: ['🐾', 'Other'],
     };
     let donateShelters = null; // shelters near the user's ZIP, cached
@@ -4304,14 +4304,15 @@
         (isAdmin() ? '<button class="btn secondary" onclick="openLedgerEntry()">➕ Record a gift given (admin)</button>' +
           '<button class="btn secondary" onclick="openTopDonors()">🏆 Top supporters (admin)</button>' +
           '<button class="btn secondary" onclick="openProfitEntry()">📅 Record monthly profit (admin)</button>' : '') +
-        '<div class="sec"><h3>🆘 A vet bill or a goodbye you can\'t cover?</h3></div>' +
-        '<div class="note">Members who give are first in line for help. Email <a href="mailto:support@petfi.pet?subject=Petfi%20Pledge%20help">support@petfi.pet</a> from the email on your account with what happened and the bill. Petfi\'s treasurer decides each case; the fund is finite, so no promise is made in advance.</div>' +
+        '<div class="sec"><h3>🆘 Need help with a vet bill, a cremation or pet food?</h3></div>' +
+        '<div id="assist-box"><div class="note">⏳ Loading…</div></div>' +
         '<div class="sec"><h3>🏠 Or give straight to a shelter</h3></div>' +
         '<div id="donate-list"><div class="note">⏳ Finding real shelters near you…</div></div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
       loadLedger();
       loadMyGiving();
       loadDonateShelters();
+      renderAssistSection();
       // Live: the total refreshes while the page is open
       const seq = sheetSeq;
       const tick = setInterval(() => {
@@ -4327,7 +4328,8 @@
         : '<button class="pill-btn ghost" style="font-size:0.95rem;padding:0.55rem 1rem;" onclick="customDonation()">Custom amount</button>';
       return '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin:0.3rem 0 0.5rem;">' + DONATE_PRESETS.map(c => chip(c)).join('') + more + '</div>' +
         '<p class="sub" style="font-size:0.78rem;text-align:center;">100% of your gift goes to the Pledge fund — Petfi pays the card and app-store fees itself. Gifts are not tax-deductible.</p>' +
-        '<div id="donate-mine" class="sub" style="font-size:0.84rem;text-align:center;"></div>';
+        '<div id="donate-mine" class="sub" style="font-size:0.84rem;text-align:center;"></div>' +
+        '<div id="donate-monthly"></div>';
     }
     function customDonation() {
       openSheet('💝 Custom gift',
@@ -4390,7 +4392,7 @@
     function thankDonor(cents) {
       confetti();
       openSheet('💖 Thank you',
-        '<div class="pledge-hero"><div class="big">' + pledgeMoney(cents) + '</div><h3>is in the Pledge fund</h3><p>Half of it helps a member with a vet bill, a cremation or an adoption fee; half goes to a shelter or animal organization. Every dollar given away is listed on the Pledge page with the date and who received it.</p></div>' +
+        '<div class="pledge-hero"><div class="big">' + pledgeMoney(cents) + '</div><h3>is in the Pledge fund</h3><p>Half of it helps a verified member with a vet bill, a cremation, pet food or an adoption fee; half goes to a shelter or animal organization. Every dollar given away is listed on the Pledge page with the date and who received it.</p></div>' +
         '<button class="btn" onclick="openDonate()">See where the money goes</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
@@ -4416,12 +4418,60 @@
       const m = r.mine;
       if (m && m.gifts) box.innerHTML = '💖 You\'ve given <b>' + pledgeMoney(m.total_cents) + '</b> across ' + m.gifts + ' gift' + (m.gifts > 1 ? 's' : '') + ' — thank you.';
       else if (r.ready === false && !IS_PLAY_APP) box.innerHTML = '<span style="color:var(--muted);">Card gifts open in a few days.</span>';
+      const mb = document.getElementById('donate-monthly');
+      if (mb) mb.innerHTML = monthlyHtml(r);
+    }
+    // ---- Monthly gifts: any amount, every dollar to the Pledge fund ----
+    // Web only (Stripe subscriptions). The Android app would need Play
+    // subscription products, so it doesn't offer monthly gifts yet.
+    const MONTHLY_PRESETS = [200, 500, 1000, 2000];
+    let MONTHLY_NOW = null;
+    function monthlyHtml(r) {
+      if (IS_PLAY_APP || !r || r.ready === false || r.error) return '';
+      MONTHLY_NOW = r.monthly || null;
+      if (MONTHLY_NOW) {
+        return '<div class="hx-card" style="text-align:center;margin-top:0.6rem;"><div style="font-weight:800;">💞 You give ' + pledgeMoney(MONTHLY_NOW.amount_cents) + ' every month</div>' +
+          '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.4rem;">Since ' + pledgeDate(MONTHLY_NOW.since) + '. Thank you for keeping the fund going.</p>' +
+          '<button class="pill-btn ghost" onclick="cancelMonthly()">Cancel my monthly gift</button></div>';
+      }
+      const chip = c => '<button class="pill-btn ghost" style="font-size:0.9rem;padding:0.5rem 0.9rem;" onclick="startMonthly(' + c + ')">' + pledgeMoney(c) + '/mo</button>';
+      return '<div class="hx-card" style="text-align:center;margin-top:0.6rem;"><div style="font-weight:800;">💞 Or give every month</div>' +
+        '<div style="display:flex;gap:0.45rem;flex-wrap:wrap;justify-content:center;margin:0.45rem 0;">' + MONTHLY_PRESETS.map(chip).join('') +
+        '<button class="pill-btn ghost" style="font-size:0.9rem;padding:0.5rem 0.9rem;" onclick="customMonthly()">Other amount</button></div>' +
+        '<p class="sub" style="font-size:0.74rem;margin:0;">Charged every month until you cancel, and you can cancel anytime right here in one tap. 100% goes to the Pledge fund. Not tax-deductible.</p></div>';
+    }
+    function customMonthly() {
+      openSheet('💞 Monthly gift',
+        '<label>Amount each month in US dollars <small style="color:var(--muted);font-weight:400;">($1 to $1,000)</small></label>' +
+        '<input id="monthly-custom" type="number" inputmode="decimal" min="1" max="1000" step="1" placeholder="e.g. 15">' +
+        '<p class="sub" style="font-size:0.78rem;">Charged every month until you cancel. Cancel anytime on the Pledge page.</p>' +
+        '<button class="btn" onclick="startMonthly(Math.round(parseFloat(val(\'monthly-custom\') || 0) * 100))">Continue to payment</button>' +
+        '<button class="btn secondary" onclick="openDonate()">Back</button>');
+      setTimeout(() => { const i = document.getElementById('monthly-custom'); if (i) i.focus(); }, 50);
+    }
+    async function startMonthly(cents) {
+      if (!(cloud && cloudUser)) { toast('Sign in to give'); return; }
+      if (IS_PLAY_APP) return;
+      if (!isFinite(cents) || cents < 100 || cents > 100000) { toast('Monthly gifts are $1 to $1,000'); return; }
+      openSheet('💞 Thank you', '<div class="note">⏳ Opening secure checkout…</div>');
+      const r = await donateCall('monthly', { amount_cents: cents });
+      if (r.url) { location.href = r.url; return; }
+      if (r.error === 'already_monthly') { openSheet('💞 Monthly gift', '<div class="note">You already give every month. To change the amount, cancel it on the Pledge page and start a new one.</div><button class="btn secondary" onclick="openDonate()">Back</button>'); return; }
+      donateFail(r.error);
+    }
+    async function cancelMonthly() {
+      const m = MONTHLY_NOW;
+      if (!m || !confirm('Cancel your monthly gift of ' + pledgeMoney(m.amount_cents) + '? You won\'t be charged again.')) return;
+      const r = await donateCall('monthly_cancel');
+      if (!r.ok) { toast('⚠️ Could not cancel just now. Please try again, or email support@petfi.pet'); return; }
+      toast('Monthly gift cancelled. Thank you for every month you gave 💞');
+      openDonate();
     }
     function ledgerTotalsHtml(t) {
       const cell = (big, small) => '<div style="flex:1;min-width:95px;"><div style="font-weight:900;font-size:1.05rem;">' + big + '</div><div style="font-size:0.72rem;color:var(--muted);line-height:1.25;">' + small + '</div></div>';
       return '<div class="note" style="display:flex;gap:0.6rem;text-align:center;flex-wrap:wrap;">' +
         cell(pledgeMoney(t.given_cents), 'given away<br>' + (t.gifts || 0) + ' gift' + (t.gifts === 1 ? '' : 's')) +
-        cell(pledgeMoney(t.given_members_cents), 'to members<br>vet · cremation · adoption') +
+        cell(pledgeMoney(t.given_members_cents), 'to members<br>vet · cremation · food · adoption') +
         cell(pledgeMoney(t.given_orgs_cents), 'to shelters &amp;<br>organizations') +
         '</div>' +
         (t.last_given_on ? '<p class="sub" style="font-size:0.74rem;text-align:center;margin:-0.3rem 0 0.6rem;">Last gift given ' + pledgeDate(t.last_given_on) + '</p>' : '');
@@ -4458,6 +4508,277 @@
         box().innerHTML = '<div class="note">The ledger is unavailable right now.</div>';
       }
     }
+    // ---- Pledge assistance: ID-verified members ask the fund for help ----
+    // A verified member uploads a vet, cremation or pet-food bill. An admin
+    // checks it with the provider, says within a day how much the fund covers
+    // (all or part), and pays the provider directly, never the member. Closed
+    // until an admin opens it; schema in petfi-pledge-assist-2026-11-03.sql.
+    const ASSIST_KIND = {
+      vet:       ['🚑', 'Vet bill', 'Exams, emergencies, surgery, medicine'],
+      cremation: ['🕊️', 'Cremation', 'Cremation or burial after a pet passes'],
+      food:      ['🥫', 'Pet food', 'Food you can\'t afford right now'],
+    };
+    const ASSIST_STATUS = {
+      pending: ['⏳', 'Being reviewed'], approved: ['💖', 'Approved'], declined: ['🤍', 'Not covered'],
+      paid: ['✅', 'Paid'], withdrawn: ['↩️', 'Withdrawn'],
+    };
+    const ASSIST_ERRORS = {
+      sign_in: 'Log in first.', not_verified: 'Only ID-verified members can ask for help.',
+      closed: 'Requests aren\'t open yet.', bad_category: 'Pick what kind of help you need.',
+      no_bill: 'The bill didn\'t upload. Please attach it again.',
+      one_open: 'You already have a request open. You can ask again once it\'s settled.',
+      monthly_limit: 'That\'s three requests in the last 30 days, the most we can take for now.',
+      full_today: 'Today\'s requests are full. Please try again tomorrow.',
+    };
+    let ASSIST_SETTINGS = null, ASSIST_CAT = 'vet';
+    async function loadAssistSettings() {
+      if (!cloud) return ASSIST_SETTINGS;
+      try {
+        const { data } = await cloud.from('pledge_assist_settings').select('open, open_at_cents, intake_per_day').eq('id', 1).maybeSingle();
+        if (data) ASSIST_SETTINGS = data;
+      } catch (e) {}
+      return ASSIST_SETTINGS;
+    }
+    function assistOpen() { return !!(ASSIST_SETTINGS && ASSIST_SETTINGS.open); }
+    function assistErr(e) {
+      const m = String((e && e.message) || e || '');
+      const k = Object.keys(ASSIST_ERRORS).find(x => m.indexOf(x) >= 0);
+      return k ? ASSIST_ERRORS[k] : 'Something went wrong. Please try again in a minute.';
+    }
+    // The Pledge page section: who can ask, whether it's open, your requests
+    async function renderAssistSection() {
+      const mySeq = sheetSeq;
+      await Promise.all([loadAssistSettings(), loadPledgeTotals()]);
+      let mine = [];
+      if (cloud && cloudUser) {
+        try {
+          const { data } = await cloud.from('pledge_assist_requests')
+            .select('id, category, pet_name, amount_cents, provider_name, status, cover_pct, cover_cents, decision_note, created_at')
+            .eq('user_id', cloudUser.id).order('created_at', { ascending: false }).limit(10);
+          mine = data || [];
+        } catch (e) {}
+      }
+      const box = document.getElementById('assist-box');
+      if (sheetSeq !== mySeq || !box) return;
+      const s = ASSIST_SETTINGS, t = PLEDGE_TOTALS || {};
+      let h = '<p class="sub" style="font-size:0.84rem;">ID-verified members can ask the Pledge fund for help with a <b>vet bill</b>, a <b>cremation</b> or <b>pet food</b>. Upload the bill and we\'ll check it, tell you within 24 hours how much we can cover, and pay the vet, crematory or store directly. Help isn\'t guaranteed: it depends on what the fund has, how serious the situation is and how many requests are waiting.</p>';
+      if (!assistOpen()) {
+        h += '<div class="note">🌱 Requests open once the fund reaches ' + pledgeMoney(s ? +s.open_at_cents : 500000) + ', so we can keep helping once we start.' +
+          (t.fund_balance_cents != null ? ' It has <b>' + pledgeMoney(Math.max(0, +t.fund_balance_cents || 0)) + '</b> now.' : '') + ' Every gift gets it there sooner.</div>' +
+          (cloud && cloudUser && !state.verified ? '<button class="btn secondary" onclick="startVerify()">🪪 Get verified now so you\'re ready ($3)</button>' : '');
+      } else if (!(cloud && cloudUser)) {
+        h += '<div class="note">Log in to ask for help.</div>';
+      } else if (!state.verified) {
+        h += '<div class="note">Only ID-verified members can ask, so every dollar reaches a real person and pet.</div>' +
+          '<button class="btn secondary" onclick="startVerify()">🪪 Get verified ($3)</button>';
+      } else if (mine.some(r => r.status === 'pending' || r.status === 'approved')) {
+        h += '<div class="note">You have a request open. You can ask again once it\'s settled.</div>';
+      } else {
+        h += '<button class="btn" onclick="openAssistForm()">🆘 Ask the Pledge for help</button>';
+      }
+      if (mine.length) h += '<div class="sec" style="margin-top:0.6rem;"><h3>Your requests</h3></div>' + mine.map(assistRowHtml).join('');
+      if (isAdmin()) h += '<button class="btn secondary" onclick="openAssistQueue()">🗂️ Review help requests (admin)</button>';
+      box.innerHTML = h;
+    }
+    function assistRowHtml(r) {
+      const k = ASSIST_KIND[r.category] || ASSIST_KIND.vet, st = ASSIST_STATUS[r.status] || ASSIST_STATUS.pending;
+      const cover = r.cover_cents ? ' · we cover ' + pledgeMoney(r.cover_cents) + (r.cover_pct < 100 ? ' (' + r.cover_pct + '%)' : '') : '';
+      return '<div class="row"><div class="ricon">' + k[0] + '</div><div class="rmain">' +
+        '<div class="rtitle">' + esc(k[1]) + ' · ' + pledgeMoney(r.amount_cents) + (r.pet_name ? ' · ' + esc(r.pet_name) : '') + '</div>' +
+        '<div class="rmeta">' + st[0] + ' ' + esc(st[1]) + cover + ' · ' + esc(r.provider_name) + ' · ' + pledgeDate(r.created_at) + '</div>' +
+        (r.decision_note ? '<div class="rmeta" style="white-space:normal;">' + esc(r.decision_note) + '</div>' : '') + '</div>' +
+        (r.status === 'pending' ? '<div class="raction"><button class="pill-btn ghost" onclick="withdrawAssist(' + (+r.id) + ')">Withdraw</button></div>' : '') + '</div>';
+    }
+    async function withdrawAssist(id) {
+      if (!cloud || !confirm('Withdraw this request?')) return;
+      const { error } = await cloud.rpc('petfi_assist_withdraw', { rid: id });
+      if (error) { toast('⚠️ ' + assistErr(error)); return; }
+      toast('Request withdrawn'); renderAssistSection();
+    }
+    function assistPick(el, k) {
+      ASSIST_CAT = k;
+      document.querySelectorAll('#as-cat .chip').forEach(c => c.classList.toggle('active', c === el));
+      const h = document.getElementById('as-cat-help'); if (h) h.textContent = ASSIST_KIND[k][2];
+    }
+    function openAssistForm() {
+      if (!(cloud && cloudUser) || !state.verified || !assistOpen()) { openDonate(); return; }
+      ASSIST_CAT = 'vet';
+      const pets = hxPets();
+      openSheet('🆘 Ask the Pledge for help',
+        '<label>What kind of help</label><div class="chips" id="as-cat">' + Object.keys(ASSIST_KIND).map(k =>
+          '<div class="chip' + (k === 'vet' ? ' active' : '') + '" role="button" tabindex="0" onclick="assistPick(this,\'' + k + '\')">' + ASSIST_KIND[k][0] + ' ' + esc(ASSIST_KIND[k][1]) + '</div>').join('') + '</div>' +
+        '<p class="sub" id="as-cat-help" style="font-size:0.78rem;margin:0.2rem 0 0.4rem;">' + esc(ASSIST_KIND.vet[2]) + '</p>' +
+        '<label>Which pet</label><select id="as-pet">' + pets.map(x => '<option>' + esc(x.name) + '</option>').join('') + '<option value="">Another pet</option></select>' +
+        '<label>Amount on the bill (US dollars)</label><input id="as-amt" type="number" inputmode="decimal" min="1" step="0.01" placeholder="e.g. 480">' +
+        '<label>Who the bill is from</label><input id="as-prov" maxlength="120" placeholder="e.g. Sunrise Animal Hospital">' +
+        '<label>Their phone, email or website</label><input id="as-contact" maxlength="200" placeholder="So we can confirm the bill and pay them">' +
+        '<label>The bill <small style="color:var(--muted);font-weight:400;">(photo or PDF, up to 10 MB)</small></label><input id="as-file" type="file" accept="image/*,application/pdf">' +
+        '<label>What happened <small style="color:var(--muted);font-weight:400;">(optional)</small></label><textarea id="as-note" maxlength="800" rows="3" placeholder="A few words help us decide quickly"></textarea>' +
+        '<label style="display:flex;gap:0.5rem;align-items:flex-start;font-weight:500;margin-top:0.6rem;"><input id="as-ok" type="checkbox" style="width:auto;margin-top:0.2rem;">' +
+        '<span style="font-size:0.82rem;">This bill is real and it\'s mine. Petfi may contact the provider to confirm it, pays them directly (never me), and may cover all, part or none of it. Help isn\'t guaranteed: it depends on the funds available, how serious the situation is and how many requests are waiting.</span></label>' +
+        '<button class="btn" id="as-send" onclick="submitAssist()">Send my request</button>' +
+        '<button class="btn secondary" onclick="openDonate()">Back</button>' +
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Only you and Petfi\'s reviewers can see the bill. We delete it once your request is settled.</p>');
+    }
+    async function submitAssist() {
+      if (!(cloud && cloudUser)) return;
+      const cents = Math.round(parseFloat(val('as-amt') || 0) * 100);
+      const prov = (val('as-prov') || '').trim(), contact = (val('as-contact') || '').trim();
+      const f = document.getElementById('as-file'), file = f && f.files && f.files[0];
+      if (!(cents >= 100)) { toast('Enter the amount on the bill'); return; }
+      if (cents > 5000000) { toast('That\'s more than the fund can take on in one request'); return; }
+      if (prov.length < 2) { toast('Who is the bill from?'); return; }
+      if (contact.length < 5) { toast('Add their phone, email or website'); return; }
+      if (!file) { toast('Attach the bill'); return; }
+      if (file.size > 10 * 1024 * 1024) { toast('The bill must be 10 MB or smaller'); return; }
+      if (!/^(image\/(jpeg|png|webp|heic|heif)|application\/pdf)$/.test(file.type)) { toast('Attach a photo or a PDF of the bill'); return; }
+      if (!document.getElementById('as-ok').checked) { toast('Please confirm the box above'); return; }
+      const btn = document.getElementById('as-send'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      const ext = file.type === 'application/pdf' ? 'pdf' : (file.type.split('/')[1] || 'jpg').replace('jpeg', 'jpg');
+      const path = cloudUser.id + '/' + Date.now() + '-' + hxId() + '.' + ext;
+      const up = await cloud.storage.from('assist-bills').upload(path, file, { contentType: file.type, upsert: false });
+      if (up.error) { if (btn) { btn.disabled = false; btn.textContent = 'Send my request'; } toast('⚠️ ' + (/row-level|policy/i.test(up.error.message) ? assistErr('not_verified') : 'The bill didn\'t upload. Please try again.')); return; }
+      const { error } = await cloud.rpc('petfi_assist_request', {
+        cat: ASSIST_CAT, pet: val('as-pet') || null, cents, provider: prov, contact, bill: path, memo: (val('as-note') || '').trim() || null,
+      });
+      if (error) { if (btn) { btn.disabled = false; btn.textContent = 'Send my request'; } toast('⚠️ ' + assistErr(error)); return; }
+      track('assist_request', ASSIST_CAT);
+      openSheet('💖 Request sent',
+        '<div class="pledge-hero"><h3>We\'ve got it</h3><p>A real person reviews every request. You\'ll know within 24 hours whether the Pledge can cover your bill, or part of it. If it can, we pay ' + esc(prov) + ' directly.</p></div>' +
+        pushNote('Turn on notifications so our answer reaches you right away.') +
+        '<button class="btn" onclick="openDonate()">Back to the Pledge</button>');
+    }
+
+    // ---- admin: review, decide, pay ----
+    async function openAssistQueue(status) {
+      if (!isAdmin() || !cloud) return;
+      status = ASSIST_STATUS[status] ? status : 'pending';
+      openSheet('🗂️ Help requests', '<div class="note">⏳ Loading…</div>');
+      const mySeq = sheetSeq;
+      await loadAssistSettings();
+      const { data, error } = await cloud.from('pledge_assist_requests').select('*').eq('status', status).order('created_at', { ascending: true }).limit(200);
+      const rows = data || [], ids = [...new Set(rows.map(r => r.user_id))];
+      let names = {}, gave = {};
+      if (ids.length) {
+        const [{ data: ps }, { data: gs }] = await Promise.all([
+          cloud.from('profiles').select('id, username').in('id', ids),
+          cloud.rpc('petfi_assist_giving', { ids }),
+        ]);
+        (ps || []).forEach(p => { names[p.id] = p.username || 'member'; });
+        (gs || []).forEach(g => { gave[g.user_id] = { total: +g.total_cents || 0, monthly: +g.monthly_cents || 0 }; });
+      }
+      // Who goes first: the most given in total (one-time + monthly so far), then the oldest request
+      const given = r => (gave[r.user_id] || {}).total || 0;
+      rows.sort((a, b) => (given(b) - given(a)) || (a.created_at < b.created_at ? -1 : 1));
+      if (sheetSeq !== mySeq) return;
+      const s = ASSIST_SETTINGS || {};
+      let h = '<div class="hx-card"><div style="font-weight:800;">' + (s.open ? '🟢 Requests are OPEN' : '🔴 Requests are CLOSED') + '</div>' +
+        '<p class="sub" style="font-size:0.8rem;margin:0.2rem 0 0.4rem;">Fund now: <b>' + pledgeMoney(Math.max(0, +((PLEDGE_TOTALS || {}).fund_balance_cents) || 0)) + '</b> · opens at ' + pledgeMoney(+s.open_at_cents || 0) + ' (shown to members) · up to ' + (+s.intake_per_day || 0) + ' new requests a day</p>' +
+        '<button class="btn ' + (s.open ? 'secondary' : '') + '" onclick="assistSetOpen(' + (!s.open) + ')">' + (s.open ? 'Close requests' : 'Open requests') + '</button>' +
+        '<button class="btn secondary" onclick="assistEditNumbers()">Change the numbers</button></div>';
+      h += '<p class="sub" style="font-size:0.76rem;margin:0.4rem 0 0;">Sorted by how much each member has given in total (one-time plus monthly so far), then oldest first.</p>';
+      h += '<div class="chips" style="margin:0.6rem 0;">' + ['pending', 'approved', 'paid', 'declined', 'withdrawn'].map(k =>
+        '<div class="chip' + (k === status ? ' active' : '') + '" onclick="openAssistQueue(\'' + k + '\')">' + ASSIST_STATUS[k][0] + ' ' + (k === 'approved' ? 'To pay' : ASSIST_STATUS[k][1]) + '</div>').join('') + '</div>';
+      if (error) h += '<div class="note">⚠️ ' + esc(error.message) + '</div>';
+      else if (!rows.length) h += '<div class="note">Nothing here.</div>';
+      else Object.keys(ASSIST_KIND).forEach(cat => {
+        const list = rows.filter(r => r.category === cat); if (!list.length) return;
+        h += '<div class="sec"><h3>' + ASSIST_KIND[cat][0] + ' ' + esc(ASSIST_KIND[cat][1]) + ' (' + list.length + ')</h3></div>' + list.map(r =>
+          '<div class="row" style="cursor:pointer;" onclick="openAssistReview(' + (+r.id) + ')"><div class="ricon">' + ASSIST_KIND[cat][0] + '</div><div class="rmain">' +
+          '<div class="rtitle">' + pledgeMoney(r.amount_cents) + ' · ' + esc(r.provider_name) + '</div>' +
+          '<div class="rmeta">@' + esc(names[r.user_id] || 'member') + (r.pet_name ? ' · ' + esc(r.pet_name) : '') + ' · ' + esc(hxAgo(r.created_at)) +
+          (r.cover_cents ? ' · cover ' + pledgeMoney(r.cover_cents) : '') + '</div>' +
+          '<div class="rmeta">💖 ' + (given(r) ? 'gave ' + pledgeMoney(given(r)) + ((gave[r.user_id] || {}).monthly ? ' · ' + pledgeMoney(gave[r.user_id].monthly) + '/mo' : '') : 'hasn\'t given yet') + '</div></div>' +
+          '<div class="raction"><span class="fl">Open ›</span></div></div>').join('');
+      });
+      h += '<button class="btn secondary" onclick="openDonate()">Back to the Pledge</button>';
+      openSheet('🗂️ Help requests', h);
+    }
+    async function assistSetOpen(open) {
+      if (!isAdmin()) return;
+      if (open && !confirm('Open help requests to every verified member?')) return;
+      const { error } = await cloud.rpc('petfi_assist_configure', { is_open: !!open, open_at: null, per_day: null });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast(open ? 'Requests are open' : 'Requests are closed'); openAssistQueue();
+    }
+    function assistEditNumbers() {
+      const s = ASSIST_SETTINGS || {};
+      openSheet('🗂️ The numbers',
+        '<label>Fund goal shown while closed (US dollars)</label><input id="as-goal" type="number" min="0" step="1" value="' + Math.round((+s.open_at_cents || 0) / 100) + '">' +
+        '<label>New requests accepted a day</label><input id="as-day" type="number" min="0" step="1" value="' + (+s.intake_per_day || 0) + '">' +
+        '<button class="btn" onclick="assistSaveNumbers()">Save</button><button class="btn secondary" onclick="openAssistQueue()">Back</button>');
+    }
+    async function assistSaveNumbers() {
+      const goal = Math.round(parseFloat(val('as-goal') || 0) * 100), day = parseInt(val('as-day'), 10);
+      if (!(goal >= 0) || !(day >= 0)) { toast('Enter both numbers'); return; }
+      const { error } = await cloud.rpc('petfi_assist_configure', { is_open: null, open_at: goal, per_day: day });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast('Saved'); openAssistQueue();
+    }
+    async function openAssistReview(id) {
+      if (!isAdmin()) return;
+      const { data: r, error } = await cloud.from('pledge_assist_requests').select('*').eq('id', id).maybeSingle();
+      if (error || !r) { toast('⚠️ Could not load that request'); return; }
+      const [{ data: p }, { data: gs }] = await Promise.all([
+        cloud.from('profiles').select('username, verified').eq('id', r.user_id).maybeSingle(),
+        cloud.rpc('petfi_assist_giving', { ids: [r.user_id] }),
+      ]);
+      const g = (gs || [])[0] || {};
+      const k = ASSIST_KIND[r.category] || ASSIST_KIND.vet, st = ASSIST_STATUS[r.status] || ASSIST_STATUS.pending;
+      const line = (a, b) => b ? '<div class="hx-kv"><span>' + a + '</span><b>' + esc(b) + '</b></div>' : '';
+      let h = '<div class="hx-card">' + line('Status', st[0] + ' ' + st[1]) + line('Kind', k[0] + ' ' + k[1]) + line('Amount', pledgeMoney(r.amount_cents)) +
+        line('Member', '@' + ((p && p.username) || 'member') + (p && p.verified ? ' ✔︎ verified' : ' (no longer verified)')) + line('Pet', r.pet_name) +
+        line('Given so far', pledgeMoney(+g.total_cents || 0) + (+g.monthly_cents ? ' · ' + pledgeMoney(g.monthly_cents) + '/mo now' : '')) +
+        line('Given when they asked', pledgeMoney(+r.giving_cents || 0)) +
+        line('From', r.provider_name) + line('Contact', r.provider_contact) + line('Sent', pledgeDate(r.created_at) + ' · ' + hxAgo(r.created_at)) +
+        (r.cover_cents ? line('We cover', pledgeMoney(r.cover_cents) + ' (' + r.cover_pct + '%)') : '') + '</div>' +
+        (r.note ? '<p class="sub" style="font-size:0.85rem;white-space:pre-wrap;">' + esc(r.note) + '</p>' : '') +
+        '<button class="btn secondary" onclick="assistViewBill(\'' + jsStr(r.bill_path) + '\')">📄 View the bill</button>';
+      if (r.status === 'pending') {
+        h += '<label>How much to cover (%)</label><input id="ar-pct" type="number" min="1" max="100" step="1" value="100">' +
+          '<label>Note to the member <small style="color:var(--muted);font-weight:400;">(they see it)</small></label><input id="ar-why" maxlength="400" placeholder="e.g. We confirmed the bill with the clinic">' +
+          '<button class="btn" onclick="assistDecide(' + (+r.id) + ', true)">💖 Approve</button>' +
+          '<button class="btn secondary" onclick="assistDecide(' + (+r.id) + ', false)">Decline</button>';
+      } else if (r.status === 'approved') {
+        const today = new Date().toISOString().slice(0, 10);
+        h += '<div class="note">Pay ' + esc(r.provider_name) + ' ' + pledgeMoney(r.cover_cents) + ' directly, then record it here. It goes on the public ledger without the member\'s name.</div>' +
+          '<label>Public ledger name</label><input id="ar-to" maxlength="120" value="' + esc(r.provider_name) + '">' +
+          '<label>Paid on</label><input id="ar-date" type="date" value="' + today + '" max="' + today + '">' +
+          '<label>Receipt link <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input id="ar-link" maxlength="300" placeholder="https://">' +
+          '<button class="btn" onclick="assistPaid(' + (+r.id) + ')">✅ Mark paid</button>';
+      } else if (r.status === 'paid' || r.status === 'declined' || r.status === 'withdrawn') {
+        h += '<button class="btn secondary" onclick="assistDeleteBill(' + (+r.id) + ',\'' + jsStr(r.bill_path) + '\')">🗑 Delete the bill file</button>';
+      }
+      h += '<button class="btn secondary" onclick="openAssistQueue(\'' + esc(r.status) + '\')">Back</button>';
+      openSheet(k[0] + ' Request #' + (+r.id), h);
+    }
+    async function assistViewBill(path) {
+      const { data, error } = await cloud.storage.from('assist-bills').createSignedUrl(path, 300);
+      if (error || !data) { toast('⚠️ Could not open the bill (already deleted?)'); return; }
+      openLink(data.signedUrl);
+    }
+    async function assistDecide(id, approve) {
+      const pct = parseInt(val('ar-pct'), 10), why = (val('ar-why') || '').trim();
+      if (approve && !(pct >= 1 && pct <= 100)) { toast('Enter 1 to 100'); return; }
+      if (!approve && !why) { toast('Tell the member why, kindly'); return; }
+      const { error } = await cloud.rpc('petfi_assist_decide', { rid: id, approve: !!approve, pct: approve ? pct : null, why: why || null });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast(approve ? 'Approved: the member is notified' : 'Declined: the member is notified'); openAssistReview(id);
+    }
+    async function assistPaid(id) {
+      const link = (val('ar-link') || '').trim();
+      if (link && !/^https?:\/\//i.test(link)) { toast('The link must start with https://'); return; }
+      const { error } = await cloud.rpc('petfi_assist_paid', { rid: id, to_whom: (val('ar-to') || '').trim(), paid_on: val('ar-date') || null, receipt: link || null });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast('Recorded on the public ledger 📒'); openAssistReview(id);
+    }
+    async function assistDeleteBill(id, path) {
+      if (!confirm('Delete the bill file? The request stays on record.')) return;
+      const { error } = await cloud.storage.from('assist-bills').remove([path]);
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast('Bill deleted'); openAssistReview(id);
+    }
+
     // ---- admin: the ledger is written by hand, one gift at a time ----
     function openLedgerEntry() {
       if (!isAdmin()) return;
@@ -4467,7 +4788,7 @@
         '<label>Date</label><input id="lg-date" type="date" value="' + today + '" max="' + today + '">' +
         '<label>Who received it</label><input id="lg-to" maxlength="120" placeholder="e.g. Front Street Animal Shelter · Mueller Pet Medical Center">' +
         '<label>What kind</label><select id="lg-kind">' +
-          Object.keys(LEDGER_KIND).map(k => '<option value="' + k + '">' + LEDGER_KIND[k][0] + ' ' + LEDGER_KIND[k][1] + (k === 'vet' || k === 'cremation' || k === 'adoption' ? ' (members\' half)' : k === 'other' ? '' : ' (organizations\' half)') + '</option>').join('') + '</select>' +
+          Object.keys(LEDGER_KIND).map(k => '<option value="' + k + '">' + LEDGER_KIND[k][0] + ' ' + LEDGER_KIND[k][1] + (k === 'vet' || k === 'cremation' || k === 'adoption' || k === 'food' ? ' (members\' half)' : k === 'other' ? '' : ' (organizations\' half)') + '</option>').join('') + '</select>' +
         '<label>Amount in US dollars</label><input id="lg-amt" type="number" inputmode="decimal" min="1" step="0.01" placeholder="e.g. 150">' +
         '<label>What it paid for <small style="color:var(--muted);font-weight:400;">(optional, public)</small></label><input id="lg-note" maxlength="400" placeholder="e.g. emergency surgery for a member\'s dog">' +
         '<label>Receipt or website link <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input id="lg-link" maxlength="300" placeholder="https://">' +
@@ -5678,7 +5999,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.18.1';
+    const APP_VERSION = '1.19.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8665,6 +8986,7 @@
         ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
         ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
         ['💘', 'List in Mate Match', 'find breeding partners for your dogs, cats, horses and farm animals'],
+        ['🆘', 'Ask the Pledge for help', (assistOpen() ? 'with a vet bill, a cremation or pet food; we pay the provider directly.' : 'with a vet bill, a cremation or pet food, once the fund opens. Only verified members can ask.') + ' Not guaranteed: it depends on the funds available, how serious it is and how many requests we have'],
       ].concat(AVATAR.ready ? [['✨', 'AI avatar', 'a cartoon of your pet or you, drawn from a photo, ' + AVATAR.cap + ' tries']] : [])
        .concat([['🤝', 'Members know you\'re real', 'buyers, clients and breeders can see you\'re a verified, accountable person']]);
     }
@@ -8846,6 +9168,13 @@
     async function handleDonateReturn() {
       const r = DONATE_RETURN;
       if (r.what === 'cancel') { toast('Gift cancelled — nothing was charged'); return; }
+      if (r.what === 'monthly') {
+        confetti();
+        openSheet('💞 Thank you',
+          '<div class="pledge-hero"><h3>Your monthly gift is set up</h3><p>Every month it goes into the Pledge fund, for vet bills, cremation and pet food for verified members, and for shelters. Every dollar given away is listed on the Pledge page. Cancel anytime there.</p></div>' +
+          '<button class="btn" onclick="openDonate()">See the Pledge</button><button class="btn secondary" onclick="closeSheet()">Close</button>');
+        return;
+      }
       if (r.what !== 'paid' || !r.cs) return;
       openSheet('💝 Thank you', '<div class="note">⏳ Confirming your gift…</div>');
       const mySeq = sheetSeq;
