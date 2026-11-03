@@ -2476,7 +2476,9 @@
       show('s-app');
       openTab('home');
       liveConnect(); updateBadges();
-      preloadSamples(); // warm the bark/meow clips so reactions are instant
+      // The bark/meow clips (337 KB) wait until the first screen has loaded, and
+      // skip phones on Data Saver or a 2G link; a bark before then uses the synth
+      setTimeout(() => { const c = navigator.connection; if (!(c && (c.saveData || /2g/.test(c.effectiveType || '')))) preloadSamples(); }, 15000);
       const firstTime = !state.welcomed;
       if (firstTime) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
       celebrateBirthday();
@@ -2664,7 +2666,7 @@
     // anywhere unlocks the AudioContext and kicks off preloading the clips.
     ['pointerdown', 'touchend', 'keydown'].forEach(ev =>
       window.addEventListener(ev, function unlockAudio() {
-        ac(); preloadSamples();
+        ac(); // clips load later (enterApp), or on the first bark
       }, { once: true, passive: true }));
     function playBark() {
       const ctx = ac(); if (!ctx) return;
@@ -2991,7 +2993,7 @@
     }
     // ---- New member: one next step at a time ----
     function startSteps() {
-      const pets = hxPets(), pet = pets[0], skip = state.startSkip || [], s = [];
+      const pets = hxPets(), pet = pets.find(x => !hxPassed(x.id)), skip = state.startSkip || [], s = [];
       if (state.accountType === 'owner' && !pets.length) s.push({ k: 'pet', emo: '🐾', t: 'Add your pet', sub: 'Their reminders, free ID tag and health record start here', go: 'openAddPet()' });
       if (pet && cloudUser && tagsLoadedAt && !TAGS[pet.id]) s.push({ k: 'tag', emo: '🏷️', t: 'Make ' + pet.name + '\'s free ID tag', sub: 'A QR code for the collar: whoever finds ' + pet.name + ' can message you', go: "renderPetTag('" + jsStr(pet.id) + "')" });
       if (cloudUser && ('Notification' in window) && Notification.permission === 'default') s.push({ k: 'push', emo: '🔔', t: 'Turn on notifications', sub: 'Messages, friend requests, finders and care reminders, even with Petfi closed', go: 'askNotifPermission()' });
@@ -4845,7 +4847,7 @@
         if (state.pets.length === 0) h += '<div class="note">No pets added yet. Tap “+ Add” to show off your crew.</div>';
         else h += state.pets.map((pt, i) =>
           '<div class="row" style="cursor:pointer;" onclick="openPetDetail(' + i + ')"><div class="ricon">' + petAvatar(pt.species, pt.breed, 46) + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(pt.name) + '</div><div class="rmeta">' + esc(pt.breed || pt.species) + '</div></div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(pt.name) + (pt.passed ? ' 🕊️' : '') + '</div><div class="rmeta">' + (pt.passed ? 'In loving memory' : esc(pt.breed || pt.species)) + '</div></div>' +
           '<div class="raction"><span class="fl" style="color:var(--brand);font-size:0.75rem;font-weight:700;">View ›</span></div></div>').join('');
 
         h += '<div class="get-verified" style="background:linear-gradient(135deg,#fff1ec,#ffe0d3);border-color:#ffcbb8;">' +
@@ -5561,7 +5563,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.11.1';
+    const APP_VERSION = '1.12.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6390,6 +6392,21 @@
       setTimeout(() => { try { if (document.body.classList.contains('sheet-open')) sh.focus({ preventScroll: true }); } catch (e) {} }, 30);
     }
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && document.body.classList.contains('sheet-open')) closeSheet(); });
+    // Every tappable div or span (and anything drawn later) gets a button role
+    // and a tab stop, so keyboards and screen readers can reach it. The sheet
+    // backdrop is only a click-to-close area, not a control.
+    function a11yMark(root) {
+      if (!root || root.nodeType !== 1) return;
+      const list = root.matches('[onclick]') ? [root] : [];
+      root.querySelectorAll('[onclick]').forEach(e => list.push(e));
+      for (const e of list) {
+        if (e.id === 'sheet-backdrop' || e.hasAttribute('role') || /^(BUTTON|A|INPUT|SELECT|TEXTAREA|LABEL|SUMMARY|OPTION)$/.test(e.tagName)) continue;
+        e.setAttribute('role', 'button');
+        if (!e.hasAttribute('tabindex')) e.setAttribute('tabindex', '0');
+      }
+    }
+    new MutationObserver(ms => ms.forEach(m => m.addedNodes.forEach(a11yMark))).observe(document.body, { childList: true, subtree: true });
+    a11yMark(document.body);
     // Clickable divs marked role="button" answer Enter and Space like buttons
     document.addEventListener('keydown', e => {
       const t = e.target;
@@ -8145,6 +8162,7 @@
     // ======================= PET DETAIL =======================
     function openPetDetail(i) {
       const pt = state.pets[i];
+      if (pt && pt.passed) { openMemorial(i); return; }
       openSheet('🐾 ' + esc(pt.name),
         '<div style="text-align:center;">' +
           '<div style="width:110px;height:110px;margin:0.5rem auto;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);">' + petAvatar(pt.species, pt.breed, 110) + '</div>' +
@@ -8153,7 +8171,54 @@
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
         (pt.id ? '<button class="btn" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health, meds &amp; vaccines</button>' : '') +
         '<button class="btn' + (pt.id ? ' secondary' : '') + '" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
+        '<button class="btn secondary" onclick="confirmPassed(' + i + ')">🕊️ ' + esc(pt.name) + ' passed away</button>' +
         '<button class="btn secondary" onclick="confirmRemovePet(' + i + ')">🗑 Remove ' + esc(pt.name) + '</button>');
+    }
+    // ---- In loving memory ----
+    // A pet who has passed keeps a place on the profile and their records, and
+    // nothing nags: meds stop, vaccine/supply alerts go quiet. Undo is one tap.
+    function hxPassed(petId) {
+      const pt = petId && (state.pets || []).find(x => x.id === petId);
+      return pt && pt.passed ? pt.passed : '';
+    }
+    function confirmPassed(i) {
+      const pt = state.pets[i]; if (!pt) return;
+      openSheet('🕊️ We\'re so sorry',
+        '<p class="sub">' + esc(pt.name) + '\'s reminders and refill and vaccine alerts will stop. ' + esc(pt.name) + '\'s health record and photos stay right here, in memory. You can undo this any time.</p>' +
+        '<label for="pp-date">When did ' + esc(pt.name) + ' pass?</label><input type="date" id="pp-date" value="' + hxToday() + '" max="' + hxToday() + '">' +
+        '<button class="btn" onclick="markPassed(' + i + ')">🕊️ Remember ' + esc(pt.name) + '</button>' +
+        '<button class="btn secondary" onclick="openPetDetail(' + i + ')">Go back</button>');
+    }
+    function markPassed(i) {
+      const pt = state.pets[i]; if (!pt) return;
+      const d = val('pp-date');
+      pt.passed = hxValidYmd(d) && d <= hxToday() ? d : hxToday();
+      (state.meds || []).filter(m => m.petId === pt.id && medActive(m)).forEach(m => { m.stopped = hxToday(); syncMedReminder(m); });
+      saveState(); openMemorial(i);
+      if (state.tab === 'profile') openTab('profile');
+    }
+    function unmarkPassed(i) {
+      const pt = state.pets[i]; if (!pt) return;
+      delete pt.passed; saveState(); closeSheet();
+      if (state.tab === 'profile') openTab('profile');
+      toast(pt.name + '\'s alerts can be turned back on from their meds in My care');
+    }
+    function openMemorial(i) {
+      const pt = state.pets[i]; if (!pt) return;
+      const bday = (state.petInfo[pt.id] || {}).bday;
+      const years = [bday ? bday.slice(0, 4) : '', pt.passed.slice(0, 4)].filter(Boolean);
+      openSheet('🕊️ ' + esc(pt.name),
+        '<div style="text-align:center;padding:0.4rem 0 0.6rem;">' +
+          '<div style="width:110px;height:110px;margin:0.3rem auto;border-radius:50%;overflow:hidden;border:3px solid #b9a7e0;background:var(--card);filter:saturate(0.85);">' + petAvatar(pt.species, pt.breed, 110) + '</div>' +
+          '<div style="font-weight:800;font-size:1.1rem;">' + esc(pt.name) + '</div>' +
+          '<div class="prof-meta">In loving memory' + (years.length ? ' · ' + esc(years[0] === years[1] ? years[0] : years.join(' – ')) : '') + '</div>' +
+          '<p class="sub" style="margin-top:0.5rem;">Forever part of the family. 💜</p>' +
+        '</div>' +
+        '<button class="btn" onclick="closeSheet();composeDraft=' + esc(JSON.stringify('Remembering ' + pt.name + ' 🕊️ ')) + ';openCompose()">📸 Share a memory of ' + esc(pt.name) + '</button>' +
+        (pt.id ? '<button class="btn secondary" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health record</button>' : '') +
+        '<div class="note">💗 A goodbye can be expensive. The Petfi Pledge helps members with cremation costs. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="openDonate()">See how</span></div>' +
+        '<button class="btn secondary" onclick="unmarkPassed(' + i + ')">↺ Undo — ' + esc(pt.name) + ' is still with us</button>' +
+        '<button class="btn secondary" onclick="confirmRemovePet(' + i + ')">🗑 Remove ' + esc(pt.name) + ' from my profile</button>');
     }
     function confirmRemovePet(i) {
       const pt = state.pets[i]; if (!pt) return;
@@ -8671,11 +8736,12 @@
         }
       });
       hxCurrentVaccines().forEach(v => {
+        if (hxPassed(v.petId)) return;
         const st = hxVaxStatus(v);
         if (st.lvl !== 'ok') items.push({ lvl: st.lvl, icon: '💉', act: "openVaccine('" + v.id + "')", text: hxPetName(v.petId) + '\'s ' + v.name + ' — ' + st.text });
       });
       (state.supplies || []).forEach(s => {
-        const ro = supplyRunOut(s); if (!ro) return;
+        const ro = supplyRunOut(s); if (!ro || hxPassed(s.petId)) return;
         const d = hxDaysUntil(ro);
         if (d <= (s.lead || 5)) items.push({ lvl: d <= 0 ? 'bad' : 'warn', icon: '📦', act: "openReorder('" + s.id + "')",
           text: (d <= 0 ? 'Out of ' : 'Running low: ') + s.name + (d > 0 ? ' — about ' + d + (d === 1 ? ' day' : ' days') + ' left' : '') });
@@ -8699,13 +8765,13 @@
           pn + '\'s prescription runs out ' + hxDate(m.rxExp) + '. Ask your vet to renew it.');
       });
       hxCurrentVaccines().forEach(v => {
-        if (!hxValidYmd(v.due)) return;
+        if (!hxValidYmd(v.due) || hxPassed(v.petId)) return;
         const pn = hxPetName(v.petId);
         add('vx14:' + v.id + ':' + v.due, hxAddDays(v.due, -14), '💉 ' + pn + '\'s ' + v.name + ' is due soon', 'Due ' + hxDate(v.due) + ' — book the vet now.');
         add('vx0:' + v.id + ':' + v.due, v.due, '💉 ' + pn + '\'s ' + v.name + ' is due today', 'Book it, or log it in Petfi once it\'s done.');
       });
       (state.supplies || []).forEach(s => {
-        const ro = supplyRunOut(s); if (!ro) return;
+        const ro = supplyRunOut(s); if (!ro || hxPassed(s.petId)) return;
         const lead = s.lead || 5;
         add('sp:' + s.id + ':' + s.bought, hxAddDays(ro, -lead), '📦 Running low: ' + s.name,
           'About ' + lead + ' days left' + (s.petId ? ' for ' + hxPetName(s.petId) : '') + '. Tap to reorder.');
@@ -8739,7 +8805,7 @@
       if (!pets.length) h += '<div class="note" style="margin-top:0;">Add your pets to keep their meds, vaccines and vet records here. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="openAddPet()">+ Add a pet</span></div>';
       h += pets.map(p => {
         const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
-        const meta = [TAGS[p.id] && TAGS[p.id].lost ? '🚨 marked lost' : '', w ? w.v + ' ' + (info.wu || 'lb') : '', info.vetName ? '🏥 ' + info.vetName : '', info.chip ? 'microchipped' : ''].filter(Boolean).join(' · ') || 'Weight, vet, microchip, visits';
+        const meta = hxPassed(p.id) ? '🕊️ In loving memory' : [TAGS[p.id] && TAGS[p.id].lost ? '🚨 marked lost' : '', w ? w.v + ' ' + (info.wu || 'lb') : '', info.vetName ? '🏥 ' + info.vetName : '', info.chip ? 'microchipped' : ''].filter(Boolean).join(' · ') || 'Weight, vet, microchip, visits';
         return '<div class="row" style="cursor:pointer;" onclick="openHealthRecord(\'' + jsStr(p.id) + '\')"><div class="ricon">' + hxPetIcon(p, 46) + '</div>' +
           '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(meta) + '</div></div><span class="chev">›</span></div>';
       }).join('');
