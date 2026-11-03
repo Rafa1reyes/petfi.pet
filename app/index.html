@@ -2103,7 +2103,7 @@
     function show(id) {
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
-      if (id !== 's-welcome' && /^s-/.test(id)) track('signup_screen', id.slice(2));
+      if (id !== 's-welcome' && id !== 's-app' && /^s-/.test(id)) track('signup_screen', id.slice(2));
       document.querySelector('.phone').scrollTop = 0;
       window.scrollTo(0, 0);
     }
@@ -5395,7 +5395,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.10.0';
+    const APP_VERSION = '1.10.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
