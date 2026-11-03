@@ -438,6 +438,12 @@
       body.printing #print-area { display: block; }
       #print-area pre { white-space: pre-wrap; font: 12pt/1.45 -apple-system, "Segoe UI", sans-serif; color: #000; }
     }
+    /* ---- Store: hot right now on Amazon ---- */
+    .hot-row { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.2rem; }
+    .hot-card { flex: 0 0 150px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.6rem 0.7rem; cursor: pointer; }
+    .hot-card .hc-emo { font-size: 1.5rem; display: block; }
+    .hot-card b { display: block; font-size: 0.85rem; margin-top: 0.2rem; }
+    .hot-card small { display: block; color: var(--muted); font-size: 0.72rem; }
     /* ---- Adoptable pets near you ---- */
     .adopt-row { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.3rem; scroll-snap-type: x mandatory; }
     .adopt-card { flex: 0 0 128px; scroll-snap-align: start; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.4rem; cursor: pointer; }
@@ -4508,6 +4514,36 @@
     function fmtReviews(n) { n = Number(n) || 0; return n >= 1000 ? (n / 1000).toFixed(n >= 10000 ? 0 : 1) + 'k' : String(n); }
     function stars(r) { r = Number(r) || 0; return '★ ' + r.toFixed(1); }
 
+    // ---- Hot right now: Amazon's own live lists, never stale ----
+    // Amazon doesn't allow copying its best-seller lists (its pages turn
+    // scripts away and point to the Product Advertising API), but linking to
+    // them with our tag is exactly what the Associates program is for. These
+    // pages re-rank all day, so "this week's hottest" stays true without
+    // anyone updating the catalog.
+    const HOT_LISTS = [
+      { emo: '🔥', t: 'Pet best sellers', sub: 'Updated every hour', path: '/gp/bestsellers/pet-supplies' },
+      { emo: '🚀', t: 'Hot today in pets', sub: 'Biggest jumps in 24 hours', path: '/gp/movers-and-shakers/pet-supplies' },
+      { emo: '🏆', t: 'Top sellers on all of Amazon', sub: 'Every category', path: '/gp/bestsellers' },
+    ];
+    const RESTOCK = [
+      ['🥘', 'Dog food', 'dog food'], ['🐟', 'Cat food', 'cat food'], ['🪣', 'Cat litter', 'cat litter'],
+      ['🦴', 'Dog treats', 'dog treats'], ['🐾', 'Cat treats', 'cat treats'], ['💩', 'Poop bags', 'dog poop bags'],
+      ['🧻', 'Puppy pads', 'puppy pee pads'], ['🐜', 'Flea & tick', 'flea and tick prevention'], ['🪥', 'Dental chews', 'dog dental chews'],
+    ];
+    function amazonTagged(path) {
+      return 'https://www.amazon.com' + path + (AFFILIATE.amazonTag ? '?tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
+    }
+    // A search sorted by Amazon's own best-seller rank
+    function amazonBestLink(q) { return amazonLink(q) + '&s=exact-aware-popularity-rank'; }
+    function hotOnAmazon() {
+      if (state.storeCat === 'Members') return '';
+      return '<div class="sec" style="margin-top:0.2rem;"><h3>🔥 Hot right now on Amazon</h3></div>' +
+        '<div class="hot-row">' + HOT_LISTS.map(x => '<div class="hot-card" role="button" tabindex="0" onclick="openLink(\'' + jsStr(amazonTagged(x.path)) + '\')">' +
+          '<span class="hc-emo">' + x.emo + '</span><b>' + esc(x.t) + '</b><small>' + esc(x.sub) + '</small></div>').join('') + '</div>' +
+        '<div class="sf-row" style="margin:0.5rem 0 0.9rem;"><span class="sf-label">Restock</span><div class="chips chips-sm">' +
+          RESTOCK.map(x => '<div class="chip" role="button" tabindex="0" onclick="openLink(\'' + jsStr(amazonBestLink(x[2])) + '\')">' + x[0] + ' ' + esc(x[1]) + '</div>').join('') + '</div></div>';
+    }
+
     let STORE_VIEW = []; // what's currently on screen: member listings first, then the catalog
     const STORE_PAGE = 24; // cards per "Show more"
     function renderStore() {
@@ -4526,6 +4562,7 @@
       const members = LISTINGS.concat(LOCAL_LISTINGS);
       h += '<div class="sec"><h3>🛒 Pet Store</h3><span class="link" onclick="openSell()">+ Sell something</span></div>';
       h += pledgeCard(true);
+      h += hotOnAmazon();
       // Filter bar: who it's for → what kind of thing → price → sort
       ensureCatalog(); // first open fetches store.json; re-renders when it lands
       if (!STORE_SORTS[state.storeSort]) state.storeSort = 'popular';
@@ -5524,7 +5561,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.11.0';
+    const APP_VERSION = '1.11.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
