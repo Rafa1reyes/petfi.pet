@@ -4719,7 +4719,8 @@
         (p.desc ? '<p style="font-size:0.92rem;margin-bottom:0.6rem;">' + esc(p.desc) + '</p>' : '') +
         '<div class="pprice" style="font-size:1.2rem;">' + (p.affiliate ? 'See price on Amazon' : esc(p.price)) + '</div>' +
         (p.affiliate && p.rating ? '<div class="prating" style="font-size:0.88rem;margin-top:0.2rem;"><b>' + stars(p.rating) + '</b> · ' + Number(p.reviews).toLocaleString() + ' Amazon reviews' + (p.cats ? ' · ' + esc(p.cats.join(' · ')) : '') + '</div>' : '') +
-        (p.affiliate ? '' : '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">Sold by ' + esc(p.mine ? 'you' : p.seller) + (p.cat ? ' · ' + esc(p.cat) : '') + '</div>') +
+        (p.affiliate ? '' : '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">Sold by ' + esc(p.mine ? 'you' : p.seller) + (isVerifiedUser(p.sellerId) || p.mine ? ' ' + vbadge() : '') + (p.cat ? ' · ' + esc(p.cat) : '') + '</div>' +
+          (p.contact ? '<div class="pseller" style="font-size:0.85rem;" translate="no">📇 ' + esc(p.contact) + '</div>' : '')) +
         (p.affiliate
           ? '<button class="btn" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on Amazon</button>' +
             '<button class="btn secondary" onclick="closeSheet();saveProductToFav(' + i + ')">⭐ Save to favorites</button>' +
@@ -5565,7 +5566,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.13.0';
+    const APP_VERSION = '1.14.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -5594,11 +5595,12 @@
         '<ul><li>Petfi is a <b>venue</b> — sales, purchases and breeding arrangements happen directly between users. Petfi is not a party to those transactions and doesn\'t guarantee them.</li>' +
         '<li>Listings must be honest: real photos, true prices, and (for breeding) accurate age, health and pedigree information.</li>' +
         '<li>Farm and livestock breeding listings (cattle, goats, sheep, horses, pigs, poultry and others) are welcome. You are responsible for any state agriculture, health-certificate, brand-inspection and transport rules that apply to your animals.</li>' +
-        '<li>Selling requires an Owner account. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
+        '<li>Selling anything in the Pet Store (products, food, pets or services) requires an Owner account and Petfi ID verification. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
         '<li><b>Payments:</b> Petfi does not process payments. Buyers and sellers arrange payment, pickup and shipping directly. Petfi currently charges no fee on member listings. Never pay a seller you haven\'t spoken with, and prefer in-person exchange for live animals.</li>' +
         '<li><b>No homemade consumables:</b> food, treats and anything a pet ingests must be sealed, commercially licensed products — the same regulations real pet stores follow.</li>' +
         '<li><b>Shipping &amp; refunds:</b> delivery and refunds are entirely between buyer and seller (and any retail partner, e.g. Amazon). Petfi is not responsible for an order at any point.</li>' +
         '<li>Follow your local laws on animal sales, breeding and rehoming. You are responsible for compliance.</li></ul>' +
+        '<h3>4a. Seller &amp; Service Provider Terms</h3>' + sellerTermsHtml() +
         '<h3>5. Animal welfare</h3>' +
         '<p>Content showing or encouraging animal abuse or neglect is banned and gets an immediate, permanent ban. Knowingly selling sick animals without disclosure is banned.</p>' +
         '<h3>6. Fees, affiliate links & donations</h3>' +
@@ -5612,7 +5614,7 @@
         '<p>Petfi is provided "as is". We do our best, but we can\'t promise the app will always be available or error-free. To the fullest extent allowed by law, Petfi isn\'t liable for disputes between users, lost profits, or indirect damages. Nothing in the app is veterinary advice — always consult a vet for health decisions. Medication, refill, vaccine and lost-pet tools work from what you enter: Petfi doesn\'t sell, fill or approve prescriptions, and a reminder or alert can arrive late or not at all, so don\'t rely on Petfi alone for a dose that matters. Insurance and online-vet links go to those companies; Petfi doesn\'t sell insurance or recommend a plan, and some of those links may earn Petfi a referral fee.</p>' +
         '<h3>10. Changes</h3>' +
         '<p>If these terms change in a meaningful way, we\'ll post the update in the app. Continuing to use Petfi after an update means you accept the new terms.</p>' +
-        legalFoot('November 2, 2026') + '</div>' +
+        legalFoot('November 3, 2026') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -5633,6 +5635,7 @@
         '<li><b>Notifications (optional):</b> if you allow alerts, your device\'s push address is stored so reminders, refill and vaccine alerts, messages from finders, and the social alerts you leave on (messages, friend requests, comments, likes, Mate Match) reach you with the app closed. The alert shows the sender\'s name and, for a message or comment, the start of what they wrote.</li>' +
         '<li><b>Care team (optional):</b> if you invite someone to a pet\'s care team, they see that pet\'s name, breed and age, meds and dosing, vaccines, food, allergies, conditions, microchip and vet, and everyone on the team sees what each person logs (fed, walked, meds given, notes) with their name and the time. Your other records, reminders and calendar stay private. Leave or stop sharing any time; stopping deletes the shared log.</li>' +
         '<li><b>AI avatar (optional, with ID verification):</b> the photo you choose — of your pet, or a selfie — is sent to Google\'s Gemini AI to draw a cartoon avatar and is not kept by Petfi or used to identify you. The cartoon is saved as your profile picture, which other members can see. Google processes the photo under its API terms.</li>' +
+        '<li><b>Selling (optional, ID-verified members):</b> a listing shows the contact phone or email you add to it, and your name, to signed-in members. Petfi keeps a record of your ID verification and your agreement to the Seller &amp; Service Provider Terms.</li>' +
         '<li><b>Usage counts:</b> Petfi records which steps are used — for example "opened the app", "reached the ZIP screen", "made a tag" — with a random ID for this device, the link you arrived from (like a tag page) and, if you\'re signed in, your account. Never what you write. It stays in Petfi\'s own database: no third-party analytics or ad trackers.</li>' +
         '<li><b>Location (optional):</b> Mark Your Territory asks for your device location only to confirm you\'re at a park. We record which park you marked, not your position. A new spot you add is saved with a pin rounded to about 100 m and your account.</li></ul>' +
         '<h3>How it\'s used</h3>' +
@@ -5651,7 +5654,7 @@
         '<li><b>Delete your account</b> in Settings → Account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
         '<h3>Children</h3>' +
         '<p>Petfi is for adults: you must be <b>' + MIN_AGE + ' or older</b> to have an account. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. The app asks you to confirm your age and remembers the answer on your device only. If we learn an account belongs to someone under ' + MIN_AGE + ', we\'ll remove it. To report one, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p>' +
-        legalFoot('November 2, 2026') + '</div>' +
+        legalFoot('November 3, 2026') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -6766,7 +6769,7 @@
 
     let sellPhotos = [];
     function openSell() {
-      if (!requireSeller('sell items')) return;
+      if (!requireSeller('sell items') || !sellGate('product')) return;
       sellPhotos = [];
       openSheet('List an item in the Pet Store',
         '<label>What are you selling?</label><input id="sell-title" placeholder="e.g. Chew-proof dog bed">' +
@@ -6783,6 +6786,7 @@
         '<label>Category</label><select id="sell-cat" onchange="sellCatNote()"><option value="Products">Products</option><option value="Food">Food</option><option value="Pets">Pets</option><option value="Services">Services</option></select>' +
         '<div class="note" id="sell-food-note" style="background:#fdeef0;color:#a03a5a;">🚫 <b>No homemade food or treats.</b> Consumables must be sealed, commercially licensed products — the same regulations real pet stores follow. It keeps pets safe.</div>' +
         '<label>Link (optional) <small style="color:var(--muted);font-weight:400;">your shop, a product page…</small></label><input id="sell-url" type="url" placeholder="https://...">' +
+        contactField('sell-contact') + sellerTermsBox() +
         '<button class="btn" onclick="saveListing()">List it 🛒</button>');
       sellCatNote();
     }
@@ -6833,10 +6837,14 @@
           '<button class="btn secondary" onclick="closeSheet();openSell()">Edit my listing</button>');
         return;
       }
+      const contact = cleanContact(val('sell-contact'));
+      if (!contact) { toast('Add a phone number or email buyers can reach you at'); return; }
+      if (!sellerTermsOk()) return;
+      state.sellerContact = contact;
       let url = val('sell-url'); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
       const base = parsePrice(val('sell-price'));
       const displayPrice = base > 0 ? '$' + base.toFixed(2) : (val('sell-price') || 'Ask');
-      const item = { title, desc, price: displayPrice, seller: state.displayName, cat, url: url || '', photos: [] };
+      const item = { title, desc, price: displayPrice, seller: state.displayName, cat, url: url || '', photos: [], contact, terms: SELLER_TERMS_V };
       const photos = sellPhotos.slice();
       sellPhotos = [];
       state.storeCat = 'Members'; closeSheet(); openTab('store');
@@ -6870,15 +6878,7 @@
     function svcType(k) { return SERVICE_TYPES.find(x => x.k === k) || SERVICE_TYPES[SERVICE_TYPES.length - 1]; }
     let svcPick = 'walking';
     async function openOfferService() {
-      if (!requireSeller('offer a service')) return;
-      if (!state.verified) {
-        openSheet('🧑‍🔧 Offer a pet service',
-          '<p class="sub">Dog walking, sitting, poop scooping, grooming, training, custom pet art — list it here and pet owners near you can message you.</p>' +
-          '<div class="note">🪪 <b>Services are offered by ID-verified members only</b>, so owners know who\'s coming to their home or handling their pet. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
-          '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and offer my service</button>' +
-          '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
-        return;
-      }
+      if (!requireSeller('offer a service') || !sellGate('service')) return;
       openSheet('🧑‍🔧 What service do you offer?',
         '<div class="grid">' + SERVICE_TYPES.map(t => '<div class="pick" role="button" tabindex="0" onclick="svcPick=\'' + t.k + '\';openServiceForm()"><span class="e">' + t.emo + '</span>' + esc(t.label) + '</div>').join('') + '</div>');
     }
@@ -6899,7 +6899,9 @@
           '<input type="file" id="sell-photos" accept="image/*" multiple onchange="sellPhotosPicked(this)"></div>' +
         '<div id="sell-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
         '<label for="sell-url">Link (optional) <small style="color:var(--muted);font-weight:400;">your website, Instagram, reviews…</small></label><input id="sell-url" type="url" placeholder="https://...">' +
+        contactField('sv-contact') +
         '<p class="sub" style="font-size:0.78rem;margin:0.5rem 0 0;">💬 People message you in Petfi and you arrange the details and payment together. Petfi takes no fee.</p>' +
+        sellerTermsBox() +
         '<button class="btn" onclick="saveService()">List my service 🧑‍🔧</button>');
     }
     async function saveService() {
@@ -6907,10 +6909,14 @@
       const t = svcType(svcPick), title = val('sv-title'), desc = val('sv-desc'), rate = val('sv-rate');
       if (!title) { toast('Add a title'); return; }
       if (!rate) { toast('Add your rate (it can be "ask me")'); return; }
+      const contact = cleanContact(val('sv-contact'));
+      if (!contact) { toast('Add a phone number or email clients can reach you at'); return; }
+      if (!sellerTermsOk()) return;
+      state.sellerContact = contact;
       const area = val('sv-area');
       const g = state.zip ? await geocodeZip(state.zip) : null;
       let url = val('sell-url'); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
-      const item = { title, desc, price: rate, seller: state.displayName, cat: 'Services', svc: t.k, url: url || '', photos: [],
+      const item = { title, desc, price: rate, seller: state.displayName, cat: 'Services', svc: t.k, url: url || '', photos: [], contact, terms: SELLER_TERMS_V,
         ships: area === 'ship', areaMi: area === 'ship' ? 0 : (parseInt(area, 10) || 10),
         loc: g ? { lat: Math.round(g.lat * 100) / 100, lon: Math.round(g.lon * 100) / 100, area: String(g.area || '').slice(0, 60) } : null };
       const photos = sellPhotos.slice(); sellPhotos = [];
@@ -6971,6 +6977,7 @@
         '<p style="font-weight:700;margin:0 0 0.2rem;">' + esc(l.seller) + ' ' + vbadge() + ' <small style="color:var(--muted);font-weight:600;">ID verified</small></p>' +
         '<p class="sub" style="margin:0 0 0.5rem;">' + esc([t.label, l.price, l.ships ? 'Ships anywhere' : 'Serves within ' + (l.areaMi || 10) + ' miles' + (l.loc && l.loc.area ? ' of ' + l.loc.area : '')].join(' · ')) + '</p>' +
         (l.desc ? '<p class="sub" style="white-space:pre-wrap;" translate="no">' + esc(l.desc) + '</p>' : '') +
+        (l.contact ? '<p style="margin:0 0 0.5rem;" translate="no">📇 ' + esc(l.contact) + '</p>' : '') +
         (l.mine ? '<div class="note">This is your listing.</div>' : '<button class="btn" onclick="closeSheet();openCloudDMWithProfile(\'' + jsStr(l.sellerId) + '\',\'' + jsStr(l.seller) + '\')">💬 Message ' + esc(String(l.seller || '').split(' ')[0]) + '</button>') +
         (l.url && /^https:\/\//.test(l.url) ? '<button class="btn secondary" onclick="openLink(\'' + jsStr(l.url) + '\')">🔗 Their website</button>' : '') +
         '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Providers verified their ID with Petfi. Agree on details, rates and payment directly, meet somewhere public first if you like, and report anything that feels off.</p>');
@@ -7043,6 +7050,58 @@
     // Policy: Owner accounts can sell, advertise and list for breeding.
     // Pet accounts are anonymous fun accounts and can't. (Real ID
     // verification will add a trust badge on top later.)
+    // ---- Selling is for ID-verified members, under the seller terms ----
+    // Anything listed in the Pet Store (products, food, pets, services) comes
+    // from a member who passed the $3 ID check and agreed to these terms; the
+    // database enforces the ID part (petfi-sellers-2026-11-03.sql).
+    const SELLER_TERMS_V = 1;
+    function sellerTermsHtml() {
+      return '<p>These terms apply to every product, pet, food item and service listed on Petfi. They are part of the Petfi Terms of Service.</p><ol>' +
+        '<li><b>You are the seller; Petfi is a venue.</b> Each sale or service is an agreement between you and your buyer or client. Petfi (Spindola Software) does not make, inspect, buy, store, sell, ship or deliver any item listed by members, and does not perform, supervise or guarantee any service.</li>' +
+        '<li><b>Responsibility and liability are yours.</b> You are solely responsible for the products you sell and the services you provide, and for any injury, illness, death, loss or damage to any person, animal or property that results from them. Any refunds, reimbursements, repairs or compensation are owed by you, not by Petfi.</li>' +
+        '<li><b>Indemnity.</b> You agree to indemnify and hold harmless Spindola Software and Petfi from any claims, losses, costs or damages, including reasonable legal fees, arising from your listings, products, services or conduct.</li>' +
+        '<li><b>Lawful, safe and honest.</b> You will follow every law that applies to what you sell or do, including animal-welfare, food-safety, licensing, tax and consumer-protection laws, and you will not list anything unsafe, recalled, counterfeit, illegal or banned by our Community Guidelines.</li>' +
+        '<li><b>Reachable.</b> Your listings show the contact details you provide, and buyers and clients can also message you on Petfi, so any issue can be resolved directly with you.</li>' +
+        '<li><b>Accountability.</b> Your identity was confirmed through our verification provider (Stripe), and Petfi keeps a record of that verification. If you harm or attempt to harm any animal or person, or commit or attempt fraud or a scam, Petfi may remove your listings and close your account, and will cooperate fully with law enforcement, including by providing your verification record and account information as the law allows.</li>' +
+        '</ol>';
+    }
+    function openSellerTerms() {
+      openSheet('📜 Seller & Service Provider Terms', '<div class="legal">' + sellerTermsHtml() + '<p class="lu">Effective November 3, 2026</p></div>' +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    // The agree box, until they've agreed once (then it's on record)
+    function sellerTermsBox() {
+      if (state.sellerTermsV >= SELLER_TERMS_V) return '';
+      return '<label class="age-ok" style="margin-top:0.7rem;"><input type="checkbox" id="st-ok"><span>I agree to the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand);font-weight:700;">Seller &amp; Service Provider Terms</a>: I\'m responsible for anything I sell or provide.</span></label>';
+    }
+    function sellerTermsOk() {
+      if (state.sellerTermsV >= SELLER_TERMS_V) return true;
+      const b = document.getElementById('st-ok');
+      if (!b || !b.checked) { toast('Please agree to the Seller & Service Provider Terms first'); if (b) b.focus(); return false; }
+      state.sellerTermsV = SELLER_TERMS_V; state.sellerTermsAt = Date.now(); saveState();
+      return true;
+    }
+    function sellGate(kind) {
+      if (state.verified) return true;
+      const svc = kind === 'service';
+      openSheet(svc ? '🧑‍🔧 Offer a pet service' : '🛒 Sell in the Pet Store',
+        '<p class="sub">' + (svc ? 'Dog walking, sitting, poop scooping, grooming, training, custom pet art: list it here and pet owners near you can message you.' : 'List products, pets or services for Petfi members near you and across the country.') + '</p>' +
+        '<div class="note">🪪 <b>Selling on Petfi is for ID-verified members only</b>, so every seller and provider is accountable for what they offer. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
+        '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 Verify and start selling</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+      return false;
+    }
+    // Phone (10+ digits) or email, shown to signed-in members on the listing
+    function cleanContact(v) {
+      const t = String(v || '').trim().slice(0, 80);
+      if (/^\S+@\S+\.\S+$/.test(t) || t.replace(/\D/g, '').length >= 10) return t;
+      return '';
+    }
+    function contactField(id) {
+      return '<label for="' + id + '">Contact for buyers <small style="color:var(--muted);font-weight:400;">(phone or email)</small></label>' +
+        '<input id="' + id + '" maxlength="80" value="' + esc(state.sellerContact || '') + '" placeholder="e.g. (916) 555-0100 or you@example.com">' +
+        '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Shown to signed-in members who view your listing.</p>';
+    }
     function requireSeller(what) {
       if (state.accountType !== 'owner') {
         openSheet('🧑 Owner account needed',
@@ -8470,6 +8529,8 @@
       } else {
         h += '<p class="sub">Verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>' +
           verifyStepsHtml() + avatarPerkHtml() +
+          '<div class="note">🛒 <b>Verified members can sell products and offer services</b> in the Pet Store, under the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand);font-weight:700;">Seller &amp; Service Provider Terms</a>: you\'re responsible for anything you sell or provide.</div>' +
+          sellerTermsBox() +
           '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
           '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
           '<button class="btn blue" id="vf-btn" onclick="beginVerifyPayment()">🪪 Verify now · ' + esc(price) + '</button>' +
@@ -8501,6 +8562,7 @@
       avatarAfterVerified();
     }
     async function beginVerifyPayment() {
+      if (!sellerTermsOk()) return;
       verifyBusy('Opening…');
       const svc = await playBillingService();
       if (svc) { payWithPlay(svc); return; }
