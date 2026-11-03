@@ -4194,8 +4194,8 @@
     }
 
     // ======================= THE PETFI PLEDGE & GIFTS =======================
-    // Half of all Petfi profit (store commissions, ads, the badge) and 100% of
-    // gifts go to the Pledge fund. Half of the fund helps verified members with
+    // Half of all Petfi profit (store commissions, ads, the badge) and every gift
+    // dollar Petfi receives (after Google Play's 15% or Stripe's ~3%) go to the Pledge fund. Half of the fund helps verified members with
     // vet bills, cremation, pet food and adoption fees (requests: Pledge assistance below);
     // the other half goes to shelters and animal organizations.
     // Gifts: Play Billing inside the Android app (Play's rule for anything
@@ -4237,7 +4237,7 @@
       const t = PLEDGE_TOTALS, raised = t ? (+t.raised_cents || 0) : 0;
       return '<div id="pledge-strip-home" class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>' +
         (raised > 0 ? pledgeMoney(raised) + ' raised for pets &amp; pet owners' : 'Help pets &amp; pet owners in need') + '</b><small>' +
-        (raised > 0 ? 'Live total: every gift + half of Petfi\'s profit. Tap to give or see where it went.' : '100% of gifts + half of Petfi\'s profit go to vet bills, cremation, adoptions and shelters. Tap to give.') +
+        (raised > 0 ? 'Live total: every gift + half of Petfi\'s profit. Tap to give or see where it went.' : 'Every gift dollar Petfi receives + half of Petfi\'s profit go to vet bills, cremation, pet food, adoptions and shelters. Tap to give.') +
         '</small></div></div>';
     }
     function trackerHtml(t) {
@@ -4247,7 +4247,7 @@
         '<div style="font-size:0.74rem;font-weight:800;letter-spacing:0.06em;text-transform:uppercase;opacity:0.85;">🔴 Live · raised for pets &amp; pet owners</div>' +
         '<div class="big" style="margin:0.35rem 0;">' + (known ? pledgeMoney(+t.raised_cents || 0) : '…') + '</div>' +
         (known
-          ? '<p style="font-size:0.84rem;">' + pledgeMoney(t.donated_cents) + ' given by ' + (t.donors || 0) + ' member' + (t.donors === 1 ? '' : 's') + ' + ' + pledgeMoney(t.profit_share_cents) + ', half of Petfi\'s profit' + (t.last_profit_month ? ' through ' + esc(monthLabel(t.last_profit_month)) : '') + '</p>' +
+          ? '<p style="font-size:0.84rem;">' + pledgeMoney(t.donated_cents) + ' from gifts by ' + (t.donors || 0) + ' member' + (t.donors === 1 ? '' : 's') + ' (after payment fees) + ' + pledgeMoney(t.profit_share_cents) + ', half of Petfi\'s profit' + (t.last_profit_month ? ' through ' + esc(monthLabel(t.last_profit_month)) : '') + '</p>' +
             '<p style="font-size:0.84rem;margin-top:0.3rem;"><b>' + pledgeMoney(t.given_cents) + '</b> given away so far · <b>' + pledgeMoney(Math.max(0, +t.fund_balance_cents || 0)) + '</b> in the fund now</p>'
           : '<p style="font-size:0.84rem;">Loading the live total…</p>') +
       '</div>';
@@ -4327,9 +4327,21 @@
       const more = IS_PLAY_APP ? chip(5000, true) + chip(10000, true)
         : '<button class="pill-btn ghost" style="font-size:0.95rem;padding:0.55rem 1rem;" onclick="customDonation()">Custom amount</button>';
       return '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;justify-content:center;margin:0.3rem 0 0.5rem;">' + DONATE_PRESETS.map(c => chip(c)).join('') + more + '</div>' +
-        '<p class="sub" style="font-size:0.78rem;text-align:center;">100% of your gift goes to the Pledge fund — Petfi pays the card and app-store fees itself. Gifts are not tax-deductible.</p>' +
+        feeNoteHtml() +
         '<div id="donate-mine" class="sub" style="font-size:0.84rem;text-align:center;"></div>' +
         '<div id="donate-monthly"></div>';
+    }
+    function feeNoteHtml() {
+      // In the Android app, only Google Play's own fee: comparing it with the
+      // website's would point Play users to an outside payment, which Play
+      // allows only through its US link-out program.
+      return '<div class="note" style="font-size:0.8rem;text-align:left;">💬 <b>An honest note about fees.</b> ' +
+        (IS_PLAY_APP
+          ? 'Unfortunately, Google Play takes 15% of every gift made in this app, because they don\'t have the heart to put animals and people over profit. '
+          : 'Unfortunately, both Google Play and Stripe (our website\'s payment processor) take a percentage of every donation, because they don\'t have the heart to put animals and people over profit. ' +
+            'Google Play keeps 15% of gifts made in the Android app. Stripe keeps about 3% (2.9% + 30¢) of gifts made on petfi.pet. ' +
+            'That\'s why I suggest giving, or setting up your monthly pledge, here on the website: the fee is smaller, so more of your gift reaches the pets and people who need it. ') +
+        'Every dollar Petfi actually receives goes to the Pledge fund, and not a single penny goes in my pocket. Gifts are not tax-deductible. <span style="white-space:nowrap;">— Rafael, Petfi\'s founder</span></div>';
     }
     function customDonation() {
       openSheet('💝 Custom gift',
@@ -4438,7 +4450,7 @@
       return '<div class="hx-card" style="text-align:center;margin-top:0.6rem;"><div style="font-weight:800;">💞 Or give every month</div>' +
         '<div style="display:flex;gap:0.45rem;flex-wrap:wrap;justify-content:center;margin:0.45rem 0;">' + MONTHLY_PRESETS.map(chip).join('') +
         '<button class="pill-btn ghost" style="font-size:0.9rem;padding:0.5rem 0.9rem;" onclick="customMonthly()">Other amount</button></div>' +
-        '<p class="sub" style="font-size:0.74rem;margin:0;">Charged every month until you cancel, and you can cancel anytime right here in one tap. 100% goes to the Pledge fund. Not tax-deductible.</p></div>';
+        '<p class="sub" style="font-size:0.74rem;margin:0;">Charged every month until you cancel, and you can cancel anytime right here in one tap. Stripe keeps about 3%; everything Petfi receives goes to the Pledge fund. Not tax-deductible.</p></div>';
     }
     function customMonthly() {
       openSheet('💞 Monthly gift',
@@ -5032,7 +5044,7 @@
           '<b>🧬 Which breed is my dog (or cat)?</b><br>' +
           'A cheek swab and a few weeks later you know the breed mix and the health risks worth watching. ' +
           'These are the best-selling kits on Amazon — Petfi earns a small commission at no extra cost to you, ' +
-          'and half of all Petfi profit — plus 100% of donations — goes back to animals.</div>';
+          'and half of all Petfi profit — plus every donation dollar Petfi receives — goes back to animals.</div>';
       }
       if (catalogState === 'failed' && state.storeCat !== 'Members') h += '<div class="note">📡 The catalog didn\'t load. <span class="link" onclick="catalogState=\'idle\';ensureCatalog()">Try again</span></div>';
       else if (catalogState !== 'ready' && state.storeCat !== 'Members') h += '<div class="note">⏳ Loading the catalog…</div>';
@@ -5095,7 +5107,7 @@
       openSheet('🔗 About affiliate links',
         '<div class="legal">' +
         '<p>Some products in the Pet Store are <b>affiliate links</b>. When you tap “Shop” and buy on the retailer’s site (like Amazon or Chewy), Petfi may earn a small commission.</p>' +
-        '<p><b>It costs you nothing extra</b> — the price is the same as going there directly. And <b>half of all Petfi profit</b> — plus <b>100% of donations</b> — goes to adoption fees, emergency vet bills and cremation costs for pet families in need 💖.</p>' +
+        '<p><b>It costs you nothing extra</b> — the price is the same as going there directly. And <b>half of all Petfi profit</b> — plus <b>every donation dollar Petfi receives</b> — goes to vet bills, cremation, pet food and adoption fees for pet families in need 💖.</p>' +
         '<p>Prices shown are approximate — the live price on the retailer’s site is always what you pay. Shipping, returns and support for those orders are handled by the retailer.</p>' +
         '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
@@ -5999,7 +6011,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.19.0';
+    const APP_VERSION = '1.19.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6037,7 +6049,7 @@
         '<h3>5. Animal welfare</h3>' +
         '<p>Content showing or encouraging animal abuse or neglect is banned and gets an immediate, permanent ban. Knowingly selling sick animals without disclosure is banned.</p>' +
         '<h3>6. Fees, affiliate links & donations</h3>' +
-        '<p>Identity verification ($3, one-time) and Spotlight ads (priced by reach and length) are paid features; the price is always shown before you pay. Petfi pledges <b>50% of its profit</b> (store commissions, ads and the badge) and <b>100% of gifts</b> to the Petfi Pledge fund. Half of the fund helps members with emergency vet bills, cremation costs and adoption fees, decided case by case by Petfi\'s treasurer, with members who have given the most first in line; the other half goes to shelters and animal organizations. Every dollar given away is listed on the Pledge page with the date and the recipient. Gifts are voluntary, go to Spindola Software, and are not tax-deductible. The Pledge page also lists real shelters near you to give to directly.</p>' +
+        '<p>Identity verification ($3, one-time) and Spotlight ads (priced by reach and length) are paid features; the price is always shown before you pay. Petfi pledges <b>50% of its profit</b> (store commissions, ads and the badge) and <b>100% of every gift it receives</b> (what is left after Google Play\'s or Stripe\'s fee) to the Petfi Pledge fund. Half of the fund helps ID-verified members with emergency vet bills, cremation costs, pet food and adoption fees, decided case by case by Petfi\'s treasurer, with members who have given the most first in line; help is never guaranteed and depends on the funds available, how serious the situation is and how many requests are waiting; the other half goes to shelters and animal organizations. Every dollar given away is listed on the Pledge page with the date and the recipient. Gifts are voluntary, go to Spindola Software, and are not tax-deductible. The Pledge page also lists real shelters near you to give to directly.</p>' +
         '<p><b>Affiliate links:</b> some products in the Pet Store link to outside retailers (such as Amazon and Chewy). If you buy through those links, Petfi may earn a commission at no extra cost to you. Prices shown in Petfi are approximate; the retailer\'s live price, shipping, returns and support govern those purchases. As an Amazon Associate, Petfi earns from qualifying purchases.</p>' +
         '<h3>7. What you can\'t do</h3>' +
         '<ul><li>Harass, threaten, or impersonate anyone.</li><li>Spam, scam, or mislead.</li><li>Post sexual, violent, or hateful content.</li><li>Scrape data or interfere with the service.</li></ul>' +
@@ -6119,7 +6131,7 @@
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi. If they say hi back, it\'s a match and you can message each other from Mate Match. Anyone can still reach you from your profile unless you turn on <b>Only friends can message</b> in Settings.</p></details>' +
         '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
-        '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and the badge — and <b>100% of gifts</b> go into the Pledge fund. Half of the fund helps members: <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, <b>cremation costs</b> after a sudden loss, and <b>adoption fees</b> so shelter pets find homes faster. Members who give are first in line. The other half goes to <b>shelters and animal organizations</b>. Every dollar given away is listed on the Pledge page (Me → The Petfi Pledge) with the date and who received it. Buying through the Petfi store costs you nothing extra and funds this.</p></details>' +
+        '<details><summary>💖 Where does Petfi\'s money go?</summary><p><b>Half of all Petfi profit</b> — store commissions, ads and the badge — and <b>every gift dollar Petfi receives</b> (after Google Play\'s or Stripe\'s fee) go into the Pledge fund. Half of the fund helps verified members: <b>emergency vet bills</b> when a family can\'t cover a sudden crisis, <b>cremation costs</b> after a sudden loss, <b>pet food</b> when money is tight, and <b>adoption fees</b> so shelter pets find homes faster. Members who give are first in line. The other half goes to <b>shelters and animal organizations</b>. Every dollar given away is listed on the Pledge page (Me → The Petfi Pledge) with the date and who received it. Buying through the Petfi store costs you nothing extra and funds this.</p></details>' +
         '<details><summary>📍 How does Nearby find real places?</summary><p>Enter your ZIP code in the <b>Nearby</b> tab. Petfi looks up real dog parks, pet stores and vets around you using OpenStreetMap — no ads, no sponsored results.</p></details>' +
         '<details><summary>⏰ How do reminders work?</summary><p>Home tab → <b>🔒 My care</b> chip → add reminders (feeding, litter box…) or calendar entries (vet visits). Enable browser notifications and Petfi alerts you when something\'s due. This page is 100% private to you.</p></details>' +
         '<details><summary>🔊 What are barks & meows?</summary><p>A quick way to say hi! Tap 🔊 on any pet — they hear a real bark or meow. Anyone can bark at anyone; messages can be limited to friends in Settings.</p></details>' +
@@ -6139,7 +6151,7 @@
           '<p class="sub" style="margin-top:0.3rem;">The social world for pets<br>and the people who love them.</p>' +
           '<p class="sub" style="font-size:0.8rem;">Version ' + APP_VERSION + '</p>' +
         '</div>' +
-        '<div class="note" style="text-align:center;">💖 <b>Half of all Petfi profit</b> and <b>100% of donations</b> go to adoption fees, emergency vet bills &amp; cremation costs for pets in need.</div>' +
+        '<div class="note" style="text-align:center;">💖 <b>Half of all Petfi profit</b> and <b>every donation dollar Petfi receives</b> go to vet bills, cremation, pet food &amp; adoption fees for pets in need.</div>' +
         '<div class="settings-card" style="margin-top:0.8rem;">' +
           '<div class="link-row" onclick="closeSheet();openTerms()"><span class="li">📜</span>Terms of Service<span class="chev">›</span></div>' +
           '<div class="link-row" onclick="closeSheet();openPrivacy()"><span class="li">🔒</span>Privacy Policy<span class="chev">›</span></div>' +
@@ -7652,7 +7664,7 @@
         '<label>How long</label><select id="ad-dur" onchange="updateAdPrice()">' +
           Object.keys(AD_PLAN).map(k => '<option value="' + k + '">' + AD_PLAN[k].label + (AD_PLAN[k].off ? ' — ' + Math.round(AD_PLAN[k].off * 100) + '% off' : '') + '</option>').join('') + '</select>' +
         '<div class="note" style="text-align:center;" id="ad-price"></div>' +
-        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 <b>Half of Petfi\'s profit</b> from every ad — and <b>100% of gifts</b> — goes back to animals: vet bills, cremation, adoption fees &amp; shelters</div>' +
+        '<div class="note" id="ad-give" style="text-align:center;background:#ffe9f0;color:#a03a5a;margin-top:0.5rem;">💖 <b>Half of Petfi\'s profit</b> from every ad — and <b>every gift dollar Petfi receives</b> — goes back to animals: vet bills, cremation, pet food, adoption fees &amp; shelters</div>' +
         '<button class="btn" id="ad-launch" onclick="launchAd()">Continue to payment</button>');
       updateAdPrice();
     }
@@ -7908,9 +7920,9 @@
     // The Petfi Pledge — half of all Petfi profit and 100% of donations go back to animals
     const PLEDGE_SHARE = 0.5;
     function pledgeCard(compact) {
-      if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit + 100% of gifts go back to pets.</b><small>Vet bills · cremation · adoption fees · shelters — tap to give, or to see where every dollar went.</small></div></div>';
+      if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit + every gift dollar we receive go back to pets.</b><small>Vet bills · cremation · pet food · adoption fees · shelters — tap to give, or to see where every dollar went.</small></div></div>';
       const row = (emo, t, s) => '<div class="row" style="margin-bottom:0.5rem;"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + t + '</div><div class="rmeta" style="font-size:0.85rem;">' + s + '</div></div></div>';
-      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and 100% of gifts — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and badge, and every dollar given goes into the Pledge fund. <b>Half the fund helps Petfi members</b> — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does.</p></div>' +
+      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and 100% of every gift we receive — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and badge, and every dollar given goes into the Pledge fund. <b>Half the fund helps Petfi members</b> — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does.</p></div>' +
         row('🚑', 'Emergency vet bills', 'For a member\'s pet, when a family can\'t cover it alone.') +
         row('🕊️', 'Cremation &amp; goodbye costs', 'After a sudden loss, no family should face that bill on top of the grief.') +
         row('🏡', 'Adoption fees', 'So shelter pets find their family faster — and more of them make it out the front door.') +
