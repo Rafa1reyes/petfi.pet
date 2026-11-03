@@ -63,6 +63,7 @@
       position: relative;
       box-shadow: 0 0 60px rgba(45,42,50,0.08);
       overflow: hidden;
+      overflow: clip; /* clips like hidden, but lets the sticky top bar stick */
     }
 
     /* ---- Screens ---- */
@@ -581,7 +582,7 @@
     .store-filters { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 0.55rem 0.8rem 0.35rem; margin-bottom: 0.9rem; }
     .sf-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.25rem; }
     .sf-row .chips { margin: 0; padding: 0; flex: 1; min-width: 0; }
-    .sf-label { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; width: 38px; flex-shrink: 0; }
+    .sf-label { font-size: 0.72rem; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; min-width: 38px; flex-shrink: 0; }
     .sf-sort { flex: 0 1 auto; width: auto; padding: 0.45rem 0.7rem; font-size: 0.85rem; font-weight: 700; border-radius: 999px; border: 2px solid var(--line); background: var(--card); color: var(--ink); font-family: inherit; }
     body.dark .store-filters { background: var(--card); }
     /* ---- Video posts ---- */
@@ -4693,7 +4694,8 @@
         ((state.storeCat !== 'All' || state.storeType !== 'Any' || state.storeMax || state.storeSort !== 'popular') ? '<span class="link" style="font-size:0.8rem;font-weight:700;color:var(--brand);cursor:pointer;margin-left:auto;" onclick="resetStoreFilters()">✕ Clear</span>' : '') +
         '</div></div>';
       STORE_VIEW = members.concat(AFFILIATE_PRODUCTS);
-      const items = sortStore(STORE_VIEW.filter(p => inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)) && underCap(p, state.storeMax)));
+      const items = sortStore(STORE_VIEW.filter(p => p.cat !== 'Services' && inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)) && underCap(p, state.storeMax)));
+      const nBest = items.filter(p => p.affiliate).length;
       if (state.storeCat === 'All' || state.storeCat === 'Members') {
         h += members.length
           ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + members.length + ' listing' + (members.length === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy.' + (state.storeCat === 'All' ? ' Then Amazon\'s best-selling pet products, most popular first.' : '') + '</p>'
@@ -4701,7 +4703,7 @@
             ? '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>.</div>'
             : '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 Amazon\'s best-selling pet products, most popular first. <span class="link" onclick="openSell()">Sell your own</span> and it shows up here too.</p>');
       } else {
-        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + items.length + ' best seller' + (items.length === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
+        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + nBest + ' best seller' + (nBest === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
       }
       // 🧬 needs a sentence of context — nobody shops for a cheek swab by name
       if (state.storeType === 'DNA') {
@@ -5676,7 +5678,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.18.0';
+    const APP_VERSION = '1.18.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
