@@ -5624,6 +5624,7 @@
         '<div class="link-row" onclick="openBlockedList()"><span class="li">🚫</span><div>Blocked users' + ((state.blocked || []).length ? '<small>' + state.blocked.length + ' blocked</small>' : '') + '</div><span class="chev">›</span></div>' +
         (isAdmin() ? '<div class="link-row" onclick="openUsage()"><span class="li">📊</span><div>Usage<small>Where new members drop off, what they use (admin)</small></div><span class="chev">›</span></div>' : '') +
         (isAdmin() ? '<div class="link-row" onclick="openModeration()"><span class="li">🛡️</span><div>Moderation<small>Open reports — remove posts or suspend accounts</small></div><span class="chev">›</span></div>' : '') +
+        (isAdmin() ? '<div class="link-row" onclick="openVerifyCodesAdmin()"><span class="li">🎟️</span><div>Free verification codes<small>Codes that cover the $3 for friends and family (admin)</small></div><span class="chev">›</span></div>' : '') +
         '<div class="link-row" onclick="openAbout()"><span class="li">🐾</span><div>About Petfi<small>Version ' + APP_VERSION + ' · Terms &amp; Privacy</small></div><span class="chev">›</span></div>' +
       '</div>';
 
@@ -6260,7 +6261,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.21.1';
+    const APP_VERSION = '1.22.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -9340,6 +9341,8 @@
           '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
           '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
           '<button class="btn blue" id="vf-btn" onclick="beginVerifyPayment()">🪪 Verify now · ' + esc(price) + '</button>' +
+          // A free-verification code from Petfi covers the fee; everyone else pays as usual
+          '<div id="vc-box" style="margin:0.2rem 0 0.6rem;"><a href="#" onclick="event.preventDefault();showVerifyCodeBox()" style="color:var(--brand);font-weight:700;font-size:0.88rem;">🎟️ Have a code?</a></div>' +
           '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
       }
       openSheet('🪪 ID verification', h);
@@ -9416,6 +9419,72 @@
     }
     // Paid (either rail): hand them to Stripe's ID page. The server reuses an
     // unfinished session, so a retry after a failed check costs nothing.
+    // ---- Free-verification codes (Rafael gives them to friends and family) ----
+    function showVerifyCodeBox() {
+      const box = document.getElementById('vc-box'); if (!box) return;
+      box.innerHTML = '<label for="vc-in" style="margin-top:0;">Code</label>' +
+        '<div style="display:flex;gap:0.5rem;"><input id="vc-in" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="e.g. FRIENDS" style="flex:1;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')redeemVerifyCode()">' +
+        '<button class="btn small" id="vc-btn" onclick="redeemVerifyCode()">Apply</button></div>' +
+        '<div id="vc-msg" style="font-size:0.82rem;margin-top:0.35rem;color:#a03a5a;"></div>';
+      const i = document.getElementById('vc-in'); if (i) i.focus();
+    }
+    async function redeemVerifyCode() {
+      const code = val('vc-in').trim().toUpperCase().replace(/\s+/g, '');
+      const msg = document.getElementById('vc-msg'), btn = document.getElementById('vc-btn');
+      const say = t => { if (msg) msg.textContent = t; };
+      if (!/^[A-Z0-9-]{4,32}$/.test(code)) { say('That code doesn\'t look right. Check it and try again.'); return; }
+      if (!sellerTermsOk()) return;
+      if (btn) { btn.disabled = true; btn.textContent = '…'; }
+      const r = await verifyCall('code', { code });
+      if (btn) { btn.disabled = false; btn.textContent = 'Apply'; }
+      if (r.verified) { markVerifiedLocally(); return; }
+      if (r.ok) { toast('🎟️ Code accepted. Your verification is free'); continueVerify(); return; }
+      say({
+        bad_code: 'That code isn\'t valid. Check the spelling and try again.',
+        code_used_up: 'That code has been used up.',
+        too_many: 'Too many tries today. Try again tomorrow.',
+        offline: 'No internet connection right now.', network: 'No internet connection right now.',
+      }[r.error] || 'Something went wrong. Nothing was charged. Try again in a minute.');
+    }
+    // Admin: add codes, see how often each was used, switch one off
+    async function openVerifyCodesAdmin() {
+      if (!isAdmin() || !cloud) return;
+      openSheet('🎟️ Free verification codes', '<div class="note">⏳ Loading…</div>');
+      const mySeq = sheetSeq;
+      const { data, error } = await cloud.rpc('petfi_verify_codes_list');
+      if (sheetSeq !== mySeq) return;
+      if (error) { openSheet('🎟️ Free verification codes', '<div class="note">⚠️ Could not load the codes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>'); return; }
+      const rows = data || [];
+      const list = rows.length ? rows.map(c =>
+        '<div class="hx-card" style="margin:0.45rem 0;display:flex;align-items:center;gap:0.6rem;">' +
+          '<div style="flex:1;"><b style="letter-spacing:0.04em;">' + esc(c.code) + '</b>' + (c.active ? '' : ' <span style="color:var(--muted);font-size:0.78rem;">(off)</span>') +
+          '<br><span style="color:var(--muted);font-size:0.82rem;">Used ' + (+c.uses) + (c.max_uses ? ' of ' + (+c.max_uses) : ' times · no limit') + '</span></div>' +
+          '<button class="btn small' + (c.active ? ' secondary' : '') + '" onclick="saveVerifyCode(\'' + jsStr(c.code) + '\',' + (c.max_uses ? +c.max_uses : 'null') + ',' + (c.active ? 'false' : 'true') + ')">' + (c.active ? 'Turn off' : 'Turn on') + '</button>' +
+        '</div>').join('')
+        : '<div class="note">No codes yet.</div>';
+      openSheet('🎟️ Free verification codes',
+        '<p class="sub">A member who enters one of these skips the $3 and goes straight to the ID check; Petfi pays Stripe\'s fee for the check. Everyone else still pays $3. Each member can use a code once.</p>' +
+        list +
+        '<div class="hx-card" style="margin-top:0.8rem;"><b>Add a code</b>' +
+          '<label for="vca-code">Code <small style="color:var(--muted);font-weight:400;">(4–32 letters, numbers or dashes)</small></label><input id="vca-code" maxlength="32" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;">' +
+          '<label for="vca-cap">Use limit <small style="color:var(--muted);font-weight:400;">(blank = no limit)</small></label><input id="vca-cap" type="number" min="1" inputmode="numeric">' +
+          '<button class="btn" onclick="addVerifyCode()">➕ Add code</button></div>' +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    function addVerifyCode() {
+      const code = val('vca-code').trim().toUpperCase().replace(/\s+/g, '');
+      const capRaw = val('vca-cap').trim(), cap = capRaw ? parseInt(capRaw, 10) : null;
+      if (!/^[A-Z0-9-]{4,32}$/.test(code)) { toast('Codes are 4–32 letters, numbers or dashes'); return; }
+      if (capRaw && !(cap > 0)) { toast('The use limit must be 1 or more'); return; }
+      saveVerifyCode(code, cap, true);
+    }
+    async function saveVerifyCode(code, cap, on) {
+      if (!isAdmin() || !cloud) return;
+      const { error } = await cloud.rpc('petfi_verify_code_save', { c: code, cap: cap, on_: on });
+      if (error) { console.warn('code save:', error.message); toast('⚠️ Could not save the code'); return; }
+      toast(on ? '🎟️ ' + code + ' is on' : code + ' is off');
+      openVerifyCodesAdmin();
+    }
     async function continueVerify() {
       openSheet('🪪 ID verification', '<div class="note">⏳ Opening the secure ID check…</div>');
       const r = await verifyCall('identity', VERIFY_RETURN && VERIFY_RETURN.cs ? { cs: VERIFY_RETURN.cs } : {});
