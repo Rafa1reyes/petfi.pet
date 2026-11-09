@@ -6261,7 +6261,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.22.0';
+    const APP_VERSION = '1.22.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -9423,13 +9423,14 @@
     function showVerifyCodeBox() {
       const box = document.getElementById('vc-box'); if (!box) return;
       box.innerHTML = '<label for="vc-in" style="margin-top:0;">Code</label>' +
-        '<div style="display:flex;gap:0.5rem;"><input id="vc-in" maxlength="32" autocapitalize="characters" autocomplete="off" spellcheck="false" placeholder="e.g. FRIENDS" style="flex:1;text-transform:uppercase;" onkeydown="if(event.key===\'Enter\')redeemVerifyCode()">' +
+        '<div style="display:flex;gap:0.5rem;"><input id="vc-in" maxlength="60" autocomplete="off" spellcheck="false" placeholder="Type your code" style="flex:1;" onkeydown="if(event.key===\'Enter\')redeemVerifyCode()">' +
         '<button class="btn small" id="vc-btn" onclick="redeemVerifyCode()">Apply</button></div>' +
         '<div id="vc-msg" style="font-size:0.82rem;margin-top:0.35rem;color:#a03a5a;"></div>';
       const i = document.getElementById('vc-in'); if (i) i.focus();
     }
     async function redeemVerifyCode() {
-      const code = val('vc-in').trim().toUpperCase().replace(/\s+/g, '');
+      // Codes can be phrases: spaces, capitals and punctuation don't matter
+      const code = val('vc-in').toUpperCase().replace(/[^A-Z0-9-]/g, '');
       const msg = document.getElementById('vc-msg'), btn = document.getElementById('vc-btn');
       const say = t => { if (msg) msg.textContent = t; };
       if (!/^[A-Z0-9-]{4,32}$/.test(code)) { say('That code doesn\'t look right. Check it and try again.'); return; }
@@ -9466,13 +9467,13 @@
         '<p class="sub">A member who enters one of these skips the $3 and goes straight to the ID check; Petfi pays Stripe\'s fee for the check. Everyone else still pays $3. Each member can use a code once.</p>' +
         list +
         '<div class="hx-card" style="margin-top:0.8rem;"><b>Add a code</b>' +
-          '<label for="vca-code">Code <small style="color:var(--muted);font-weight:400;">(4–32 letters, numbers or dashes)</small></label><input id="vca-code" maxlength="32" autocapitalize="characters" autocomplete="off" style="text-transform:uppercase;">' +
+          '<label for="vca-code">Code <small style="color:var(--muted);font-weight:400;">(a word or phrase; spaces, capitals and punctuation are ignored, 4–32 letters or numbers)</small></label><input id="vca-code" maxlength="60" autocomplete="off">' +
           '<label for="vca-cap">Use limit <small style="color:var(--muted);font-weight:400;">(blank = no limit)</small></label><input id="vca-cap" type="number" min="1" inputmode="numeric">' +
           '<button class="btn" onclick="addVerifyCode()">➕ Add code</button></div>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
     function addVerifyCode() {
-      const code = val('vca-code').trim().toUpperCase().replace(/\s+/g, '');
+      const code = val('vca-code').toUpperCase().replace(/[^A-Z0-9-]/g, '');
       const capRaw = val('vca-cap').trim(), cap = capRaw ? parseInt(capRaw, 10) : null;
       if (!/^[A-Z0-9-]{4,32}$/.test(code)) { toast('Codes are 4–32 letters, numbers or dashes'); return; }
       if (capRaw && !(cap > 0)) { toast('The use limit must be 1 or more'); return; }
