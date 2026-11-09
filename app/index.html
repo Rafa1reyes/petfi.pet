@@ -6260,7 +6260,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.21.0';
+    const APP_VERSION = '1.21.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6725,9 +6725,13 @@
           '<label for="av-breed">Breed <small style="color:var(--muted);font-weight:400;">(helps it get the details right)</small></label>' +
           '<input id="av-breed" maxlength="40" value="' + esc(state.breed || '') + '" placeholder="e.g. Pit bull, German Shepherd, tabby">';
       }
-      h += '<input type="file" id="av-file" accept="image/*"' + (pet ? '' : ' capture="user"') + ' style="display:none;" onchange="avatarPicked(this)">' +
-        '<button class="btn" onclick="document.getElementById(\'av-file\').click()">📷 ' + (pet ? 'Choose a photo of your pet' : 'Take or choose a selfie') + '</button>' +
-        (pet ? '' : '<label style="display:flex;gap:0.5rem;align-items:flex-start;font-weight:500;font-size:0.82rem;margin-top:0.6rem;"><input type="checkbox" id="av-ok" style="width:auto;margin-top:0.2rem;"> <span>This is me (or I have their OK). I understand the photo is sent to Google\'s AI to draw the avatar and isn\'t kept.</span></label>') +
+      // A saved photo first: capture="user" would force the camera and hide the
+      // gallery, so only the separate "Take a selfie now" button opens the camera.
+      h += (pet ? '' : '<label style="display:flex;gap:0.5rem;align-items:flex-start;font-weight:500;font-size:0.82rem;margin:0.2rem 0 0.6rem;"><input type="checkbox" id="av-ok" style="width:auto;margin-top:0.2rem;"> <span>This is me (or I have their OK). I understand the photo is sent to Google\'s AI to draw the avatar and isn\'t kept.</span></label>') +
+        '<input type="file" id="av-file" accept="image/*" style="display:none;" onchange="avatarPicked(this)">' +
+        (pet ? '' : '<input type="file" id="av-cam" accept="image/*" capture="user" style="display:none;" onchange="avatarPicked(this)">') +
+        '<button class="btn" onclick="avatarChoose(\'av-file\')">' + (pet ? '📷 Choose a photo of your pet' : '🖼️ Choose a selfie from my photos') + '</button>' +
+        (pet ? '' : '<button class="btn secondary" onclick="avatarChoose(\'av-cam\')">🤳 Take a selfie now</button>') +
         '<p class="sub" style="font-size:0.75rem;margin-top:0.6rem;">' + (pet ? 'Your photo is sent to Google\'s AI to draw the avatar and isn\'t kept. ' : '') +
         'Each drawing or change uses one try — you have <b>' + AVATAR.left + '</b> left.</p>';
       openSheet('✨ AI avatar', h);
@@ -6748,6 +6752,11 @@
         img.onerror = () => { URL.revokeObjectURL(url); rej(new Error('img')); };
         img.src = url;
       });
+    }
+    // Ask for the "this is me" tick before the picker opens, not after a photo was chosen
+    function avatarChoose(id) {
+      if (avatarJob.kind === 'human' && !(document.getElementById('av-ok') || {}).checked) { toast('Tick the box first, please'); return; }
+      const el = document.getElementById(id); if (el) el.click();
     }
     async function avatarPicked(input) {
       const f = input.files && input.files[0]; if (!f) return;
