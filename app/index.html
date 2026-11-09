@@ -3184,7 +3184,8 @@
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
         '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span>' +
-          (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) ? '<span title="Report comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
+          (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) && !isAdmin() ? '<span title="Report comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
+          (c.cid && ((cloudUser && c.authorId === cloudUser.id) || isAdmin()) ? '<span title="Delete comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteComment(' + Number(c.cid) + ')">' + (cloudUser && c.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') +
         '</div>').join('');
       const nCmts = (p.comments || []).length;
       const likes = Number(p.likes) || 0;
@@ -3194,7 +3195,9 @@
         : '<button data-on="" onclick="likePost(this,' + likes + ',\'' + (VOICE_PLAYERS[p.kind] ? p.kind : 'like') + '\')">' + react + ' <span class="cnt">' + likes + '</span></button>';
       const del = p.mine
         ? '<span class="post-tool" title="Delete post" onclick="deleteMyPost(' + i + ')">🗑</span>'
-        : '<span class="post-tool" style="color:var(--muted);" title="Report post" onclick="openReport(\'post\',\'' + jsStr(p.who) + '\',' + (Number(p.cloudId) || 'null') + ')">🚩</span>';
+        : isAdmin() && p.cloudId
+          ? '<span class="post-tool" title="Remove this post (admin)" onclick="adminDeletePost(' + Number(p.cloudId) + ')">🛡️🗑</span>'
+          : '<span class="post-tool" style="color:var(--muted);" title="Report post" onclick="openReport(\'post\',\'' + jsStr(p.who) + '\',' + (Number(p.cloudId) || 'null') + ')">🚩</span>';
       const fresh = p.fresh; if (fresh) setTimeout(() => { p.fresh = false; }, 1500);
       return '<div class="post' + (fresh ? ' post-new' : '') + '">' +
         '<div class="post-head">' +
@@ -3329,6 +3332,33 @@
       if (error) { toast('⚠️ Could not delete from the cloud'); loadCloudPosts(true); return; }
       removePostMedia(gone);
       toast('Post deleted 🗑');
+    }
+    // Admins remove anyone's post in one step (the "admin delete" policy in
+    // petfi-moderation.sql allows it); one confirm guards against a mis-tap.
+    function adminDeletePost(cloudId) {
+      if (!isAdmin() || !cloud) return;
+      if (!confirm('Remove this post for everyone? This can\'t be undone.')) return;
+      reallyDeletePost(cloudId);
+    }
+    // Comments: their author, or an admin
+    async function deleteComment(cid) {
+      if (!cloud || !cloudUser) return;
+      if (!confirm('Delete this comment for everyone?')) return;
+      const { error } = await cloud.from('post_comments').delete().eq('id', cid);
+      if (error) { toast('⚠️ Could not delete the comment'); return; }
+      FEED.forEach(p => { if (Array.isArray(p.comments)) p.comments = p.comments.filter(c => c.cid !== cid); });
+      if (state.tab === 'home') openTab('home');
+      toast('Comment deleted 🗑');
+    }
+    // Group posts: their author, or an admin
+    async function deleteGroupPost(i, gid) {
+      if (!cloud || !cloudUser) return;
+      if (!confirm('Delete this group post for everyone?')) return;
+      const { error } = await cloud.from('group_posts').delete().eq('id', gid);
+      if (error) { toast('⚠️ Could not delete the post'); return; }
+      const g = GROUPS_VIEW[i]; if (g && Array.isArray(g.posts)) g.posts = g.posts.filter(x => x.gid !== gid);
+      toast('Post deleted 🗑');
+      if (g) openGroupDetail(i);
     }
     // Best effort: a deleted video shouldn't sit in the bucket forever. The row
     // is already gone, so a storage error changes nothing the user can see.
@@ -4013,6 +4043,7 @@
     // The buy link for a store product (best-seller rows go straight to the
     // product page, which converts far better than a search)
     function affiliateUrl(p) {
+      if (p.extra) return extraBuyUrl(p);
       if (p.chewy && affOn('chewy')) return affDeep('chewy', 'https://www.chewy.com/s?query=' + encodeURIComponent(p.q || p.title));
       if (p.asin && /^[A-Z0-9]{10}$/.test(p.asin)) {
         return 'https://www.amazon.com/dp/' + p.asin + '/' + (AFFILIATE.amazonTag ? '?tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
@@ -4137,7 +4168,8 @@
           '<div class="u-name">' + r.name + '</div>' +
           '<div class="u-meta">"' + esc(webQ.slice(0, 20)) + (webQ.length > 20 ? '…' : '') + '"</div>' +
         '</div>').join('') + '</div>' +
-        '<p class="sub" style="font-size:0.72rem;margin-top:0.4rem;">Some of these are paid links: Petfi may earn a commission, at no cost to you.</p>';
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.4rem;">Some of these are paid links: Petfi may earn a commission, at no cost to you.</p>' +
+        '<p class="sub" style="font-size:0.82rem;margin-top:0.5rem;">🔎 Want it in the Petfi store? <span class="link" onclick="openStoreRequest(\'' + jsStr(q.slice(0, 120)) + '\')">Ask us to add it</span></p>';
 
       box.innerHTML = h;
     }
@@ -4923,6 +4955,34 @@
         q: r[1], affiliate: true, seller: 'Amazon', cat: 'Products', emo: '🛒', bg: '#fff',
       };
     }
+    // ---- Products added from members' requests (petfi_store_extra) ----
+    // Admins add them in the app; they show for everyone without a release.
+    const STORE_NAMES = { amazon: 'Amazon', chewy: 'Chewy', petsmart: 'PetSmart', petco: 'Petco', tractor: 'Tractor Supply', other: 'the store' };
+    function extraRow(r) {
+      const name = STORE_NAMES[r.store] || 'Amazon';
+      const m = /m\.media-amazon\.com\/images\/I\/([A-Za-z0-9+%-]{6,40})\./.exec(String(r.image_url || ''));
+      return {
+        asin: r.asin || '', title: r.title, price: 'See price on ' + name, img: m ? m[1] : '',
+        imgUrl: !m && /^https:\/\//i.test(String(r.image_url || '')) ? r.image_url : '',
+        cats: Array.isArray(r.cats) ? r.cats : [], bestIn: '', q: r.title, affiliate: true, extra: true, extraId: r.id,
+        extraLink: r.link || '', storeKey: r.store || 'amazon', storeName: name, seller: name, cat: 'Products', emo: '🛒', bg: '#fff',
+      };
+    }
+    async function loadStoreExtras() {
+      if (!cloud) return [];
+      try {
+        const { data } = await cloud.from('petfi_store_extra').select('id, title, asin, link, store, image_url, cats')
+          .eq('active', true).order('created_at', { ascending: false }).limit(500);
+        return (data || []).map(extraRow);
+      } catch (e) { return []; }
+    }
+    // The buy link for an added product: our tag or tracked link where we have one
+    function extraBuyUrl(p) {
+      if (!p.extraLink) return 'https://www.amazon.com/dp/' + p.asin + '/' + (AFFILIATE.amazonTag ? '?tag=' + encodeURIComponent(AFFILIATE.amazonTag) : '');
+      if (p.storeKey === 'amazon') return hxTagLink(p.extraLink);
+      if (AFF_PROGRAMS[p.storeKey]) return affDeep(p.storeKey, p.extraLink, 'store');
+      return p.extraLink;
+    }
     async function ensureCatalog() {
       if (catalogState === 'ready' || catalogState === 'loading') return;
       catalogState = 'loading';
@@ -4931,7 +4991,7 @@
         if (!r.ok) throw new Error('store.json ' + r.status);
         const rows = await r.json();
         if (!Array.isArray(rows)) throw new Error('store.json shape');
-        AFFILIATE_PRODUCTS = rows.map(catalogRow);
+        AFFILIATE_PRODUCTS = (await loadStoreExtras()).concat(rows.map(catalogRow));
         catalogState = 'ready';
       } catch (e) { catalogState = 'failed'; }
       if (appActive() && state.tab === 'store') rerenderTab(renderStore);
@@ -4968,8 +5028,8 @@
     // pages re-rank all day, so "this week's hottest" stays true without
     // anyone updating the catalog.
     const HOT_LISTS = [
-      { emo: '🔥', t: 'Pet best sellers', sub: 'Updated every hour', path: '/gp/bestsellers/pet-supplies' },
-      { emo: '🚀', t: 'Hot today in pets', sub: 'Biggest jumps in 24 hours', path: '/gp/movers-and-shakers/pet-supplies' },
+      { emo: '🔥', t: 'Pet best sellers', sub: 'Right here in Petfi', petfi: true },
+      { emo: '🚀', t: 'New in pets', sub: 'Newest hits on Amazon', path: '/gp/new-releases/pet-supplies' },
       { emo: '🏆', t: 'Top sellers on all of Amazon', sub: 'Every category', path: '/gp/bestsellers' },
     ];
     const RESTOCK = [
@@ -4982,13 +5042,166 @@
     }
     // A search sorted by Amazon's own best-seller rank
     function amazonBestLink(q) { return amazonLink(q) + '&s=exact-aware-popularity-rank'; }
+    // Petfi's own best-seller list: the whole catalog, most popular first
+    function showPetfiBestSellers() {
+      state.storeCat = 'All'; state.storeType = 'Any'; state.storeSort = 'popular'; storeShown = 0;
+      openTab('store');
+      setTimeout(() => { const g = document.querySelector('#tab-content .store-grid'); if (g) g.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 250);
+    }
     function hotOnAmazon() {
       if (state.storeCat === 'Members') return '';
       return '<div class="sec" style="margin-top:0.2rem;"><h3>🔥 Hot right now on Amazon</h3></div>' +
-        '<div class="hot-row">' + HOT_LISTS.map(x => '<div class="hot-card" role="button" tabindex="0" onclick="openLink(\'' + jsStr(amazonTagged(x.path)) + '\')">' +
+        '<div class="hot-row">' + HOT_LISTS.map(x => '<div class="hot-card" role="button" tabindex="0" onclick="' + (x.petfi ? 'showPetfiBestSellers()' : 'openLink(\'' + jsStr(amazonTagged(x.path)) + '\')') + '">' +
           '<span class="hc-emo">' + x.emo + '</span><b>' + esc(x.t) + '</b><small>' + esc(x.sub) + '</small></div>').join('') + '</div>' +
         '<div class="sf-row" style="margin:0.5rem 0 0.9rem;"><span class="sf-label">Restock</span><div class="chips chips-sm">' +
           RESTOCK.map(x => '<div class="chip" role="button" tabindex="0" onclick="openLink(\'' + jsStr(amazonBestLink(x[2])) + '\')">' + x[0] + ' ' + esc(x[1]) + '</div>').join('') + '</div></div>';
+    }
+
+    // ---- "Don't see what you need?" product requests ----
+    // A member names a product (and maybe a link); an admin adds it to the
+    // store from the list below, and the member gets a push when it's in.
+    // Schema: petfi-store-requests-2026-11-09.sql.
+    const REQ_PETS = ['Dog', 'Cat', 'Bird', 'Small pet', 'Reptile', 'Fish', 'Horse', 'Farm animal', 'Other'];
+    const REQ_STATUS = { new: ['⏳', 'Waiting'], added: ['✅', 'In the store'], declined: ['🤍', 'Not added'] };
+    function storeAskCard() {
+      return '<div class="note" role="button" tabindex="0" style="display:flex;align-items:center;gap:0.65rem;cursor:pointer;margin:0 0 0.9rem;" onclick="openStoreRequest()">' +
+        '<span style="font-size:1.5rem;">🔎</span><div style="flex:1;"><b>Don\'t see what you need?</b><br><small>Tell us what you\'re looking for and we\'ll add it to the store.</small></div>' +
+        '<span class="fl">Ask ›</span></div>' +
+        (isAdmin() ? '<button class="btn secondary" style="margin:-0.4rem 0 0.9rem;" onclick="openStoreRequestsAdmin()">🗂️ Product requests (admin)</button>' : '');
+    }
+    async function openStoreRequest(prefill) {
+      if (!(cloud && cloudUser)) { openSheet('🔎 Ask for a product', '<div class="note">Log in to ask for a product, so we can tell you when it\'s in the store.</div><button class="btn secondary" onclick="closeSheet()">OK</button>'); return; }
+      const opt = (v, t) => '<option value="' + v + '">' + t + '</option>';
+      openSheet('🔎 Ask for a product',
+        '<p class="sub" style="margin-bottom:0.6rem;">Tell us what you\'re looking for and we\'ll add it to the Petfi store. We\'ll let you know when it\'s in.</p>' +
+        '<label>What are you looking for?</label><input id="sr-item" maxlength="160" placeholder="e.g. KONG Classic dog toy, large" value="' + esc(String(prefill || '').slice(0, 160)) + '">' +
+        '<label>Link <small style="color:var(--muted);font-weight:400;">(optional: Amazon, Chewy, PetSmart…)</small></label><input id="sr-link" maxlength="600" inputmode="url" placeholder="https://">' +
+        '<label>Where it\'s sold <small style="color:var(--muted);font-weight:400;">(if you know)</small></label><select id="sr-store">' +
+          opt('any', 'Any store is fine') + opt('amazon', 'Amazon') + opt('chewy', 'Chewy') + opt('petsmart', 'PetSmart') + opt('petco', 'Petco') + opt('tractor', 'Tractor Supply') + opt('other', 'Somewhere else') + '</select>' +
+        '<label>For which pet</label><select id="sr-pet">' + opt('', 'Pick one (optional)') + REQ_PETS.map(x => opt(x, x)).join('') + '</select>' +
+        '<label>Anything else? <small style="color:var(--muted);font-weight:400;">(size, flavor, color…)</small></label><input id="sr-note" maxlength="400">' +
+        '<button class="btn" id="sr-send" onclick="submitStoreRequest()">Send my request</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Cancel</button>' +
+        '<div id="sr-mine"></div>');
+      const seq = sheetSeq;
+      const { data } = await cloud.from('petfi_store_requests').select('product, status, reply, created_at').eq('user_id', cloudUser.id).order('created_at', { ascending: false }).limit(8);
+      const box = document.getElementById('sr-mine');
+      if (seq !== sheetSeq || !box || !data || !data.length) return;
+      box.innerHTML = '<div class="sec" style="margin-top:0.8rem;"><h3>Your requests</h3></div>' + data.map(r => {
+        const st = REQ_STATUS[r.status] || REQ_STATUS.new;
+        return '<div class="row"><div class="ricon">' + st[0] + '</div><div class="rmain"><div class="rtitle">' + esc(r.product) + '</div>' +
+          '<div class="rmeta">' + esc(st[1]) + ' · ' + pledgeDate(r.created_at) + (r.reply ? ' · ' + esc(r.reply) : '') + '</div></div></div>';
+      }).join('');
+    }
+    async function submitStoreRequest() {
+      const item = (val('sr-item') || '').trim(), link = (val('sr-link') || '').trim();
+      if (item.length < 2) { toast('What are you looking for?'); return; }
+      if (link && !/^https?:\/\//i.test(link)) { toast('The link should start with https://'); return; }
+      const btn = document.getElementById('sr-send'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      const { error } = await cloud.rpc('petfi_store_request', { item, url: link || null, shop: val('sr-store') || 'any', animal: val('sr-pet') || null, memo: (val('sr-note') || '').trim() || null });
+      if (error) {
+        if (btn) { btn.disabled = false; btn.textContent = 'Send my request'; }
+        toast(/daily_limit/.test(error.message) ? 'That\'s 10 requests today. Try again tomorrow.' : '⚠️ Could not send it. Please try again.');
+        return;
+      }
+      track('store_request');
+      openSheet('🔎 Thanks!', '<div class="note">Got it. We\'ll look for <b>' + esc(item) + '</b> and let you know when it\'s in the Petfi store.</div>' +
+        pushNote('Turn on notifications so we can tell you when it\'s added.') +
+        '<button class="btn" onclick="closeSheet()">Back to the store</button>');
+    }
+
+    // ---- admin: the request list, adding a product, removing one ----
+    async function openStoreRequestsAdmin(status) {
+      if (!isAdmin() || !cloud) return;
+      status = REQ_STATUS[status] ? status : 'new';
+      openSheet('🗂️ Product requests', '<div class="note">⏳ Loading…</div>');
+      const seq = sheetSeq;
+      const { data, error } = await cloud.from('petfi_store_requests').select('*').eq('status', status).order('created_at', { ascending: status === 'new' }).limit(200);
+      const rows = data || [], ids = [...new Set(rows.map(r => r.user_id))];
+      const names = {};
+      if (ids.length) { const { data: ps } = await cloud.from('profiles').select('id, username').in('id', ids); (ps || []).forEach(x => { names[x.id] = x.username || 'member'; }); }
+      if (seq !== sheetSeq) return;
+      let h = '<button class="btn" onclick="openAddStoreItem()">➕ Add a product to the store</button>' +
+        '<div class="chips" style="margin:0.6rem 0;">' + Object.keys(REQ_STATUS).map(k =>
+          '<div class="chip' + (k === status ? ' active' : '') + '" onclick="openStoreRequestsAdmin(\'' + k + '\')">' + REQ_STATUS[k][0] + ' ' + REQ_STATUS[k][1] + '</div>').join('') + '</div>';
+      if (error) h += '<div class="note">⚠️ ' + esc(error.message) + '</div>';
+      else if (!rows.length) h += '<div class="note">Nothing here.</div>';
+      else h += rows.map(r => '<div class="hx-card"><div style="font-weight:800;">' + esc(r.product) + '</div>' +
+        '<div class="rmeta" style="white-space:normal;">@' + esc(names[r.user_id] || 'member') + ' · ' + esc(hxAgo(r.created_at)) +
+        (r.store && r.store !== 'any' ? ' · ' + esc(STORE_NAMES[r.store] || r.store) : '') + (r.pet ? ' · ' + esc(r.pet) : '') + '</div>' +
+        (r.note ? '<div class="rmeta" style="white-space:normal;">' + esc(r.note) + '</div>' : '') +
+        (r.link ? '<a href="#" onclick="event.preventDefault();openLink(\'' + jsStr(r.link) + '\')" style="font-size:0.8rem;">Open their link ↗</a>' : '') +
+        (r.reply ? '<div class="rmeta" style="white-space:normal;">Reply: ' + esc(r.reply) + '</div>' : '') +
+        (status === 'new' ? '<div style="display:flex;gap:0.4rem;margin-top:0.5rem;"><button class="pill-btn" onclick="openAddStoreItem(' + (+r.id) + ')">➕ Add to store</button>' +
+          '<button class="pill-btn ghost" onclick="declineStoreRequest(' + (+r.id) + ')">Not adding</button></div>' : '') + '</div>').join('');
+      h += '<button class="btn secondary" onclick="openStoreAddedAdmin()">📦 Products added so far</button><button class="btn secondary" onclick="closeSheet()">Close</button>';
+      openSheet('🗂️ Product requests', h);
+    }
+    let STORE_REQ_EDIT = null;
+    async function openAddStoreItem(rid) {
+      if (!isAdmin()) return;
+      let r = null;
+      if (rid) { const { data } = await cloud.from('petfi_store_requests').select('*').eq('id', rid).maybeSingle(); r = data; }
+      STORE_REQ_EDIT = r ? r.id : null;
+      const asin = r && r.link ? (/\/(?:dp|gp\/product)\/([A-Z0-9]{10})/.exec(r.link) || [])[1] || '' : '';
+      const store = r && r.store && r.store !== 'any' ? r.store : (asin || (r && /amazon\./i.test(r.link || '')) ? 'amazon' : 'amazon');
+      const opt = (v, t, sel) => '<option value="' + v + '"' + (sel ? ' selected' : '') + '>' + t + '</option>';
+      const types = STORE_TYPES.filter(t => t !== 'Any');
+      openSheet('➕ Add a product',
+        (r ? '<div class="note" style="margin-top:0;">Request: <b>' + esc(r.product) + '</b>' + (r.note ? ' · ' + esc(r.note) : '') + '</div>' : '') +
+        '<label>Product name (as shoppers will see it)</label><input id="ai-title" maxlength="200" value="' + esc(r ? r.product : '') + '">' +
+        '<label>Store</label><select id="ai-store">' + Object.keys(STORE_NAMES).map(k => opt(k, k === 'other' ? 'Other store' : STORE_NAMES[k], k === store)).join('') + '</select>' +
+        '<label>Product link <small style="color:var(--muted);font-weight:400;">(https; Amazon links get our tag automatically)</small></label><input id="ai-link" maxlength="600" value="' + esc(r && /^https:\/\//i.test(r.link || '') ? r.link : '') + '" placeholder="https://www.amazon.com/dp/…">' +
+        '<label>Amazon ASIN <small style="color:var(--muted);font-weight:400;">(optional; the 10 characters after /dp/)</small></label><input id="ai-asin" maxlength="10" value="' + esc(asin) + '">' +
+        '<label>Image link <small style="color:var(--muted);font-weight:400;">(optional: right-click the product photo, "Copy image address")</small></label><input id="ai-img" maxlength="600" placeholder="https://m.media-amazon.com/images/I/…">' +
+        '<label>For which animals</label><div class="chips chips-sm" id="ai-cats">' + STORE_CATS.filter(c => c !== 'All' && c !== 'Members').map(c =>
+          '<div class="chip" role="button" tabindex="0" onclick="this.classList.toggle(\'active\')" data-v="' + esc(c) + '">' + (CAT_EMO[c] ? CAT_EMO[c] + ' ' : '') + esc(c) + '</div>').join('') + '</div>' +
+        '<label>Type</label><select id="ai-type">' + opt('', 'Pick one') + types.map(t => opt(t, t)).join('') + '</select>' +
+        '<button class="btn" onclick="saveStoreItem()">Add to the store</button>' +
+        '<button class="btn secondary" onclick="openStoreRequestsAdmin()">Back</button>');
+    }
+    async function saveStoreItem() {
+      const title = (val('ai-title') || '').trim(), link = (val('ai-link') || '').trim(), asin = (val('ai-asin') || '').trim().toUpperCase(), img = (val('ai-img') || '').trim();
+      const cats = [...document.querySelectorAll('#ai-cats .chip.active')].map(c => c.dataset.v).concat(val('ai-type') ? [val('ai-type')] : []);
+      if (title.length < 2) { toast('Name the product'); return; }
+      if (link && !/^https:\/\//i.test(link)) { toast('The link must start with https://'); return; }
+      if (asin && !/^[A-Z0-9]{10}$/.test(asin)) { toast('An ASIN is 10 letters and numbers'); return; }
+      if (!link && !asin) { toast('Add the product link or its ASIN'); return; }
+      if (img && !/^https:\/\//i.test(img)) { toast('The image link must start with https://'); return; }
+      const { data, error } = await cloud.from('petfi_store_extra').insert({
+        title: title.slice(0, 200), asin: asin || null, link: link || null, store: val('ai-store') || 'amazon', image_url: img || null,
+        cats, request_id: STORE_REQ_EDIT, created_by: cloudUser.id,
+      }).select('id').single();
+      if (error) { toast('⚠️ ' + error.message); return; }
+      if (STORE_REQ_EDIT) {
+        const d = await cloud.rpc('petfi_store_request_done', { rid: STORE_REQ_EDIT, added_id: data.id, why: null });
+        if (d.error) toast('⚠️ Added, but the request wasn\'t marked: ' + d.error.message);
+      }
+      catalogState = 'idle'; ensureCatalog();
+      toast('🛒 Added to the store' + (STORE_REQ_EDIT ? '. The member is notified.' : ''));
+      openStoreRequestsAdmin();
+    }
+    async function declineStoreRequest(rid) {
+      const why = prompt('Tell the member why (they see this):', 'We couldn\'t find a store that carries it.');
+      if (why === null) return;
+      const { error } = await cloud.rpc('petfi_store_request_done', { rid, added_id: null, why: why.trim() || null });
+      if (error) { toast('⚠️ ' + error.message); return; }
+      toast('Marked as not added'); openStoreRequestsAdmin();
+    }
+    async function openStoreAddedAdmin() {
+      if (!isAdmin()) return;
+      const { data } = await cloud.from('petfi_store_extra').select('id, title, store, active, created_at').order('created_at', { ascending: false }).limit(200);
+      openSheet('📦 Products added',
+        ((data || []).length ? data.map(x => '<div class="row"><div class="ricon">' + (x.active ? '🛒' : '🙈') + '</div><div class="rmain"><div class="rtitle">' + esc(x.title) + '</div>' +
+          '<div class="rmeta">' + esc(STORE_NAMES[x.store] || x.store) + ' · ' + pledgeDate(x.created_at) + (x.active ? '' : ' · hidden') + '</div></div>' +
+          '<div class="raction"><button class="pill-btn ghost" onclick="toggleStoreItem(' + (+x.id) + ',' + (!x.active) + ')">' + (x.active ? 'Hide' : 'Show') + '</button></div></div>').join('')
+          : '<div class="note">Nothing added yet.</div>') +
+        '<button class="btn secondary" onclick="openStoreRequestsAdmin()">Back</button>');
+    }
+    async function toggleStoreItem(id, on) {
+      const { error } = await cloud.from('petfi_store_extra').update({ active: !!on }).eq('id', id);
+      if (error) { toast('⚠️ ' + error.message); return; }
+      catalogState = 'idle'; ensureCatalog(); openStoreAddedAdmin();
     }
 
     let STORE_VIEW = []; // what's currently on screen: member listings first, then the catalog
@@ -5026,6 +5239,7 @@
           '<option value="' + k + '"' + (state.storeSort === k ? ' selected' : '') + '>' + STORE_SORTS[k] + '</option>').join('') + '</select>' +
         ((state.storeCat !== 'All' || state.storeType !== 'Any' || state.storeMax || state.storeSort !== 'popular') ? '<span class="link" style="font-size:0.8rem;font-weight:700;color:var(--brand);cursor:pointer;margin-left:auto;" onclick="resetStoreFilters()">✕ Clear</span>' : '') +
         '</div></div>';
+      h += storeAskCard();
       STORE_VIEW = members.concat(AFFILIATE_PRODUCTS);
       const items = sortStore(STORE_VIEW.filter(p => p.cat !== 'Services' && inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)) && underCap(p, state.storeMax)));
       const nBest = items.filter(p => p.affiliate).length;
@@ -5053,7 +5267,8 @@
       h += '<div class="store-grid">' + items.slice(0, limit).map(prodCard).join('') + '</div>';
       if (items.length > limit) h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="storeShown=' + (limit + STORE_PAGE) + ';openTab(\'store\')">Show more (' + (items.length - limit) + ' left)</button>';
       // FTC affiliate disclosure — required because these links pay Petfi
-      h += '<p class="sub" style="font-size:0.72rem;margin:0.8rem 0 0;">🔗 Shop links go to Amazon and are affiliate links — Petfi may earn a commission at no extra cost to you. Prices and ratings are shown on Amazon, not here — the price there is what you pay. <a href="#" onclick="openAffiliateInfo();return false;" style="color:var(--brand);font-weight:600;">Learn more</a></p>';
+      h += '<p class="sub" style="font-size:0.72rem;margin:0.8rem 0 0;">🔗 Shop links go to Amazon and other pet stores and are affiliate links — Petfi may earn a commission at no extra cost to you. Prices and ratings are shown on Amazon, not here — the price there is what you pay. <a href="#" onclick="openAffiliateInfo();return false;" style="color:var(--brand);font-weight:600;">Learn more</a></p>';
+      h += '<p class="sub" style="font-size:0.82rem;margin:0.8rem 0 0;text-align:center;">🔎 Don\'t see what you need? <span class="link" onclick="openStoreRequest()">Ask us to add it</span></p>';
       h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="openPromote()">📣 Spotlight ads — promote anything you sell</button>';
       return h;
     }
@@ -5061,7 +5276,7 @@
     function prodCard(p) {
       const idx = STORE_VIEW.indexOf(p);
       const photos = p.affiliate ? [] : safePhotos(p.photos);
-      const az = p.affiliate ? amazonImg(p.img, 300) : '';
+      const az = p.affiliate ? (p.imgUrl || amazonImg(p.img, 300)) : '';
       let img;
       if (photos.length) {
         img = '<div class="img" style="padding:0;position:relative;cursor:pointer;overflow:hidden;" onclick="openProductDetail(' + idx + ')">' +
@@ -5077,14 +5292,14 @@
         img = '<div class="img" style="background:' + safeBg(p.bg) + ';cursor:pointer;" onclick="openProductDetail(' + idx + ')">' + esc(p.affiliate ? p.emo : '🐾') + '</div>';
       }
       const sellerLine = p.affiliate
-        ? (p.rating ? '<div class="prating"><b>' + stars(p.rating) + '</b> · ' + fmtReviews(p.reviews) + ' reviews</div>' : '<div class="pseller">via Amazon 🔗</div>')
+        ? (p.rating ? '<div class="prating"><b>' + stars(p.rating) + '</b> · ' + fmtReviews(p.reviews) + ' reviews</div>' : '<div class="pseller">via ' + esc(p.storeName || 'Amazon') + ' 🔗</div>')
         : p.mine
           ? '<div class="pseller">You <span style="margin-left:auto;cursor:pointer;" title="Remove listing" onclick="deleteListing(' + idx + ')">🗑</span></div>'
           : '<div class="pseller">' + esc(p.seller) + (p.cloudId ? '' : ' <small>(this device)</small>') + '</div>';
       const buttons = p.affiliate
         ? '<div style="display:flex;gap:0.3rem;margin-top:auto;">' +
             '<button class="buy" style="flex:0 0 auto;background:var(--bg);color:var(--ink);border:1px solid var(--line);margin-top:0;" title="Save to favorites" onclick="saveProductToFav(' + idx + ')">⭐</button>' +
-            '<button class="buy" style="flex:1;margin-top:0;" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on Amazon</button></div>'
+            '<button class="buy" style="flex:1;margin-top:0;" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on ' + esc(p.storeName || 'Amazon') + '</button></div>'
         : p.mine
           ? '<button class="buy" style="background:var(--bg);color:var(--ink);border:1px solid var(--line);" onclick="openProductDetail(' + idx + ')">View</button>'
           : '<button class="buy" onclick="inquireListing(' + idx + ')">💬 Message seller</button>';
@@ -5154,7 +5369,7 @@
     function openProductDetail(i) {
       const p = STORE_VIEW[i]; if (!p) return;
       const photos = p.affiliate ? [] : safePhotos(p.photos);
-      const az = p.affiliate ? amazonImg(p.img, 500) : '';
+      const az = p.affiliate ? (p.imgUrl || amazonImg(p.img, 500)) : '';
       openSheet('🛒 ' + esc(p.title),
         (photos.length
           ? photos.map(ph => '<img src="' + esc(ph) + '" loading="lazy" style="width:100%;border-radius:14px;margin-bottom:0.6rem;display:block;">').join('')
@@ -5162,14 +5377,14 @@
             ? '<div class="az-hero"><img src="' + esc(az) + '" alt="">' + (p.bestIn ? '<span class="bs-badge">🔥 Best seller in ' + esc(p.bestIn) + '</span>' : '') + '</div>'
             : '<div class="post-photo" style="background:' + safeBg(p.bg) + ';height:110px;margin-bottom:0.7rem;">' + esc(p.affiliate ? p.emo : '🐾') + '</div>') +
         (p.desc ? '<p style="font-size:0.92rem;margin-bottom:0.6rem;">' + esc(p.desc) + '</p>' : '') +
-        '<div class="pprice" style="font-size:1.2rem;">' + (p.affiliate ? 'See price on Amazon' : esc(p.price)) + '</div>' +
+        '<div class="pprice" style="font-size:1.2rem;">' + (p.affiliate ? 'See price on ' + esc(p.storeName || 'Amazon') : esc(p.price)) + '</div>' +
         (p.affiliate && p.rating ? '<div class="prating" style="font-size:0.88rem;margin-top:0.2rem;"><b>' + stars(p.rating) + '</b> · ' + Number(p.reviews).toLocaleString() + ' Amazon reviews' + (p.cats ? ' · ' + esc(p.cats.join(' · ')) : '') + '</div>' : '') +
         (p.affiliate ? '' : '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">Sold by ' + esc(p.mine ? 'you' : p.seller) + (isVerifiedUser(p.sellerId) || p.mine ? ' ' + vbadge() : '') + (p.cat ? ' · ' + esc(p.cat) : '') + '</div>' +
           (p.contact ? '<div class="pseller" style="font-size:0.85rem;" translate="no">📇 ' + esc(p.contact) + '</div>' : '')) +
         (p.affiliate
-          ? '<button class="btn" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on Amazon</button>' +
+          ? '<button class="btn" onclick="openLink(\'' + jsStr(affiliateUrl(p)) + '\')">🛒 Shop on ' + esc(p.storeName || 'Amazon') + '</button>' +
             '<button class="btn secondary" onclick="closeSheet();saveProductToFav(' + i + ')">⭐ Save to favorites</button>' +
-            '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">Affiliate link — Petfi may earn a commission at no extra cost to you. Price, shipping &amp; returns are handled by Amazon.</p>'
+            '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">Affiliate link — Petfi may earn a commission at no extra cost to you. Price, shipping &amp; returns are handled by ' + esc(p.storeName || 'Amazon') + '.</p>'
           : p.mine
             ? '<button class="btn secondary" onclick="deleteListing(' + i + ')">🗑 Remove my listing</button>'
             : '<button class="btn" onclick="closeSheet();inquireListing(' + i + ')">💬 Message seller</button>' +
@@ -6011,7 +6226,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.19.1';
+    const APP_VERSION = '1.20.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8827,7 +9042,8 @@
         (g.desc ? '<p style="font-size:0.88rem;margin-bottom:0.7rem;">' + esc(g.desc) + '</p>' : '') +
         groupRequestsHtml(g, i) +
         '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
-          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
+          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
+            (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin()) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
           : '<div class="note">No posts yet — start the conversation! 🐾</div>') + '</div>' +
         (canPost
           ? '<div class="cmt-input-row"><input id="grp-post-in" type="text" placeholder="Post to the group..." onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
