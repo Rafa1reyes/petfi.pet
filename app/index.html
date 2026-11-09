@@ -809,6 +809,7 @@
     .empty-state h3 { font-size: 1.1rem; margin-bottom: 0.3rem; }
     .empty-state p { color: var(--muted); font-size: 0.9rem; margin-bottom: 0.9rem; }
     .empty-state .pill-btn { margin: 0.2rem 0.15rem; }
+    .post-pin { font-size: 0.74rem; font-weight: 700; color: var(--brand-dark); margin: -0.1rem 0 0.45rem; }
     .post-tool { margin-left: auto; cursor: pointer; color: var(--muted); font-size: 0.95rem; padding: 0.4rem; min-width: 40px; min-height: 40px; display: flex; align-items: center; justify-content: center; }
 
     /* ---- Phone ergonomics: every text field ≥16px (no iOS focus-zoom), ---- */
@@ -3019,8 +3020,12 @@
     }
     function feedFor(scope) {
       if (scope === 'local') return FEED.filter(isLocalPost);
-      return FEED.filter(p => postScope(p) === 'national' && isPG(p.text));
+      // An admin can pin posts to the top of Everyone for a set time; newest pin first
+      const list = FEED.filter(p => postScope(p) === 'national' && isPG(p.text));
+      const pinned = list.filter(isPinned).sort((a, b) => b.pinnedAt - a.pinnedAt);
+      return pinned.length ? pinned.concat(list.filter(p => !isPinned(p))) : list;
     }
+    function isPinned(p) { return !!(p && p.pinnedUntil > Date.now() && postScope(p) === 'national'); }
     // Older posts carry no location — look up their authors' ZIPs (cached, cheap) and refresh
     let geoJobs = 0;
     function ensurePostGeos() {
@@ -3135,7 +3140,7 @@
       // A live Spotlight ad (if any member is running one) sits after the first post.
       // Cards are keyed by their FEED index so likes/comments/deletes stay correct.
       list.forEach((p, k) => {
-        h += feedCard(p, FEED.indexOf(p));
+        h += feedCard(p, FEED.indexOf(p), scope === 'national' && isPinned(p));
         if (k === 0) h += spotlightCard();
       });
       return h;
@@ -3155,7 +3160,7 @@
       return h;
     }
 
-    function feedCard(p, i) {
+    function feedCard(p, i, pinned) {
       let photo = '';
       // Real uploaded photos: one shows big, more become a neat grid
       const urls = safePhotos(p.photoUrls);
@@ -3198,11 +3203,16 @@
         : isAdmin() && p.cloudId
           ? '<span class="post-tool" title="Remove this post (admin)" onclick="adminDeletePost(' + Number(p.cloudId) + ')">🛡️🗑</span>'
           : '<span class="post-tool" style="color:var(--muted);" title="Report post" onclick="openReport(\'post\',\'' + jsStr(p.who) + '\',' + (Number(p.cloudId) || 'null') + ')">🚩</span>';
+      // Admins pin Everyone posts to the top of that feed
+      const pinTool = isAdmin() && p.cloudId && postScope(p) === 'national'
+        ? '<span class="post-tool" title="Pin to the top of Everyone (admin)" onclick="openPinPost(' + i + ')">📌</span>' : '';
       const fresh = p.fresh; if (fresh) setTimeout(() => { p.fresh = false; }, 1500);
       return '<div class="post' + (fresh ? ' post-new' : '') + '">' +
+        (pinned ? '<div class="post-pin">📌 Pinned</div>' : '') +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
-          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' + del +
+          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' +
+          (pinTool ? '<span style="margin-left:auto;display:flex;">' + pinTool + del + '</span>' : del) +
         '</div>' +
         (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + vidHtml + photo +
         '<div class="post-actions">' +
@@ -3332,6 +3342,30 @@
       if (error) { toast('⚠️ Could not delete from the cloud'); loadCloudPosts(true); return; }
       removePostMedia(gone);
       toast('Post deleted 🗑');
+    }
+    // Admins pin a post to the top of the Everyone feed for a set time
+    // (petfi_pin_post in petfi-feed-pins-2026-11-09.sql checks the admin).
+    const PIN_CHOICES = [[1, '24 hours'], [3, '3 days'], [5, '5 days'], [7, '1 week'], [30, '1 month']];
+    function fmtPinUntil(ms) { return new Date(ms).toLocaleString(undefined, { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    function openPinPost(i) {
+      const p = FEED[i]; if (!p || !p.cloudId || !isAdmin()) return;
+      const on = isPinned(p), id = Number(p.cloudId);
+      openSheet('📌 Pin to the top of Everyone',
+        '<div class="note">' + (on
+          ? 'Pinned until <b>' + esc(fmtPinUntil(p.pinnedUntil)) + '</b>. Pick a new length to restart the pin from now, or unpin it.'
+          : 'Everyone sees this post first in the Everyone feed until the pin runs out. How long?') + '</div>' +
+        PIN_CHOICES.map(c => '<button class="btn" style="margin-top:0.5rem;" onclick="pinPost(' + id + ',' + c[0] + ')">📌 ' + c[1] + '</button>').join('') +
+        (on ? '<button class="btn secondary" style="margin-top:0.5rem;" onclick="pinPost(' + id + ',0)">Unpin</button>' : ''));
+    }
+    async function pinPost(cloudId, days) {
+      if (!isAdmin() || !cloud) return;
+      closeSheet();
+      const { data, error } = await cloud.rpc('petfi_pin_post', { pid: cloudId, days: days });
+      if (error) { console.warn('pin:', error.message); toast(days ? '⚠️ Could not pin the post' : '⚠️ Could not unpin the post'); return; }
+      const until = days && data ? new Date(data).getTime() : 0;
+      FEED.forEach(p => { if (p.cloudId === cloudId) { p.pinnedUntil = until; p.pinnedAt = Date.now(); } });
+      toast(days ? '📌 Pinned to the top of Everyone' : 'Post unpinned');
+      if (state.tab === 'home') openTab('home');
     }
     // Admins remove anyone's post in one step (the "admin delete" policy in
     // petfi-moderation.sql allows it); one confirm guards against a mis-tap.
@@ -6226,7 +6260,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.20.0';
+    const APP_VERSION = '1.21.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -12113,6 +12147,19 @@
         return;
       }
       feedLoadFailed = false;
+      // Admin pins for the Everyone feed: the active ones, plus any pinned post
+      // too old to be among the newest 100. A failure here never stops the feed.
+      const pins = {};
+      try {
+        const { data: pr } = await cloud.from('petfi_feed_pins').select('post_id, pinned_until, created_at').gt('pinned_until', new Date().toISOString());
+        (pr || []).forEach(r => { pins[r.post_id] = { until: new Date(r.pinned_until).getTime(), at: new Date(r.created_at).getTime() }; });
+        const have = {}; data.forEach(r => { have[r.id] = true; });
+        const missing = Object.keys(pins).map(Number).filter(id => !have[id]);
+        if (missing.length) {
+          const { data: old } = await cloud.from('posts').select('id, author_id, content, created_at').in('id', missing).is('content->>petfiType', null);
+          (old || []).forEach(r => data.push(r));
+        }
+      } catch (e) { console.warn('pins:', e && e.message); }
       // Everyone's likes and comments for these posts, in two quick queries
       const ids = data.map(r => r.id);
       let likes = [], comments = [];
@@ -12130,9 +12177,17 @@
       const fetchedIds = {};
       data.forEach(r => { fetchedIds[r.id] = true; });
       const maxFetched = data.length ? Math.max.apply(null, data.map(r => r.id)) : 0;
-      const freshMine = [], pendingKeys = {};
+      // A post of yours still uploading (a video takes a while) is lifted out and
+      // put back on top, so a reload mid-upload can't sink it below everyone else's.
+      const freshMine = [], pendingKeys = {}, uploading = [];
       for (let i = FEED.length - 1; i >= 0; i--) {
-        if (!FEED[i].cloudId) { if (FEED[i].pendingKey) pendingKeys[FEED[i].pendingKey] = true; continue; }
+        if (!FEED[i].cloudId) {
+          if (FEED[i].pendingKey) {
+            pendingKeys[FEED[i].pendingKey] = true;
+            if (FEED[i].mine) { uploading.unshift(FEED[i]); FEED.splice(i, 1); }
+          }
+          continue;
+        }
         if (FEED[i].mine && !fetchedIds[FEED[i].cloudId] && FEED[i].cloudId > maxFetched) freshMine.push(FEED[i]);
         FEED.splice(i, 1);
       }
@@ -12153,6 +12208,7 @@
           videoUrl: safeVideo(c.videoUrl), posterUrl: safePoster(c.posterUrl),
           videoDur: Number(c.videoDur) > 0 ? Math.min(MAX_VIDEO_SECS, Number(c.videoDur)) : 0,
           scope: c.scope === 'local' ? 'local' : 'national',
+          pinnedUntil: pins[row.id] ? pins[row.id].until : 0, pinnedAt: pins[row.id] ? pins[row.id].at : 0,
           loc: (c.loc && isFinite(+c.loc.lat) && isFinite(+c.loc.lon)) ? { lat: +c.loc.lat, lon: +c.loc.lon, area: String(c.loc.area || '').slice(0, 60) } : null,
         };
         // The author's CURRENT profile is the truth for who they are
@@ -12173,6 +12229,7 @@
         FEED.unshift(p);
       });
       freshMine.forEach(p => FEED.unshift(p)); // your seconds-old posts stay on top
+      for (let k = uploading.length - 1; k >= 0; k--) FEED.unshift(uploading[k]);
       feedLoadedOnce = true;
       ensurePostGeos(); // older posts: place them by their author's ZIP for the Local feed
       // "Someone liked/commented on your post!" — compare with last look
