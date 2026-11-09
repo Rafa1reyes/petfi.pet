@@ -2479,6 +2479,8 @@
       return petAvatar(state.species, state.breed, px, myLook());
     }
     function entityAvatar(e, px) {
+      // Your own posts always wear the avatar you have NOW, not the one saved with the post
+      if (e && (e.mine || (cloudUser && e.authorId && e.authorId === cloudUser.id))) return myAvatar(px);
       const photo = safeAvatarUrl(e.photo);
       if (photo) return photoAvatar(photo, px);
       if (e.type === 'owner' || e.type === 'business' || e.type === 'kennel') {
@@ -2586,6 +2588,7 @@
       if (name === 'groups') state.homeTab = 'feed'; // Groups is a side room off Nearby, not a chip
       if (name === 'mate' && state.mateUnseen) { state.mateUnseen = 0; setMateNavBadge(0); }
       state.tab = name;
+      navRecord(name);
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       const c = document.getElementById('tab-content');
       const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile }[name];
@@ -2598,6 +2601,39 @@
       else show('s-app');
       window.scrollTo(0, 0);
     }
+
+    // ---- The Back button stays inside Petfi ----
+    // Each tab switch is a history entry, so Back returns to the tab you were
+    // on instead of leaving petfi.pet, and Back with a sheet open closes the
+    // sheet. On the website a quiet first entry sits under the first tab, so
+    // Back closes a sheet there too and otherwise steps out of the site as
+    // before. (The Android app skips it: there Back from Home closes the app.)
+    var navFromBack = false; // var: openTab may run before this line does
+    function navRecord(name) {
+      if (navFromBack) return;
+      try {
+        const st = history.state || {};
+        if (st.petfiTab === name) return;
+        if (st.petfiTab || st.petfiRoot) { history.pushState({ petfiTab: name }, ''); return; }
+        if (!IS_PLAY_APP) history.replaceState({ petfiRoot: 1 }, '');
+        history[IS_PLAY_APP ? 'replaceState' : 'pushState']({ petfiTab: name }, '');
+      } catch (e) {}
+    }
+    window.addEventListener('popstate', e => {
+      if (!appActive()) return;
+      const st = e.state || {};
+      if (document.body.classList.contains('sheet-open')) {
+        closeSheet();
+        // Stay on this tab: put back the entry Back just stepped off
+        try { history.pushState({ petfiTab: state.tab || 'home' }, ''); } catch (err) {}
+        return;
+      }
+      if (st.petfiRoot) { history.back(); return; }   // past the first tab: leave as before
+      if (st.petfiTab && st.petfiTab !== state.tab) {
+        navFromBack = true;
+        try { openTab(st.petfiTab); } finally { navFromBack = false; }
+      }
+    });
 
     // ---- Shared actions ----
     function openLink(url) {
@@ -6261,7 +6297,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.22.1';
+    const APP_VERSION = '1.23.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -12250,7 +12286,7 @@
         likes = l.data || []; comments = c.data || [];
       }
       // Names come from real profiles (author_id), never from row content
-      await ensureProfiles(data.map(r => r.author_id).concat(comments.map(c => c.author_id)));
+      await ensureProfiles(data.map(r => r.author_id).concat(comments.map(c => c.author_id)), true);
       // Replace previously loaded cloud posts. Guard against a race: a post
       // you JUST made (still uploading, or newer than this fetch) stays.
       const fetchedIds = {};
@@ -12403,10 +12439,12 @@
     }
     // Make sure we hold the public profile of every author we're about to
     // show, so names/avatars come from real rows (one query for all missing).
-    async function ensureProfiles(ids) {
+    // fresh: re-read profiles already cached too, so a member's new name or
+    // avatar shows on their old posts without anyone reloading Petfi
+    async function ensureProfiles(ids, fresh) {
       if (!cloud) return;
       const missing = {};
-      (ids || []).forEach(id => { if (id && !PROFILE_BY_ID[id] && !(cloudUser && id === cloudUser.id)) missing[id] = 1; });
+      (ids || []).forEach(id => { if (id && (fresh || !PROFILE_BY_ID[id]) && !(cloudUser && id === cloudUser.id)) missing[id] = 1; });
       const want = Object.keys(missing);
       if (!want.length) return;
       const { data } = await cloud.from('profiles').select('*').in('id', want.slice(0, 100));
