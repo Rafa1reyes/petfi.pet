@@ -485,7 +485,8 @@
     .pill-btn.done { background: #eaf1ff; color: var(--blue); }
 
     /* ---- Profile ---- */
-    .prof-hero { text-align: center; padding: 0.5rem 0 0.6rem; }
+    .prof-hero { text-align: center; padding: 0.5rem 0 0.6rem; position: relative; }
+    .prof-verify { position: absolute; top: 0.3rem; right: 0; max-width: 6.8rem; background: var(--card); color: var(--brand); border: 1px solid var(--brand); border-radius: 14px; padding: 0.35rem 0.55rem; font: inherit; font-size: 0.7rem; font-weight: 800; line-height: 1.2; cursor: pointer; }
     .prof-hero .pa { width: 108px; height: 108px; border-radius: 50%; overflow: hidden; margin: 0 auto; background: var(--card); border: 3px solid var(--brand); }
     .prof-hero .pa svg { width: 100%; height: 100%; filter: none; margin: 0; }
     .prof-hero .pa .emo { display: flex; align-items: center; justify-content: center; height: 100%; font-size: 3.8rem; }
@@ -5547,6 +5548,8 @@
       const meta = isPet ? esc(state.breed || state.species || 'Pet') + (age ? ' · ' + age : '') + ' · Pet account'
                          : 'Owner account' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
       let h = '<div class="prof-hero">' +
+        // One quiet way in for anyone who isn't verified yet, pet or owner account
+        (state.verified ? '' : '<button class="prof-verify" onclick="startVerify()">🪪 Become a verified member</button>') +
         '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myAvatar(108) + '</div>' +
         '<div class="prof-name">' + esc(state.displayName) + (state.verified ? ' ' + vbadge() : '') + '</div>' +
         '<div class="prof-meta">' + meta + '</div>' +
@@ -6297,7 +6300,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.23.0';
+    const APP_VERSION = '1.24.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -12931,19 +12934,24 @@
     function liveConnect() {
       if (!cloud || !cloudUser || liveChannel) return;
       try {
-        liveChannel = cloud.channel(liveTopic(cloudUser.id))
-          .on('broadcast', { event: 'ping' }, p => onLivePing(p.payload || {}))
+        const ch = cloud.channel(liveTopic(cloudUser.id));
+        liveChannel = ch;
+        ch.on('broadcast', { event: 'ping' }, p => onLivePing(p.payload || {}))
           .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'messages', filter: 'recipient_id=eq.' + cloudUser.id }, p => onLivePing({ type: p.new && p.new.kind === 'bark' ? 'bark' : 'dm', from: p.new && p.new.sender_id }))
           .subscribe(status => {
+            // removeChannel() itself reports CLOSED, so a channel that is already let go
+            // must not be removed again (that looped until the stack overflowed)
+            if (liveChannel !== ch) return;
             liveOK = status === 'SUBSCRIBED';
             // A dropped socket comes back on the next heartbeat
-            if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { try { cloud.removeChannel(liveChannel); } catch (e) {} liveChannel = null; }
+            if (status === 'CLOSED' || status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') { liveChannel = null; try { cloud.removeChannel(ch); } catch (e) {} }
           });
       } catch (e) { liveErr = e.message; liveChannel = null; liveOK = false; }
     }
     function liveDisconnect() {
-      if (liveChannel && cloud) { try { cloud.removeChannel(liveChannel); } catch (e) {} }
+      const ch = liveChannel;
       liveChannel = null; liveOK = false;
+      if (ch && cloud) { try { cloud.removeChannel(ch); } catch (e) {} }
     }
     // Fire-and-forget: sent over HTTP, so it never blocks the UI
     function livePing(toId, payload) {
