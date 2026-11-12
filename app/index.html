@@ -6300,7 +6300,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.24.0';
+    const APP_VERSION = '1.24.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -9292,14 +9292,19 @@
     }
     // Everything the one-time $3 ID check unlocks (the AI avatar only once it's switched on)
     function verifyPerks() {
+      // Selling, services and Mate Match listings are owner-only (requireSeller), so a
+      // pet account is told that up front instead of being promised them for its $3
+      const pet = state.accountType === 'pet';
       return [
         ['✔︎', 'Trust badge', 'on your profile and everything you post, sell or list'],
-        ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
-        ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
-        ['💘', 'List in Mate Match', 'find breeding partners for your dogs, cats, horses and farm animals'],
+        pet ? null : ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
+        pet ? null : ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
+        pet ? null : ['💘', 'List in Mate Match', 'find breeding partners for your dogs, cats, horses and farm animals'],
         ['🆘', 'Ask the Pledge for help', (assistOpen() ? 'with a vet bill, a cremation or pet food; we pay the provider directly.' : 'with a vet bill, a cremation or pet food, once the fund opens. Only verified members can ask.') + ' Not guaranteed: it depends on the funds available, how serious it is and how many requests we have'],
       ].concat(AVATAR.ready ? [['✨', 'AI avatar', 'a cartoon of your pet or you, drawn from a photo, ' + AVATAR.cap + ' tries']] : [])
-       .concat([['🤝', 'Members know you\'re real', 'buyers, clients and breeders can see you\'re a verified, accountable person']]);
+       .concat([['🤝', 'Members know you\'re real', pet ? 'everyone can see a verified, accountable person is behind this pet' : 'buyers, clients and breeders can see you\'re a verified, accountable person']])
+       .concat(pet ? [['ℹ️', 'Not included on a pet account', 'selling, offering services and listing in Mate Match need an Owner account']] : [])
+       .filter(Boolean);
     }
     function verifyPerksHtml(title) {
       return '<div class="hx-card" style="margin:0.6rem 0;"><div style="font-weight:800;margin-bottom:0.35rem;">' + esc(title || 'What you get for $3') + '</div>' +
