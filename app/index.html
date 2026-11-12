@@ -2289,9 +2289,44 @@
     function myLook() { return { v: state.avatarVariant || null, a: state.accessories || null }; }
 
     // ---------- Screen router ----------
+    // ---- Back during sign-up steps between the onboarding screens (#37) ----
+    // Each forward step is a history entry tagged with this page load, so Back
+    // returns to the previous screen instead of leaving petfi.pet or closing the
+    // Play app; Back from the first screen still leaves. The age check gets no
+    // entry of its own (Back from it acts as from the screen under it). Entering
+    // the app rewinds these entries first (navRecord), so in-app history ends up
+    // exactly as before.
+    var onbDoc = '', onbFromBack = false, navUnwindTab = null; // var: show() may run before this line
+    function onbDepth(st) {
+      st = st || {};
+      return onbDoc && st.petfiOnbDoc === onbDoc && typeof st.petfiOnbDepth === 'number' ? st.petfiOnbDepth : -1;
+    }
+    function onbRecord(from, id) {
+      if (onbFromBack || !from || from === id || id === 's-app' || from === 's-app' || id === 's-agecheck') return;
+      try {
+        if (!onbDoc) onbDoc = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const st = history.state || {};
+        let d = onbDepth(st);
+        // An in-page "← Back" to the screen we came from steps history back too
+        if (d > 0 && st.petfiOnbPrev === id) { history.back(); return; }
+        if (d < 0) { history.replaceState(Object.assign({}, st, { petfiOnb: from, petfiOnbDepth: 0, petfiOnbDoc: onbDoc }), ''); d = 0; }
+        history.pushState({ petfiOnb: id, petfiOnbPrev: from, petfiOnbDepth: d + 1, petfiOnbDoc: onbDoc }, '');
+      } catch (e) {}
+    }
+    // Back (browser or phone) while an onboarding screen is up
+    function onbPop(st) {
+      if (onbDepth(st) < 0 || !document.getElementById(st.petfiOnb)) return; // not one of ours: as before
+      if (document.body.classList.contains('sheet-open')) closeSheet();
+      const cur = document.querySelector('.screen.active');
+      if (cur && cur.id === st.petfiOnb) return;
+      onbFromBack = true;
+      try { show(st.petfiOnb); } finally { onbFromBack = false; }
+    }
     function show(id) {
+      const from = (document.querySelector('.screen.active') || {}).id || '';
       document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
       document.getElementById(id).classList.add('active');
+      onbRecord(from, id);
       if (id !== 's-welcome' && id !== 's-app' && /^s-/.test(id)) track('signup_screen', id.slice(2));
       document.querySelector('.phone').scrollTop = 0;
       window.scrollTo(0, 0);
@@ -2540,7 +2575,7 @@
       // skip phones on Data Saver or a 2G link; a bark before then uses the synth
       setTimeout(() => { const c = navigator.connection; if (!(c && (c.saveData || /2g/.test(c.effectiveType || '')))) preloadSamples(); }, 15000);
       const firstTime = !state.welcomed;
-      if (firstTime) { state.welcomed = true; saveState(); setTimeout(showWelcomeTour, 700); }
+      if (firstTime) { state.welcomed = true; saveState({ bg: true }); setTimeout(showWelcomeTour, 700); }
       celebrateBirthday();
       setTimeout(maybeOfferInstall, 10000); // gentle "add to home screen" once settled
       setTimeout(handlePayReturn, 300);  // back from Stripe into a login that needed the resume screen first
@@ -2561,7 +2596,7 @@
         if (isNaN(b) || b.getMonth() !== t.getMonth() || b.getDate() !== t.getDate()) return;
         const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
         if (state.lastBdayParty === today) return;
-        state.lastBdayParty = today; saveState();
+        state.lastBdayParty = today; saveState({ bg: true });
         setTimeout(() => {
           confetti();
           toast('🎂 Happy birthday, ' + (state.displayName || 'friend') + '! ' + (petAge(state.bday) || ''));
@@ -2596,7 +2631,7 @@
       if (name === 'groups') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active');
       pvidStopAll(); // a video torn out mid-play would keep its sound going
       c.innerHTML = r ? r() : '';
-      saveState();
+      saveState({ bg: true }); // the tab itself is screen state; edits save themselves
       cloudTabRefresh(name); // quietly pull fresh cloud data for this tab
       if (document.getElementById('s-app').classList.contains('active')) { /* already */ }
       else show('s-app');
@@ -2610,10 +2645,20 @@
     // Back closes a sheet there too and otherwise steps out of the site as
     // before. (The Android app skips it: there Back from Home closes the app.)
     var navFromBack = false; // var: openTab may run before this line does
-    function navRecord(name) {
+    function navRecord(name, plain) {
       if (navFromBack) return;
+      if (navUnwindTab) { navUnwindTab = name; return; } // still rewinding sign-up entries
       try {
         const st = history.state || {};
+        const d = plain ? -1 : onbDepth(st);
+        if (d > 0) {
+          // Coming in from sign-up: rewind its entries first (popstate records the
+          // tab when it lands), so Back in the app works exactly as before
+          navUnwindTab = name;
+          history.go(-d);
+          setTimeout(() => { if (navUnwindTab) { const t = navUnwindTab; navUnwindTab = null; navRecord(t, true); } }, 1500);
+          return;
+        }
         if (st.petfiTab === name) return;
         if (st.petfiTab || st.petfiRoot) { history.pushState({ petfiTab: name }, ''); return; }
         if (!IS_PLAY_APP) history.replaceState({ petfiRoot: 1 }, '');
@@ -2621,7 +2666,8 @@
       } catch (e) {}
     }
     window.addEventListener('popstate', e => {
-      if (!appActive()) return;
+      if (navUnwindTab) { const t = navUnwindTab; navUnwindTab = null; navRecord(t, true); return; }
+      if (!appActive()) { onbPop(e.state); return; }
       const st = e.state || {};
       if (document.body.classList.contains('sheet-open')) {
         closeSheet();
@@ -3482,20 +3528,27 @@
     function adTypeLabel(ad) { return AD_TYPE_LABEL[ad && ad.adType] || AD_TYPE_LABEL.breeder; }
     // The first running ad that reaches this viewer: app-wide ads reach
     // everyone; statewide and local (50 mi) ones need the viewer's ZIP.
+    const AD_REACHES = ['local', 'state', 'app'];
+    // Every ad that reaches the viewer takes a turn: one per minute bucket, so the
+    // choice is stable across re-renders and doesn't flicker.
+    function pickAdRotation(list, now) {
+      if (!list || !list.length) return null;
+      return list[Math.floor((now || Date.now()) / 60000) % list.length];
+    }
     function liveAd() {
       const me = state.zip && GEO_CACHE[state.zip] ? GEO_CACHE[state.zip] : null;
       const myState = me ? zipState(me) : null;
       const hidden = state.hiddenAds || [];
-      return CLOUD_ADS.find(a => {
+      // The advertiser's own ad no longer always wins: it only rotates in where it really reaches them
+      return pickAdRotation(CLOUD_ADS.filter(a => {
         if (!(new Date(a.expiresAt).getTime() > Date.now())) return false;
-        if (a.mine) return true;
-        if (hiddenUser(a.ownerId) || hidden.indexOf(a.cloudId) >= 0) return false;
+        if (!a.mine && (hiddenUser(a.ownerId) || hidden.indexOf(a.cloudId) >= 0)) return false;
         const reach = a.reach || 'app';
         if (reach === 'app') return true;
         if (!me) return false;
         if (reach === 'state') return !!(myState && a.st === myState);
         return isFinite(+a.lat) && isFinite(+a.lon) && haversineMi(me.lat, me.lon, +a.lat, +a.lon) <= LOCAL_RADIUS_MI;
-      }) || null;
+      }));
     }
     let SPOTLIGHT_AD = null; // the ad currently on screen (for tap-to-open)
     function spotlightCard() {
@@ -4121,6 +4174,23 @@
       }
       return amazonLink(p.q || p.title);
     }
+    // Favourites show on public profiles unlabelled, so they never carry Petfi's tag
+    function stripAffTag(url) {
+      const s = String(url || '');
+      if (!/[?&]tag=/i.test(s)) return s;
+      try {
+        const u = new URL(s), t = u.searchParams.get('tag');
+        if (t && (t === AFFILIATE.amazonTag || t === 'petfi-20')) u.searchParams.delete('tag');
+        return u.toString();
+      } catch (e) { return s; }
+    }
+    // The product's own page with no affiliate tracking
+    function plainProductUrl(p) {
+      if (p.extra && p.extraLink) return stripAffTag(p.extraLink);
+      if (p.asin && /^[A-Z0-9]{10}$/.test(p.asin)) return 'https://www.amazon.com/dp/' + p.asin;
+      if (p.chewy) return 'https://www.chewy.com/s?query=' + encodeURIComponent(p.q || p.title);
+      return 'https://www.amazon.com/s?k=' + encodeURIComponent(p.q || p.title);
+    }
     // The big pet stores. Tractor Supply only shows for horses and farm animals.
     const RETAILERS = [
       { key: 'amazon',   name: 'Amazon',   emo: '📦', url: q => amazonLink(q) },
@@ -4736,7 +4806,7 @@
         '<span style="font-size:0.82rem;">This bill is real and it\'s mine. Petfi may contact the provider to confirm it, pays them directly (never me), and may cover all, part or none of it. Help isn\'t guaranteed: it depends on the funds available, how serious the situation is and how many requests are waiting.</span></label>' +
         '<button class="btn" id="as-send" onclick="submitAssist()">Send my request</button>' +
         '<button class="btn secondary" onclick="openDonate()">Back</button>' +
-        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Only you and Petfi\'s reviewers can see the bill. We delete it once your request is settled.</p>');
+        '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Only you and Petfi\'s reviewers can see the bill. A reviewer deletes it after your request is settled, and it is removed when you delete your account.</p>');
     }
     async function submitAssist() {
       if (!(cloud && cloudUser)) return;
@@ -5380,15 +5450,16 @@
       return '<div class="prod">' + img +
         '<div class="pbody">' +
           '<div class="ptitle" style="cursor:pointer;" onclick="openProductDetail(' + idx + ')">' + esc(p.title) + '</div>' +
-          '<div class="pprice">' + esc(p.price) + '</div>' +
+          '<div class="pprice">' + esc(p.price) + (p.sold && !p.affiliate ? ' ' + SOLD_TAG : '') + '</div>' +
           sellerLine + buttons +
         '</div></div>';
     }
-    // Save a shop product (with its affiliate link) to the user's favorites
+    // Save a shop product to the user's favorites. Plain link, no affiliate tag:
+    // favorites are shown on the member's public profile with no "Paid link" label.
     function saveProductToFav(i) {
       const p = STORE_VIEW[i]; if (!p) return;
       state.favorites = state.favorites || [];
-      state.favorites.push({ cat: 'product', label: p.title, url: affiliateUrl(p) });
+      state.favorites.push({ cat: 'product', label: p.title, url: plainProductUrl(p) });
       saveState(); cloudSaveProfile();
       toast('Saved to your favorites ⭐');
     }
@@ -5416,7 +5487,7 @@
     // DM someone we may not have a profile card for yet (e.g. a seller)
     function openCloudDMWithProfile(id, fallbackName) {
       if (PROFILE_BY_ID[id]) { openCloudDM(id); return; }
-      cloud.from('profiles').select('*').eq('id', id).maybeSingle().then(({ data }) => {
+      cloud.from('profiles').select(PROFILE_COLS).eq('id', id).maybeSingle().then(({ data }) => {
         if (data) { PROFILE_BY_ID[id] = data; openCloudDM(id); }
         else toast((fallbackName || 'That seller') + ' isn\'t on Petfi anymore');
       });
@@ -5440,6 +5511,24 @@
         closeSheet(); if (state.tab === 'store') openTab('store'); toast('Listing removed 🗑');
       }
     }
+    const SOLD_TAG = '<span style="background:var(--ink);color:#fff;font-size:0.68rem;font-weight:800;padding:0.1rem 0.45rem;border-radius:999px;vertical-align:middle;">SOLD</span>';
+    // Sold lives in the listing's content JSON: the owner still sees it (marked
+    // SOLD); other members' store grid hides it (loadListings).
+    async function markListingSold(cloudId, sold) {
+      if (!cloud || !cloudUser || !cloudId) return;
+      try {
+        // Re-read the stored content so only the flag changes
+        const cur = await cloud.from('listings').select('content').eq('id', cloudId).eq('seller_id', cloudUser.id).single();
+        if (cur.error || !cur.data) throw cur.error || new Error('not found');
+        const content = Object.assign({}, cur.data.content || {}, { sold: !!sold });
+        if (!sold) delete content.sold;
+        const up = await cloud.from('listings').update({ content }).eq('id', cloudId).select('id');
+        if (up.error || !up.data || !up.data.length) throw up.error || new Error('refused');
+        const l = LISTINGS.find(x => x.cloudId === cloudId); if (l) l.sold = !!sold;
+        closeSheet(); if (state.tab === 'store') openTab('store');
+        toast(sold ? 'Marked as sold ✅ Other members no longer see it' : 'Back on sale 🛒');
+      } catch (e) { console.warn('mark sold:', e && e.message); toast('⚠️ Couldn\'t update the listing — try again'); }
+    }
     function openProductDetail(i) {
       const p = STORE_VIEW[i]; if (!p) return;
       const photos = p.affiliate ? [] : safePhotos(p.photos);
@@ -5451,7 +5540,7 @@
             ? '<div class="az-hero"><img src="' + esc(az) + '" alt="">' + (p.bestIn ? '<span class="bs-badge">🔥 Best seller in ' + esc(p.bestIn) + '</span>' : '') + '</div>'
             : '<div class="post-photo" style="background:' + safeBg(p.bg) + ';height:110px;margin-bottom:0.7rem;">' + esc(p.affiliate ? p.emo : '🐾') + '</div>') +
         (p.desc ? '<p style="font-size:0.92rem;margin-bottom:0.6rem;">' + esc(p.desc) + '</p>' : '') +
-        '<div class="pprice" style="font-size:1.2rem;">' + (p.affiliate ? 'See price on ' + esc(p.storeName || 'Amazon') : esc(p.price)) + '</div>' +
+        '<div class="pprice" style="font-size:1.2rem;">' + (p.affiliate ? 'See price on ' + esc(p.storeName || 'Amazon') : esc(p.price) + (p.sold ? ' ' + SOLD_TAG : '')) + '</div>' +
         (p.affiliate && p.rating ? '<div class="prating" style="font-size:0.88rem;margin-top:0.2rem;"><b>' + stars(p.rating) + '</b> · ' + Number(p.reviews).toLocaleString() + ' Amazon reviews' + (p.cats ? ' · ' + esc(p.cats.join(' · ')) : '') + '</div>' : '') +
         (p.affiliate ? '' : '<div class="pseller" style="font-size:0.85rem;margin-top:0.3rem;">Sold by ' + esc(p.mine ? 'you' : p.seller) + (isVerifiedUser(p.sellerId) || p.mine ? ' ' + vbadge() : '') + (p.cat ? ' · ' + esc(p.cat) : '') + '</div>' +
           (p.contact ? '<div class="pseller" style="font-size:0.85rem;" translate="no">📇 ' + esc(p.contact) + '</div>' : '')) +
@@ -5460,7 +5549,8 @@
             '<button class="btn secondary" onclick="closeSheet();saveProductToFav(' + i + ')">⭐ Save to favorites</button>' +
             '<p class="sub" style="font-size:0.7rem;margin-top:0.8rem;">Affiliate link — Petfi may earn a commission at no extra cost to you. Price, shipping &amp; returns are handled by ' + esc(p.storeName || 'Amazon') + '.</p>'
           : p.mine
-            ? '<button class="btn secondary" onclick="deleteListing(' + i + ')">🗑 Remove my listing</button>'
+            ? (p.cloudId ? '<button class="btn" onclick="markListingSold(' + Number(p.cloudId) + ',' + (p.sold ? 'false' : 'true') + ')">' + (p.sold ? '↺ Mark as available' : '✅ Mark as sold') + '</button>' : '') +
+              '<button class="btn secondary" onclick="deleteListing(' + i + ')">🗑 Remove my listing</button>'
             : '<button class="btn" onclick="closeSheet();inquireListing(' + i + ')">💬 Message seller</button>' +
               '<button class="pill-btn ghost" style="margin:0.2rem 0 0.4rem;" onclick="reportListing(' + i + ')">🚩 Report listing</button>' +
               (p.url && p.url !== '#' ? '<button class="btn secondary" onclick="openLink(\'' + jsStr(p.url) + '\')">🔗 Seller\'s link</button>' : '') +
@@ -5576,7 +5666,7 @@
       const nFriends = FRIENDSHIPS.filter(f => f.status === 'accepted').length;
       const nGroups = CLOUD_GROUPS.filter(g => g.joined).length;
       h += '<div class="stat-row">' +
-        '<div class="stat"><b>' + nFriends + '</b><span>Friends</span></div>' +
+        '<div class="stat" style="cursor:pointer;" title="See your friends and requests" onclick="openFriendsList()"><b>' + nFriends + '</b><span>Friends</span></div>' +
         '<div class="stat"><b>' + state.favorites.length + '</b><span>Favorites</span></div>' +
         '<div class="stat"><b>' + nGroups + '</b><span>Groups</span></div></div>';
 
@@ -5608,7 +5698,7 @@
       h += '<div class="sec"><h3>⭐ Favorites</h3><span class="link" onclick="openAddFav()">+ Add</span></div>';
       h += '<p class="sub" style="margin:-0.3rem 0 0.6rem;font-size:0.8rem;">Tap any favorite to open its store or website.</p>';
       h += state.favorites.map((f, i) =>
-        '<div class="fav-item" onclick="openLink(\'' + jsStr(f.url || '#') + '\')">' +
+        '<div class="fav-item" onclick="openLink(\'' + jsStr(stripAffTag(f.url) || '#') + '\')">' +
           '<span class="fi">' + (FAV_ICON[f.cat] || '⭐') + '</span>' +
           '<span class="ft">' + esc(f.label) + '</span>' +
           '<span class="fl">' + (FAV_LABELS[f.cat] || '') + ' ↗</span>' +
@@ -5878,7 +5968,7 @@
       state.streak = state.streakLast === yesterday ? (state.streak || 0) + 1 : 1;
       state.streakLast = today;
       state.streakBest = Math.max(state.streakBest || 0, state.streak);
-      saveState();
+      saveState({ bg: true });
       if ([3, 7, 14, 30, 50, 100, 200, 365].indexOf(state.streak) >= 0) {
         setTimeout(() => { confetti(); toast('🔥 ' + state.streak + '-day streak! You\'re a devoted pet parent'); }, 950);
       }
@@ -6090,7 +6180,7 @@
         if (!blob) return;
         const up = await cloud.storage.from('photos').upload(cloudUser.id + '/share-avatar.png', blob, { contentType: 'image/png', upsert: true, cacheControl: '3600' });
         if (up.error) { console.warn('share avatar:', up.error.message); return; }
-        state.shareAvatarSig = sig; saveState(); cloudSaveProfile();
+        state.shareAvatarSig = sig; saveState({ bg: true }); cloudSaveProfile();
       } catch (e) { console.warn('share avatar:', e && e.message); }
     }
 
@@ -6246,7 +6336,7 @@
       if (!slot || !INVITE_IN || !cloud) return;
       const ids = [INVITE_IN.u, INVITE_IN.ref].filter(Boolean);
       let rows = [];
-      try { const { data } = await cloud.from('profiles').select('*').in('id', ids); rows = (data || []).filter(p => !p.banned); } catch (e) { return; }
+      try { const { data } = await cloud.from('profiles').select(PROFILE_COLS).in('id', ids); rows = (data || []).filter(p => !p.banned); } catch (e) { return; }
       const byId = {}; rows.forEach(p => { byId[p.id] = p; PROFILE_BY_ID[p.id] = p; });
       const shown = byId[INVITE_IN.u] || byId[INVITE_IN.ref];
       if (!shown) return;
@@ -6303,7 +6393,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.24.2';
+    const APP_VERSION = '1.25.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6363,7 +6453,8 @@
         '<ul><li><b>Account:</b> your email and password (password is stored encrypted by our provider, never readable by us).</li>' +
         '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members; its approximate centre is stored privately too, to find members near you, and they see only a distance in whole miles. Your age is private too, unless you publish a Mate Match for people card.</li>' +
         '<li><b>Content:</b> your posts, comments, messages, listings, groups and favorites.</li>' +
-        '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
+        '<li><b>Pledge help requests (optional):</b> a request for help from the Pledge fund includes the bill you upload, which only you and Petfi\'s reviewers can see.</li>' +
+        '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, tap <b>Hide my card</b> in your Mate Match for people preferences, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
         '<li><b>Recent searches:</b> your last 5 in-app searches are saved with your private account data. Never shown to others.</li>' +
         '<li><b>Crash reports:</b> when the app hits an error it sends the error message, stack trace, app version, page address, your browser\'s user agent and your user id — at most 5 per visit, readable only by Petfi admins.</li>' +
         '<li><b>Care data:</b> reminders, calendar entries and your pets\' health records — meds and prescriptions, vaccines, vet visits, weight, symptom journal entries, vet and microchip details, supplies and what you logged spending. These are <b>private to you</b> and never shown to other users unless you share a health passport. Petfi isn\'t a vet or a pharmacy and doesn\'t send them to one.</li>' +
@@ -6388,7 +6479,7 @@
         '<h3>Your controls</h3>' +
         '<ul><li>Visibility, message privacy, and notification switches live in Settings.</li>' +
         '<li>You can delete individual posts and listings anytime.</li>' +
-        '<li><b>Delete your account</b> in Settings → Account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
+        '<li><b>Delete your account</b> in Me → Account &amp; security → Delete my account: your profile, posts, listings, and saved data are permanently erased.</li></ul>' +
         '<h3>Children</h3>' +
         '<p>Petfi is for adults: you must be <b>' + MIN_AGE + ' or older</b> to have an account. Petfi is not directed to children, and we don\'t knowingly collect personal information from anyone under ' + MIN_AGE + '. The app asks you to confirm your age and remembers the answer on your device only. If we learn an account belongs to someone under ' + MIN_AGE + ', we\'ll remove it. To report one, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a>.</p>' +
         legalFoot('November 3, 2026') + '</div>' +
@@ -6429,7 +6520,7 @@
         '<details><summary>🔊 What are barks & meows?</summary><p>A quick way to say hi! Tap 🔊 on any pet — they hear a real bark or meow. Anyone can bark at anyone; messages can be limited to friends in Settings.</p></details>' +
         '<details><summary>🔒 Who can see my stuff?</summary><p>Posts and your profile card are visible to Petfi members. Your reminders, calendar, and mate picks are private by default. You can hide yourself from Nearby and limit messages to friends in Settings.</p></details>' +
         '<details><summary>🚫 Someone\'s bothering me</summary><p>Open their profile and tap <b>Block</b> — they can\'t message you or see you nearby anymore. Use <b>Report</b> for anything that breaks the rules; reports are anonymous and we review them.</p></details>' +
-        '<details><summary>🗑 How do I delete my account?</summary><p>Me tab → ⚙️ Settings → <b>Account</b> → Delete my account. Everything you\'ve posted and saved is permanently erased.</p></details>' +
+        '<details><summary>🗑 How do I delete my account?</summary><p>Me tab → <b>Account &amp; security</b> → Delete my account. Everything you\'ve posted and saved is permanently erased.</p></details>' +
         '</div>' +
         '<button class="btn" onclick="closeSheet();openFeedback()">💌 Still stuck? Send us a message</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
@@ -6530,7 +6621,7 @@
           const { error } = await cloud.from('reports').insert({ reporter_id: cloudUser.id, content: entry });
           if (error) break;
           const i = list.indexOf(entry); if (i >= 0) list.splice(i, 1);
-          saveState();
+          saveState({ bg: true });
         }
       } catch (e) {} finally { flushingReports = false; }
     }
@@ -6547,13 +6638,21 @@
     const ADMIN_EMAILS = ['armedguard511@gmail.com', 'spindola.software@gmail.com'];
     function isAdmin() { return !!(cloudUser && cloudUser.email && ADMIN_EMAILS.indexOf(String(cloudUser.email).toLowerCase()) >= 0); }
     function isBannedUser(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.banned); }
+    // Every profiles column except ban_reason, which the server will hide from
+    // clients (#11): a select('*') would then fail outright
+    const PROFILE_COLS = 'id, username, kind, species, breed, status, zip, visible, friends_only, seller_approved, mate_picks, verified, verified_at, banned, created_at';
     // A suspended account gets one clear screen, then is signed out
     async function checkSuspended() {
       if (!cloud || !cloudUser) return;
-      const { data } = await cloud.from('profiles').select('banned, ban_reason, verified').eq('id', cloudUser.id).maybeSingle();
+      // The member's own ban comes from petfi_my_ban; before that function
+      // exists, read ban_reason off the profile as before
+      let ban = null;
+      try { const r = await cloud.rpc('petfi_my_ban'); if (!r.error) ban = (Array.isArray(r.data) ? r.data[0] : r.data) || { banned: false, ban_reason: null }; } catch (e) {}
+      const { data } = await cloud.from('profiles').select(ban ? 'banned, verified' : 'banned, ban_reason, verified').eq('id', cloudUser.id).maybeSingle();
       if (!data) return;
+      if (ban) { data.banned = !!(ban.banned || data.banned); data.ban_reason = ban.ban_reason || null; }
       // The server decides who is verified; mirror it locally so the badge shows
-      if (!!data.verified !== !!state.verified) { state.verified = !!data.verified; state.verifiedBy = data.verified ? 'petfi' : null; saveState(); if (appActive() && state.tab === 'profile') rerenderTab(renderProfile); }
+      if (!!data.verified !== !!state.verified) { state.verified = !!data.verified; state.verifiedBy = data.verified ? 'petfi' : null; saveState({ bg: true }); if (appActive() && state.tab === 'profile') rerenderTab(renderProfile); }
       if (!data.banned) return;
       openSheet('⛔ Account suspended',
         '<div class="note">This account was suspended for breaking the Community Guidelines' + (data.ban_reason ? ': <b>' + esc(data.ban_reason) + '</b>' : '') + '.</div>' +
@@ -6603,10 +6702,12 @@
       if (sheetSeq !== mySeq) return;
       if (error) { openSheet('🛡️ Moderation', '<div class="note">⚠️ ' + esc(error.message) + '<br><br>Run <b>petfi-moderation.sql</b> in the Supabase SQL editor first.</div>'); return; }
       MOD_REPORTS = data || [];
-      const postIds = MOD_REPORTS.map(r => Number(r.content && r.content.refId)).filter(n => n > 0);
+      // Only post reports carry a post id in refId; a comment/listing/ad id must never look up a post
+      const isPostRep = r => r.content && r.content.kind === 'post';
+      const postIds = MOD_REPORTS.filter(isPostRep).map(r => Number(r.content.refId)).filter(n => n > 0);
       MOD_POSTS = {};
       if (postIds.length) { const { data: ps } = await cloud.from('posts').select('id, author_id, content').in('id', postIds); (ps || []).forEach(p => { MOD_POSTS[p.id] = p; }); }
-      const authors = MOD_REPORTS.map(r => (r.content && r.content.authorId) || (MOD_POSTS[Number(r.content && r.content.refId)] || {}).author_id).filter(Boolean);
+      const authors = MOD_REPORTS.map(r => (r.content && r.content.authorId) || (isPostRep(r) ? (MOD_POSTS[Number(r.content.refId)] || {}).author_id : null)).filter(Boolean);
       await ensureProfiles(authors);
       if (sheetSeq !== mySeq) return;
       renderModeration();
@@ -6618,7 +6719,7 @@
     }
     function modCard(r) {
       const c = r.content || {};
-      const post = MOD_POSTS[Number(c.refId)] || null;
+      const post = c.kind === 'post' ? (MOD_POSTS[Number(c.refId)] || null) : null;
       const gone = c.kind === 'post' && !post;
       const authorId = c.authorId || (post && post.author_id) || (c.kind === 'user' && c.refId) || null;
       const shown = authorId ? authorName(authorId, c.target) : (c.target || 'Unknown');
@@ -6909,7 +7010,7 @@
     // Petfi suspended, and (for a pet account that chose it) owner accounts.
     function hiddenUser(id) {
       if (!id || (cloudUser && id === cloudUser.id)) return false;
-      if (isBlocked(id) || isBannedUser(id)) return true;
+      if (isBlocked(id) || isBannedUser(id) || BLOCKED_ME[id]) return true;
       const p = PROFILE_BY_ID[id];
       return !!(p && !audienceShows(p));
     }
@@ -6950,8 +7051,29 @@
     }
     // Blocks live in the database too (petfi-fixes-2026-11-01.sql): they stop
     // messages and friend requests, and hide your profile from that person.
+    // Members who blocked ME: blocking works both ways, so their posts,
+    // comments, profile and listings are hidden from me too. Ids only, memory only.
+    let BLOCKED_ME = {};
+    async function loadBlockedMe() {
+      const uid = cloudUser && cloudUser.id;
+      let ids = {};
+      try {
+        // petfi_blocked_me may not exist yet on the server: then nobody is listed
+        const { data, error } = await cloud.rpc('petfi_blocked_me');
+        if (!error && Array.isArray(data)) data.forEach(r => { if (r && r.id) ids[r.id] = 1; });
+      } catch (e) {}
+      if (!(cloudUser && cloudUser.id === uid)) return;
+      const changed = Object.keys(ids).sort().join() !== Object.keys(BLOCKED_ME).sort().join();
+      BLOCKED_ME = ids;
+      // The feed may have loaded first: refetch lists on the next visit, redraw home now
+      if (changed) {
+        lastPostsFetch = 0; lastPeopleFetch = 0; lastListingsFetch = 0; lastMatesFetch = 0;
+        if (appActive() && state.tab === 'home') openTab('home');
+      }
+    }
     async function loadBlocks() {
       if (!cloud || !cloudUser) return;
+      loadBlockedMe();
       const { data, error } = await cloud.from('blocks').select('blocked_id');
       if (error || !data) return;
       state.blocked = state.blocked || [];
@@ -6962,7 +7084,7 @@
       state.blocked.filter(b => !inCloud[b.id] && UUID_RE.test(b.id || '')).forEach(b => {
         cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: b.id }).then(() => {});
       });
-      if (added) saveState();
+      if (added) saveState({ bg: true });
     }
     function blockUser(id, name) {
       openSheet('🚫 Block ' + esc(name) + '?',
@@ -7051,11 +7173,12 @@
       if (cloud && cloudUser) {
         const uid = cloudUser.id;
         clearTimeout(cloudSaveTimer); cloudSaveTimer = null; // no stray save can resurrect the account
+        cloudSavesOff = true; // nor a retry or a background save while the erase runs
         // Stop a monthly gift first, while the member can still be told it failed.
         // (The delete function cancels it too; this covers a server that hasn't.)
-        const notDeleted = () => openSheet('🗑 Not deleted yet',
+        const notDeleted = () => (cloudSavesOff = false, openSheet('🗑 Not deleted yet',
           '<div class="note" style="background:#fdeef0;color:#a03a5a;">Your monthly gift could not be cancelled just now, so nothing was deleted. Please try again in a minute, or email support@petfi.pet and we will cancel it and delete the account for you.</div>' +
-          '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+          '<button class="btn secondary" onclick="closeSheet()">Close</button>'));
         try {
           const st = await donateCall('status');
           if (st && st.monthly) {
@@ -7100,10 +7223,12 @@
           }
         } catch (e) {}
       }
-      try { localStorage.removeItem('petfi-account'); } catch (e) {}
+      try { localStorage.removeItem('petfi-account'); localStorage.removeItem(DIRTY_KEY); } catch (e) {}
+      ownSignOut = true; // deleting signs out every device on purpose
       if (cloud) { try { await cloud.auth.signOut(); } catch (e) {} }
       liveDisconnect();
-      cloudUser = null;
+      cloudUser = null; pausedUid = null; cloudSeenAt = null; cloudSeenFor = null; ownSignOut = false; cloudSavesOff = false;
+      BLOCKED_ME = {};
       resetState();
       applyTheme(); // back to daylight for the welcome screen
       FEED.length = 0; feedLoadedOnce = false;
@@ -7517,15 +7642,38 @@
         if (!state.postedAt) { state.postedAt = Date.now(); track('first_post'); }
         toast(post.scope === 'local' ? 'Posted to your Local feed 🏡' : 'Posted for everyone to see 🐾');
       } catch (e) {
-        console.warn('post save:', e.message);
-        if (vid && vid.url) URL.revokeObjectURL(vid.url);
+        console.warn('post save:', e && e.message);
+        // Keep the photos and video for the retry (the pgBlock hand-off); a video
+        // that already uploaded had its preview link let go, so make a fresh one
+        if (vid && vid.file && !post.videoLocal) { try { vid.url = URL.createObjectURL(vid.file); } catch (e2) {} }
+        window._pgKeep = photos; window._pgKeepVid = vid || null; window._retryScope = scope;
         const idx = FEED.indexOf(post); if (idx >= 0) FEED.splice(idx, 1);
         if (state.tab === 'home') openTab('home');
         openSheet('⚠️ Post didn\'t send',
-          '<div class="note">Petfi couldn\'t reach the cloud, so the post wasn\'t published. Check your connection and try again — your text is below.</div>' +
+          '<div class="note">' + esc(postFailReason(e)) + ' Your post is below' + (photos.length || vid ? ', with your ' + (photos.length && vid ? 'photos and video' : vid ? 'video' : 'photos') : '') + '.</div>' +
           '<textarea id="cmp-retry" style="width:100%;min-height:90px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(t) + '</textarea>' +
-          '<button class="btn" onclick="composeDraft=document.getElementById(\'cmp-retry\').value;closeSheet();openCompose()">Try again</button>');
+          '<button class="btn" onclick="retryPost()">Try again</button>');
       }
+    }
+    // Only a real network failure is blamed on the connection; anything else says what happened
+    function postFailReason(e) {
+      const msg = String((e && (e.message || e.error_description || e.error)) || '');
+      const status = Number(e && (e.statusCode || e.status)) || 0;
+      if ((typeof navigator !== 'undefined' && navigator.onLine === false) || /failed to fetch|networkerror|network request|load failed|timed? ?out/i.test(msg) || (e && e.name === 'TypeError' && !msg))
+        return 'Petfi couldn\'t reach the cloud, so the post wasn\'t published. Check your connection and try again.';
+      if (/suspend|banned/i.test(msg)) return 'Your account is suspended, so the post wasn\'t published.';
+      if (status === 413 || /too large|exceeded the maximum|payload|entity too large|maximum allowed size/i.test(msg)) return 'That photo or video is too large to upload. Try a shorter video or fewer photos.';
+      if ((e && e.code === '42501') || /row-level security|violates|policy|not allowed|permission/i.test(msg)) return 'Petfi didn\'t accept this post (' + msg.slice(0, 120) + ').';
+      return 'The post wasn\'t published: ' + (msg ? msg.slice(0, 160) : 'something went wrong') + '.';
+    }
+    function retryPost() {
+      const t = (document.getElementById('cmp-retry') || {}).value || '';
+      const scope = window._retryScope || 'national'; window._retryScope = null;
+      closeSheet(); composeDraft = t; openCompose();
+      postPhotos = window._pgKeep || []; window._pgKeep = null; renderPostPreviews();
+      postVideo = window._pgKeepVid || null; window._pgKeepVid = null; renderPostVideoPreview();
+      const seg = document.getElementById('cmp-scope');
+      if (seg && scope === 'local' && state.zip) setComposeScope('local', seg.children[0]);
     }
 
     function openAddFav() {
@@ -7598,7 +7746,14 @@
       const n = document.getElementById('sell-food-note');
       if (n) n.style.display = (val('sell-cat') || 'Products') === 'Food' ? 'block' : 'none';
     }
-    function parsePrice(s) { const n = parseFloat(String(s || '').replace(/[^0-9.]/g, '')); return isNaN(n) ? 0 : n; }
+    // A number only for one clean amount ("$1,250.50", "12", " $9 "); anything
+    // else ("2 for $10", "$10-15", "Ask") returns 0 and the seller's text is kept as typed
+    function parsePrice(s) {
+      const m = /^\s*\$?\s*((?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?|\.\d+)\s*$/.exec(String(s == null ? '' : s));
+      if (!m) return 0;
+      const n = parseFloat(m[1].replace(/,/g, ''));
+      return isFinite(n) ? n : 0;
+    }
     const HOMEMADE_RE = /home\s*-?\s*made|home\s*-?\s*baked|homemade|selfmade|hand\s*-?\s*made treat/i;
     // Read the chosen images, shrink them to a sane size, keep as previews
     function sellPhotosPicked(input) {
@@ -7718,6 +7873,11 @@
       state.sellerContact = contact;
       const area = val('sv-area');
       const g = state.zip ? await geocodeZip(state.zip) : null;
+      // A local service with no located ZIP would be invisible to everyone: keep the form open
+      if (area !== 'ship' && !g) {
+        toast(state.zip ? '⚠️ We couldn\'t locate your ZIP ' + state.zip + ' — check it on the Nearby tab, then try again' : 'Set your ZIP on the Nearby tab first, so people near you can find this service');
+        return;
+      }
       let url = val('sell-url'); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
       const item = { title, desc, price: rate, seller: state.displayName, cat: 'Services', svc: t.k, url: url || '', photos: [], contact, terms: SELLER_TERMS_V,
         ships: area === 'ship', areaMi: area === 'ship' ? 0 : (parseInt(area, 10) || 10),
@@ -7754,8 +7914,12 @@
       return LISTINGS.filter(l => l.cat === 'Services' && !hiddenUser(l.sellerId)).map(l => {
         const d = me && l.loc && typeof l.loc.lat === 'number' ? Math.round(haversineMi(me.lat, me.lon, l.loc.lat, l.loc.lon)) : null;
         return Object.assign({ _d: d }, l);
-      }).filter(l => l.ships || l.mine || (l._d != null && l._d <= (l.areaMi || 10)))
-        .sort((a, b) => (a.ships - b.ships) || ((a._d == null ? 999 : a._d) - (b._d == null ? 999 : b._d)));
+      // Unknown distance (no ZIP on either side) is listed last instead of dropped
+      }).filter(l => l.ships || l.mine || l._d == null || l._d <= (l.areaMi || 10))
+        .sort((a, b) => {
+          const rank = l => (l.ships ? 1 : (l._d == null && !l.mine) ? 2 : 0);
+          return (rank(a) - rank(b)) || ((a._d == null ? 999 : a._d) - (b._d == null ? 999 : b._d));
+        });
     }
     let SVC_VIEW = [];
     function servicesSection(where) {
@@ -7783,9 +7947,27 @@
         (l.contact ? '<p style="margin:0 0 0.5rem;" translate="no">📇 ' + esc(l.contact) + '</p>' : '') +
         (l.mine ? '<div class="note">This is your listing.</div>' : '<button class="btn" onclick="closeSheet();openCloudDMWithProfile(\'' + jsStr(l.sellerId) + '\',\'' + jsStr(l.seller) + '\')">💬 Message ' + esc(String(l.seller || '').split(' ')[0]) + '</button>') +
         (l.url && /^https:\/\//.test(l.url) ? '<button class="btn secondary" onclick="openLink(\'' + jsStr(l.url) + '\')">🔗 Their website</button>' : '') +
+        (l.mine
+          ? (l.cloudId ? '<button class="btn secondary" onclick="removeService(' + i + ')">🗑 Remove this service</button>' : '')
+          : (l.cloudId ? '<button class="pill-btn ghost" style="margin:0.2rem 0 0.4rem;" onclick="reportService(' + i + ')">🚩 Report</button>' : '')) +
         '<p class="sub" style="font-size:0.72rem;margin-top:0.5rem;">Providers verified their ID with Petfi. Agree on details, rates and payment directly, meet somewhere public first if you like, and report anything that feels off.</p>');
     }
 
+    // Same row delete as a product listing (reallyDeleteListing), keyed by the cloud id
+    function removeService(i) {
+      const l = SVC_VIEW[i]; if (!l || !l.cloudId || !l.mine) return;
+      if (!confirm('Remove "' + String(l.title || 'this service') + '"? It disappears for everyone.')) return;
+      const cloudId = Number(l.cloudId);
+      const li = LISTINGS.findIndex(x => x.cloudId === cloudId); if (li >= 0) LISTINGS.splice(li, 1);
+      closeSheet(); if (appActive() && (state.tab === 'store' || state.tab === 'nearby')) openTab(state.tab);
+      cloud.from('listings').delete().eq('id', cloudId)
+        .then(({ error }) => { toast(error ? '⚠️ Could not remove from the cloud' : 'Service removed 🗑'); });
+    }
+    // Same report flow as a product listing
+    function reportService(i) {
+      const l = SVC_VIEW[i];
+      if (l && l.cloudId) openReport('listing', '"' + String(l.title || 'this service').slice(0, 40) + '"', l.cloudId, { authorId: l.sellerId, table: 'listings', rowId: l.cloudId, text: (l.title || '') + ' — ' + (l.desc || '') });
+    }
     function openCreateGroup() {
       openSheet('Create a group',
         '<label>Group name</label><input id="grp-name" placeholder="e.g. South Beach Corgi Club">' +
@@ -7886,12 +8068,12 @@
     }
     function sellGate(kind) {
       if (state.verified) return true;
-      const svc = kind === 'service', mate = kind === 'mate';
-      openSheet(mate ? '💘 List an animal for breeding' : svc ? '🧑‍🔧 Offer a pet service' : '🛒 Sell in the Pet Store',
-        '<p class="sub">' + (mate ? 'Find a breeding partner near you: dogs, cats, horses, goats, cattle, chickens and more.' : svc ? 'Dog walking, sitting, poop scooping, grooming, training, custom pet art: list it here and pet owners near you can message you.' : 'List products, pets or services for Petfi members near you and across the country.') + '</p>' +
-        '<div class="note">🪪 <b>' + (mate ? 'Mate Match listings are' : 'Selling on Petfi is') + ' for ID-verified members only</b>, so every ' + (mate ? 'breeder' : 'seller and provider') + ' is accountable for what they offer. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
+      const svc = kind === 'service', mate = kind === 'mate', ad = kind === 'ad';
+      openSheet(ad ? '📣 Spotlight ad' : mate ? '💘 List an animal for breeding' : svc ? '🧑‍🔧 Offer a pet service' : '🛒 Sell in the Pet Store',
+        '<p class="sub">' + (ad ? 'Put your litter, product or service in front of pet owners near you, across your state or everywhere on Petfi.' : mate ? 'Find a breeding partner near you: dogs, cats, horses, goats, cattle, chickens and more.' : svc ? 'Dog walking, sitting, poop scooping, grooming, training, custom pet art: list it here and pet owners near you can message you.' : 'List products, pets or services for Petfi members near you and across the country.') + '</p>' +
+        '<div class="note">🪪 <b>' + (ad ? 'Spotlight ads are' : mate ? 'Mate Match listings are' : 'Selling on Petfi is') + ' for ID-verified members only</b>, so every ' + (ad ? 'advertiser' : mate ? 'breeder' : 'seller and provider') + ' is accountable for what they offer. It\'s a one-time $3 check that also gets you the trust badge' + (AVATAR.ready ? ' and an AI avatar' : '') + '.</div>' +
         verifyPerksHtml('One $3 check unlocks all of this') +
-        '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 ' + (mate ? 'Verify and list my animal' : 'Verify and start selling') + '</button>' +
+        '<button class="btn blue" onclick="closeSheet();startVerify()">🪪 ' + (ad ? 'Verify and advertise' : mate ? 'Verify and list my animal' : 'Verify and start selling') + '</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
       return false;
     }
@@ -7934,10 +8116,15 @@
       month: { label: '1 month (30 days)', days: 30, off: 0.30 },
     };
     function adPriceCents(reach, plan) { const r = AD_REACH[reach], p = AD_PLAN[plan]; return r && p ? Math.round(r.day * p.days * (1 - p.off)) : 0; }
-    function zipState(geo) { const m = /,\s*([A-Z]{2})\s*$/.exec((geo && geo.area) || ''); return m ? m[1] : null; }
+    // The ZIP fallback geocoder can give a full state name; statewide ads need the two-letter code
+    const US_STATE_CODES = { alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA', colorado: 'CO', connecticut: 'CT', delaware: 'DE', 'district of columbia': 'DC', florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL', indiana: 'IN', iowa: 'IA', kansas: 'KS', kentucky: 'KY', louisiana: 'LA', maine: 'ME', maryland: 'MD', massachusetts: 'MA', michigan: 'MI', minnesota: 'MN', mississippi: 'MS', missouri: 'MO', montana: 'MT', nebraska: 'NE', nevada: 'NV', 'new hampshire': 'NH', 'new jersey': 'NJ', 'new mexico': 'NM', 'new york': 'NY', 'north carolina': 'NC', 'north dakota': 'ND', ohio: 'OH', oklahoma: 'OK', oregon: 'OR', pennsylvania: 'PA', 'rhode island': 'RI', 'south carolina': 'SC', 'south dakota': 'SD', tennessee: 'TN', texas: 'TX', utah: 'UT', vermont: 'VT', virginia: 'VA', washington: 'WA', 'west virginia': 'WV', wisconsin: 'WI', wyoming: 'WY', 'puerto rico': 'PR', guam: 'GU', 'u.s. virgin islands': 'VI', 'united states virgin islands': 'VI', 'american samoa': 'AS', 'northern mariana islands': 'MP' };
+    function stateCode(s) { s = String(s || '').trim(); if (/^[A-Z]{2}$/.test(s)) return s; return US_STATE_CODES[s.toLowerCase()] || null; }
+    function zipState(geo) { const parts = String((geo && geo.area) || '').split(','); return parts.length >= 2 ? stateCode(parts[parts.length - 1]) : null; }
     let adPhotos = [];
     async function openPromote() {
       if (!requireSeller('advertise')) return;
+      // Ads are ID-verified only, the same as selling (the server enforces it too)
+      if (!sellGate('ad')) return;
       // A draft that was saved but never paid for comes first.
       if (cloud && cloudUser) {
         openSheet('📣 Spotlight ad', '<div class="note">⏳ One moment…</div>');
@@ -8035,6 +8222,8 @@
         if (!state.zip) { toast('Set your ZIP on the Nearby tab first, so the ad reaches the right area'); return; }
         geo = await geocodeZip(state.zip);
         if (!geo) { toast('⚠️ Couldn\'t place your ZIP — try again in a moment'); return; }
+        // A statewide ad with no state would be charged and never shown: stop before any payment
+        if (reach === 'state' && !zipState(geo)) { toast('⚠️ We couldn\'t tell which state your ZIP is in. Set a US ZIP code on the Nearby tab, or pick another reach.'); return; }
       }
       const ad = {
         title: state.displayName,
@@ -8060,8 +8249,10 @@
         if (error) throw error;
         payForAd(data.id, reach, plan, t);
       } catch (e) {
-        console.warn('ad:', e.message);
-        openSheet('📣 Spotlight ad', '<div class="note">⚠️ Couldn\'t save the ad — check your connection and try again. Nothing was charged.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
+        console.warn('ad:', e && e.message);
+        // An RLS/verification refusal is not a connection problem: say what it is
+        const notVerified = e && (e.code === '42501' || /verif/i.test(String(e.message || '')));
+        openSheet('📣 Spotlight ad', '<div class="note">⚠️ ' + (notVerified ? 'Spotlight ads are for ID-verified members only. Verify your ID, then try again. Nothing was charged.' : 'Couldn\'t save the ad — check your connection and try again. Nothing was charged.') + '</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
       }
     }
     // The draft is saved; now the money. Play Billing in the Android app,
@@ -8125,6 +8316,7 @@
         not_found: 'That ad draft is gone. Start a new one.',
         offline: 'No internet connection right now. Your ad is saved.',
         network: 'No internet connection right now. Your ad is saved.',
+        not_verified: 'Spotlight ads are for ID-verified members only. Verify your ID, then pay for your saved ad from 📣 Spotlight ads.',
       }[code] || 'Something went wrong and nothing was charged. Your ad is saved — try again from 📣 Spotlight ads.';
       openSheet('📣 Spotlight ad', '<div class="note">' + esc(text) + '</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
     }
@@ -8189,11 +8381,12 @@
     function openNotifications() {
       let real = '';
       // Friend requests waiting on your answer
-      const pending = FRIENDSHIPS.filter(f => f.status === 'pending' && cloudUser && f.addressee_id === cloudUser.id);
+      const pending = incomingFriendRequests();
       pending.forEach(f => {
         const name = authorName(f.requester_id, 'A Petfi member');
         real += '<div class="notif"><span class="ne">🐾</span><div class="nt"><b>' + esc(name) + '</b> wants to be your friend<small>friend request</small></div>' +
-          '<button class="pill-btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\')">Accept</button></div>';
+          '<button class="pill-btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\')">Accept</button>' +
+          '<button class="pill-btn ghost" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'notif\')">Decline</button></div>';
       });
       // Barks at you — bark back and it's a match 💘
       if (cloudUser) {
@@ -8235,12 +8428,12 @@
     // Listings are real and cloud-backed; LOCAL_MATES is the no-connection fallback.
     const LOCAL_MATES = [];
     let MATES_VIEW = [];
-    // The Petfi Pledge — half of all Petfi profit and 100% of donations go back to animals
+    // The Petfi Pledge — half of all Petfi profit and every donation dollar Petfi receives (after the payment fee) go back to animals
     const PLEDGE_SHARE = 0.5;
     function pledgeCard(compact) {
       if (compact) return '<div class="pledge-strip" onclick="openDonate()"><span class="i">💖</span><div><b>Half of all Petfi profit + every gift dollar we receive go back to pets.</b><small>Vet bills · cremation · pet food · adoption fees · shelters — tap to give, or to see where every dollar went.</small></div></div>';
       const row = (emo, t, s) => '<div class="row" style="margin-bottom:0.5rem;"><div class="ricon">' + emo + '</div><div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + t + '</div><div class="rmeta" style="font-size:0.85rem;">' + s + '</div></div></div>';
-      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and 100% of every gift we receive — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and badge, and every dollar given goes into the Pledge fund. <b>Half the fund helps Petfi members</b> — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does.</p></div>' +
+      return '<div class="pledge-hero"><div class="big">💖 50% + 100%</div><h3>Half of all Petfi profit — and every donation dollar Petfi receives, after the payment fee — goes back to animals</h3><p>Every purchase through the Petfi store, every ad and badge, and every dollar given goes into the Pledge fund. <b>Half the fund helps Petfi members</b> — and members who give are first in line. <b>The other half goes to shelters and animal organizations</b>, who decide what it does.</p></div>' +
         row('🚑', 'Emergency vet bills', 'For a member\'s pet, when a family can\'t cover it alone.') +
         row('🕊️', 'Cremation &amp; goodbye costs', 'After a sudden loss, no family should face that bill on top of the grief.') +
         row('🏡', 'Adoption fees', 'So shelter pets find their family faster — and more of them make it out the front door.') +
@@ -8337,7 +8530,7 @@
           if (state.tab !== 'mate') { state.mateUnseen = (state.mateUnseen || 0) + n; setMateNavBadge(state.mateUnseen); }
         }
       }
-      if (maxId !== seen) { state.mateSeenMax = maxId; saveState(); }
+      if (maxId !== seen) { state.mateSeenMax = maxId; saveState({ bg: true }); }
     }
     function setMateNavBadge(n) {
       const b = document.getElementById('mate-nbadge'); if (!b) return;
@@ -8504,11 +8697,7 @@
         '<div style="text-align:center;margin:0.3rem 0 0.9rem;">' + mateBadge(m, true) + '<div style="margin-top:0.45rem;font-size:1.05rem;font-weight:600;">' + esc(mateSummary(m)) + '</div></div>' +
         fact('📍', 'Where', mateWhere(m, d)) +
         fact('📄', 'Papers', m.purity || 'Not stated') +
-        (DNA_STORE_CAT[String(m.species || '').toLowerCase()]
-          ? '<p class="sub" style="font-size:0.8rem;margin:-0.2rem 0 0.6rem 2.6rem;">Not sure of the breed mix? 🧬 ' +
-            '<a style="color:var(--brand);font-weight:700;cursor:pointer;" onclick="closeSheet();setStoreType(\'DNA\');setStoreCat(\'' +
-            DNA_STORE_CAT[String(m.species || '').toLowerCase()] + '\');">DNA tests</a></p>'
-          : '') +
+        // No paid (affiliate) links ever appear in Mate Match
         fact('💰', 'Terms', m.comp || 'Ask the owner') +
         fact('❤️', 'Health', m.health || 'Not stated') +
         (matches.length ? '<div class="note" style="cursor:pointer;background:var(--brand-soft);border-color:#ffd7ca;" onclick="showMatchesFor(' + (Number(m.cloudId) || 0) + ')">🎯 <b>' + matches.length + '</b> listing' + (matches.length === 1 ? '' : 's') + ' nearby pair' + (matches.length === 1 ? 's' : '') + ' with this one — <b>tap to see</b></div>' : '') +
@@ -8581,13 +8770,15 @@
       return c;
     }
     // Owner-only edit. Until petfi-listing-edit.sql is applied there is no
-    // UPDATE policy on mate_listings, so the update is either rejected (42501)
-    // or silently matches no row — either way we relist: insert the new
-    // content, then delete the old row. Returns { id, relisted }.
+    // UPDATE policy on mate_listings, so the update silently matches no row —
+    // then we relist: insert the new content, then delete the old row. A 42501
+    // rejection is thrown to the caller. Returns { id, relisted }.
     async function updateMateRow(cloudId, listing) {
       const { data, error } = await cloud.from('mate_listings').update({ content: listing }).eq('id', cloudId).select('id');
       if (!error && data && data.length) return { id: cloudId, relisted: false };
-      if (error && !(error.code === '42501' || /row-level security/i.test(error.message || ''))) throw error;
+      // A 42501 is the database refusing (ID verification): relisting would only
+      // fail the same way, so the caller says so instead
+      if (error) throw error;
       const ins = await cloud.from('mate_listings').insert({ owner_id: cloudUser.id, content: listing }).select('id').single();
       if (ins.error) throw ins.error;
       await cloud.from('mate_listings').delete().eq('id', cloudId);
@@ -8623,9 +8814,13 @@
         closeSheet(); openTab('mate');
         toast(res.relisted ? 'Saved (relisted)' : closing ? 'Listing closed ✅ — hidden from other members' : 'Listing is live again 💘');
       } catch (e) {
-        console.warn('mate status:', e.message);
-        toast('⚠️ Couldn\'t update the listing — check your connection');
+        console.warn('mate status:', e && e.message);
+        toast(isVerifyRefusal(e) ? '🪪 Mate Match listings are for ID-verified members only. Verify your ID to change this listing.' : '⚠️ Couldn\'t update the listing — check your connection');
       }
+    }
+    // Row-level security refusal (the server's ID-verification rule), not a connection problem
+    function isVerifyRefusal(e) {
+      return !!(e && (e.code === '42501' || /row-level security|verified/i.test(String(e.message || ''))));
     }
 
     // ---- Listing an animal: one numbered form, big tiles, nothing clever ----
@@ -8689,7 +8884,8 @@
         '<input type="file" id="br-photos" accept="image/*" multiple style="display:none;" onchange="brPhotosPicked(this)">' +
         '<div id="br-photo-previews" style="display:flex;gap:0.5rem;margin-top:0.6rem;flex-wrap:wrap;"></div>' +
         '<div class="mm-step"><span class="n">5</span>Where are you?</div>' +
-        '<label>ZIP code</label><input type="text" id="br-zip" inputmode="numeric" maxlength="5" placeholder="5-digit ZIP" value="' + esc(state.zip || '') + '">' +
+        // Editing: the listing's own place stays unless a new ZIP is typed (its ZIP is never stored, only the town)
+        '<label>ZIP code</label><input type="text" id="br-zip" inputmode="numeric" maxlength="5" placeholder="' + (listing && listing.loc && listing.loc.area ? 'Blank keeps ' + esc(String(listing.loc.area).slice(0, 40)) : '5-digit ZIP') + '" value="' + esc(listing ? '' : (state.zip || '')) + '">' +
         '<p class="sub" style="font-size:0.85rem;margin:0.35rem 0 0;">Others see only your <b>town and distance</b> — never your ZIP or address.</p>' +
         '<label>Farm, kennel or business name <small style="color:var(--muted);font-weight:400;">(optional)</small></label><input type="text" id="br-biz" placeholder="e.g. Reyes Family Farm">' +
         '<div class="note" style="font-size:0.9rem;">Your listing shows your business name — or just your first name marked “Private breeder”. Interested owners message you inside Petfi.</div>' +
@@ -8765,6 +8961,8 @@
         updatedAt: new Date().toISOString(),
       };
       if (editing && editing.closedAt) listing.closedAt = editing.closedAt;
+      // An edit keeps its place unless a new ZIP actually resolves
+      if (editing && editing.loc) listing.loc = editing.loc;
       if (zip) {
         const g = await geocodeZip(zip);
         // Rounded to ~1 km — town-level, never an address
@@ -8807,9 +9005,10 @@
         const told = {};
         n.slice(0, 12).forEach(x => { if (x.ownerId && !told[x.ownerId]) { told[x.ownerId] = 1; livePing(x.ownerId, { type: 'mate_listing', species: listing.species, id: data.id }); } });
       } catch (e) {
-        console.warn('mate listing:', e.message);
+        console.warn('mate listing:', e && e.message);
         if (btn) { btn.disabled = false; btn.textContent = btnLabel; }
-        toast(editing ? '⚠️ Couldn\'t save your changes — check your connection and try again' : '⚠️ Couldn\'t publish — check your connection and try again');
+        toast(isVerifyRefusal(e) ? '🪪 Mate Match listings are for ID-verified members only. Verify your ID, then try again.'
+          : editing ? '⚠️ Couldn\'t save your changes — check your connection and try again' : '⚠️ Couldn\'t publish — check your connection and try again');
       }
     }
     // Edit mode tail of saveBreedingListing: write the row back, then patch the
@@ -8872,7 +9071,22 @@
         '<label>One line about you <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
         '<input id="dp-bio" maxlength="60" value="' + esc(d.bio || '') + '" placeholder="e.g. Beach walks with my corgi">' +
         '<div class="note">🔒 Only your first name, age, distance and pets are shown to others — never your exact location.</div>' +
-        '<button class="btn" style="background:#e0527a;box-shadow:0 6px 18px rgba(224,82,122,0.35);" onclick="saveDatingPrefs()">💘 Save &amp; see matches</button>');
+        '<button class="btn" style="background:#e0527a;box-shadow:0 6px 18px rgba(224,82,122,0.35);" onclick="saveDatingPrefs()">💘 Save &amp; see matches</button>' +
+        (state.dating ? '<button class="btn secondary" onclick="hideDatingCard()">🙈 Hide my card</button>' : ''));
+    }
+    // Leave Mate Match for people: take the published card down and forget the answers
+    async function hideDatingCard() {
+      if (!confirm('Hide your Mate Match card? Other members stop seeing it. You can make a new one any time.')) return;
+      if (cloud && cloudUser) {
+        try {
+          const { error } = await cloud.from('posts').delete().eq('author_id', cloudUser.id).eq('content->>petfiType', 'mate_profile');
+          if (error) throw error;
+        } catch (e) { console.warn('hide dating card:', e && e.message); toast('⚠️ Couldn\'t hide your card — check your connection and try again'); return; }
+      }
+      state.dating = null;
+      saveState();
+      closeSheet(); toast('Your Mate Match card is hidden');
+      if (appActive() && state.tab === 'mate') rerenderTab(renderMate);
     }
     async function saveDatingPrefs() {
       const age = parseInt(val('dp-age'), 10);
@@ -8947,6 +9161,8 @@
     let HM_HAVE_GEO = false; // without my own location a radius can't be applied, so it isn't
     function humanFits(c) {
       const d = state.dating || {};
+      // 18+ only: a card with no valid age never shows
+      if (!c || !(Number(c.age) >= 18)) return false;
       if (!genderMatches(d.interestedIn, c.gender)) return false;
       if (c.age && (c.age < d.ageMin || c.age > d.ageMax)) return false;
       if (!petPrefOk(d.petPref, c.pets)) return false;
@@ -8981,7 +9197,8 @@
           const geo = await (await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=USA&format=json&limit=1')).json();
           if (geo.length) {
             const parts = String(geo[0].display_name || '').split(', ').filter(x => x !== zip && x !== 'United States' && !/County$/.test(x));
-            hit = { lat: +geo[0].lat, lon: +geo[0].lon, area: parts.length >= 2 ? parts[parts.length - 2] + ', ' + parts[parts.length - 1] : (parts[0] || '') };
+            // Full state name → two-letter code, so zipState() can read it
+            hit = { lat: +geo[0].lat, lon: +geo[0].lon, area: parts.length >= 2 ? parts[parts.length - 2] + ', ' + (stateCode(parts[parts.length - 1]) || parts[parts.length - 1]) : (parts[0] || '') };
           }
         } catch (e) {}
       }
@@ -9217,6 +9434,9 @@
       const d = val('pp-date');
       pt.passed = hxValidYmd(d) && d <= hxToday() ? d : hxToday();
       (state.meds || []).filter(m => m.petId === pt.id && medActive(m)).forEach(m => { m.stopped = hxToday(); syncMedReminder(m); });
+      // A memorial pet is never shown as lost: end lost mode on its tag (#22).
+      // TAGS loads lazily, so fetch it first; failures stay quiet.
+      if (cloud && cloudUser && pt.id) loadTags(true).then(() => { const t = TAGS[pt.id]; if (t && t.lost) return tagEndLost(t); }).catch(() => {});
       saveState(); openMemorial(i);
       if (state.tab === 'profile') openTab('profile');
     }
@@ -9350,6 +9570,8 @@
       country_not_supported: 'IDs from that country aren\'t supported yet',
       abandoned: 'the check was left unfinished',
       canceled: 'the check was cancelled',
+      // The server now refuses when no date of birth comes back (#6); "no extra charge" follows in the note
+      no_dob: 'the ID check couldn\'t read a date of birth — try again with a different ID',
     };
     function verifyFailText(code) { return VERIFY_FAIL_TEXT[code] || 'the last check didn\'t pass'; }
 
@@ -10363,6 +10585,13 @@
       const xy = pts.map((w, i) => (i / (pts.length - 1) * (W - 8) + 4).toFixed(1) + ',' + (hi === lo ? H / 2 : H - 5 - (w.v - lo) / (hi - lo) * (H - 10)).toFixed(1));
       return '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '" aria-hidden="true"><polyline fill="none" stroke="var(--brand)" stroke-width="2.5" stroke-linejoin="round" stroke-linecap="round" points="' + xy.join(' ') + '"/></svg>';
     }
+    // A pet that passed stops ageing: its age on the day it passed, or none
+    function hxPetAge(p, bday) {
+      if (!bday) return '';
+      const passed = p && (p.passed || ((state.pets || []).find(x => x.id === p.id) || {}).passed); // hxPet() copies don't carry it
+      if (passed) return hxValidYmd(passed) ? petAge(bday, passed) : '';
+      return petAge(bday);
+    }
     function openHealthRecord(petId) {
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {};
@@ -10371,7 +10600,7 @@
       const pid = jsStr(p.id);
       const line = (k, v) => v ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
       let h = '<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem;"><div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;">' + hxPetIcon(p, 64) + '</div>' +
-        '<div><div style="font-weight:800;font-size:1.05rem;">' + esc(p.name) + '</div><div class="sub" style="margin:0;font-size:0.82rem;">' + esc([p.breed || p.species, bday ? petAge(bday) : '', info.sex].filter(Boolean).join(' · ')) + '</div></div></div>';
+        '<div><div style="font-weight:800;font-size:1.05rem;">' + esc(p.name) + '</div><div class="sub" style="margin:0;font-size:0.82rem;">' + esc([p.breed || p.species, hxPetAge(p, bday), info.sex].filter(Boolean).join(' · ')) + '</div></div></div>';
       // Weight
       h += '<div class="hx-card" style="display:flex;align-items:center;gap:0.6rem;"><div style="flex:1;"><div style="font-size:0.75rem;color:var(--muted);font-weight:700;">WEIGHT</div>' +
         '<div style="font-weight:800;font-size:1.1rem;">' + (w ? esc(w.v + ' ' + (info.wu || 'lb')) + ' <small style="font-weight:600;color:var(--muted);font-size:0.72rem;">' + esc(hxDate(w.d)) + '</small>' : '—') + '</div></div>' +
@@ -10415,7 +10644,7 @@
     function copyHealthSummary(petId) {
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
-      const L = [p.name + ' — ' + [p.breed || p.species, (p.id === 'me' ? state.bday : info.bday) ? petAge(p.id === 'me' ? state.bday : info.bday) : '', info.sex].filter(Boolean).join(', ')];
+      const L = [p.name + ' — ' + [p.breed || p.species, hxPetAge(p, p.id === 'me' ? state.bday : info.bday), info.sex].filter(Boolean).join(', ')];
       if (w) L.push('Weight: ' + w.v + ' ' + (info.wu || 'lb') + ' (' + hxDate(w.d) + ')');
       if (info.chip) L.push('Microchip: ' + info.chip + (info.chipCo ? ' (' + info.chipCo + ')' : ''));
       if (info.vetName || info.vetPhone) L.push('Vet: ' + [info.vetName, info.vetPhone].filter(Boolean).join(', '));
@@ -10545,6 +10774,15 @@
       state.journal = (state.journal || []).filter(e => e.petId !== petId);
       (state.supplies || []).forEach(s => { if (s.petId === petId) s.petId = ''; });
       if (state.petInfo) delete state.petInfo[petId];
+      // Its QR tag goes too, so a removed pet's tag page and lost alert stop (#22);
+      // finder messages cascade with the tag row
+      const tag = TAGS[petId];
+      if (cloud && cloudUser) cloud.from('petfi_pet_tags').delete().eq('user_id', cloudUser.id).eq('pet_id', petId).then(() => {}, () => {});
+      delete TAGS[petId];
+      if (tag) {
+        TAG_REPORTS = TAG_REPORTS.filter(r => r.code !== tag.code);
+        if (state.tagPhoneBeforeLost) delete state.tagPhoneBeforeLost[tag.code];
+      }
     }
 
     // ---- Emergency ----
@@ -10831,7 +11069,10 @@
       const upd = { note: val('tg-note').slice(0, 300), phone: hxPhone(val('tg-phone')).replace(/[^0-9+() .-]/g, ''), pet_name: String(pet.name || t.pet_name).slice(0, 40), species: String(pet.species || '').slice(0, 20), breed: String(pet.breed || '').slice(0, 40), updated_at: new Date().toISOString() };
       const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
       if (error) { toast('⚠️ Could not save — try again'); return; }
-      Object.assign(t, upd); toast('✅ Tag updated'); renderPetTag(petId);
+      Object.assign(t, upd);
+      // A phone chosen here is deliberate: "home" keeps it instead of restoring the old one
+      if (state.tagPhoneBeforeLost && t.code in state.tagPhoneBeforeLost) { delete state.tagPhoneBeforeLost[t.code]; saveState(); }
+      toast('✅ Tag updated'); renderPetTag(petId);
     }
     function openReportLost(petId) {
       const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet) return;
@@ -10854,9 +11095,14 @@
       if (!g) { toast('⚠️ Couldn\'t find that ZIP — check it and try again'); return; }
       const upd = { lost: true, lost_at: new Date().toISOString(), lost_area: (val('lo-area') || g.area || ('ZIP ' + zip)).slice(0, 80), reward: val('lo-reward').slice(0, 60),
         phone: hxPhone(val('lo-phone')).replace(/[^0-9+() .-]/g, ''), lost_lat: Math.round(g.lat * 100) / 100, lost_lon: Math.round(g.lon * 100) / 100, updated_at: new Date().toISOString() };
+      const before = String(t.phone || '');
       const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
       if (error) { toast('⚠️ Could not mark lost — try again'); return; }
       Object.assign(t, upd);
+      // Remember the phone the tag showed before, so "home" can put it back (#23)
+      state.tagPhoneBeforeLost = state.tagPhoneBeforeLost || {};
+      state.tagPhoneBeforeLost[t.code] = before;
+      saveState();
       track('lost_reported');
       let sent = 0;
       if (alertNearby) {
@@ -10878,11 +11124,23 @@
     }
     async function markPetFound(petId) {
       const t = TAGS[petId], pet = hxPet(petId); if (!t || !pet || !canSaveToCloud('update the tag')) return;
-      const upd = { lost: false, lost_at: null, lost_area: '', reward: '', lost_lat: null, lost_lon: null, updated_at: new Date().toISOString() };
-      const { error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code);
-      if (error) { toast('⚠️ Could not update — try again'); return; }
-      Object.assign(t, upd); confetti(); toast('🎉 So glad ' + pet.name + ' is home!');
+      if (await tagEndLost(t)) { toast('⚠️ Could not update — try again'); return; }
+      confetti(); toast('🎉 So glad ' + pet.name + ' is home!');
       renderPetTag(petId);
+    }
+    // Ends lost mode and puts back the phone the tag showed before it (#23).
+    // No remembered phone (lost on another device or an older version): leave it.
+    async function tagEndLost(t) {
+      const upd = { lost: false, lost_at: null, lost_area: '', reward: '', lost_lat: null, lost_lon: null, updated_at: new Date().toISOString() };
+      const pre = state.tagPhoneBeforeLost || {};
+      const had = Object.prototype.hasOwnProperty.call(pre, t.code);
+      if (had) upd.phone = String(pre[t.code] || '');
+      let error;
+      try { ({ error } = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code)); } catch (e) { error = e; }
+      if (error) return error;
+      Object.assign(t, upd);
+      if (had) { delete pre[t.code]; saveState(); }
+      return null;
     }
     function openTagReports(code) {
       state.tagSeenAt = Date.now(); saveState();
@@ -11154,7 +11412,7 @@
         if (!medFreq(m).ms && medHasCount(m)) m.qty = Math.max(0, Math.round((m.qty - medPer(m)) * 100) / 100);
         changed = true;
       }));
-      if (changed || seen.length !== (state.careSeen || []).length) { state.careSeen = seen.slice(-300); saveState(); }
+      if (changed || seen.length !== (state.careSeen || []).length) { state.careSeen = seen.slice(-300); saveState({ bg: true }); }
     }
     // The owner's team row, made on first use
     async function ensureCareTeam(petId) {
@@ -11692,8 +11950,19 @@
         if (!(rm.ms >= 3600000) || !rm.next) return;
         const next = rm.next > now ? rm.next : nextReminderTime(rm, now);
         if (rm.until && next > rm.until) return;
-        rows.push({ title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms,
-          every_months: rm.months > 0 ? rm.months : null, until_at: rm.until ? new Date(rm.until).toISOString() : null });
+        const row = { title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms,
+          every_months: rm.months > 0 ? rm.months : null, until_at: rm.until ? new Date(rm.until).toISOString() : null };
+        // Day-based and monthly rows carry the wall clock, so the server can keep
+        // the local time across DST and the day of the month (#24)
+        if (rm.ms % 86400000 === 0 || rm.months > 0) {
+          const d = new Date(next), tz = pushTz();
+          if (tz) {
+            row.tz = tz;
+            row.local_time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
+            row.anchor_day = rm.months > 0 ? Math.min(31, Math.max(1, rm.day || d.getDate())) : null;
+          }
+        }
+        rows.push(row);
       });
       (state.calendar || []).forEach((c, k) => {
         if (c.notified || c.followUpAsked) return;
@@ -11719,12 +11988,20 @@
       clearTimeout(pushSyncTimer);
       pushSyncTimer = setTimeout(syncPushSchedule, delay == null ? 3000 : delay);
     }
+    function pushTz() { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || ''; } catch (e) { return ''; } }
+    // tz / local_time / anchor_day are optional columns that may not exist on the
+    // server yet: after one unknown-column error, stop sending them this session
+    let pushLocalCols = true;
     async function syncPushSchedule() {
       if (!PUSH_ACTIVE || !cloud || !cloudUser || pushSyncing) return;
-      const rows = pushRows();
+      let rows = pushRows();
+      if (!pushLocalCols) rows = rows.map(pushRowNoLocal);
       // Only the shape matters for the signature: next_at moves on its own server-side
-      // (monthly rows keep next_at: their day of the month is part of the schedule)
-      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_months, r.until_at, r.every_ms && !r.every_months ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']));
+      // (monthly rows keep next_at: their day of the month is part of the schedule).
+      // The zone and whether the wall-clock columns went too are part of it, so a
+      // later session retries them once the server has the columns.
+      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_months, r.until_at, r.every_ms && !r.every_months ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']))
+        + '|' + pushTz() + '|' + (pushLocalCols ? 'L' : '');
       if (sig === state.pushSyncedSig) return;
       pushSyncing = true;
       try {
@@ -11732,15 +12009,24 @@
         const del = await cloud.from('petfi_push_schedule').delete().eq('user_id', cloudUser.id)
           .not('tag', 'like', 'srv:%').not('tag', 'like', 'found:%').not('tag', 'like', 'lost:%');
         if (del.error) throw del.error;
+        let sent = sig;
         if (rows.length) {
-          const ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
+          let ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
+          if (ins.error && pushLocalCols && rows.some(r => 'tz' in r) && pushUnknownCol(ins.error)) {
+            pushLocalCols = false;
+            rows = rows.map(pushRowNoLocal);
+            sent = sig.replace(/\|L$/, '|');
+            ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
+          }
           if (ins.error) throw ins.error;
         }
-        state.pushSyncedSig = sig;
+        state.pushSyncedSig = sent;
         try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       } catch (e) { console.warn('push schedule:', e && e.message); }
       finally { pushSyncing = false; }
     }
+    function pushRowNoLocal(r) { const c = Object.assign({}, r); delete c.tz; delete c.local_time; delete c.anchor_day; return c; }
+    function pushUnknownCol(err) { return !!err && (err.code === 'PGRST204' || /\b(tz|local_time|anchor_day)\b/.test(String(err.message || ''))); }
     // When to alert for a calendar entry: 1 hour before if a time was
     // set, otherwise 8 AM the morning of the appointment.
     function calNotifyTime(c) {
@@ -11766,6 +12052,20 @@
         const d = new Date(rm.next);
         do { d.setDate(d.getDate() + days); d.setHours(hh || 0, mm || 0, 0, 0); } while (d.getTime() <= now);
         return d.getTime();
+      }
+      // Whole-hour repeats that divide the day (12 h, 8 h, 6 h, 4 h) land on the
+      // same local clock slots every day, derived from the chosen time, so a DST
+      // change doesn't shift them an hour (#24)
+      const perDay = rm.ms >= 4 * 3600000 && rm.ms < 86400000 && rm.ms % 3600000 === 0 && 86400000 % rm.ms === 0 ? 86400000 / rm.ms : 0;
+      if (perDay && rm.time) {
+        const [hh, mm] = String(rm.time).split(':').map(Number);
+        const stepH = rm.ms / 3600000, firstH = (hh || 0) % stepH, ref = Math.max(rm.next, now), d = new Date(ref);
+        for (let day = 0; day < 3; day++) {
+          for (let k = 0; k < perDay; k++) {
+            const t = new Date(d.getFullYear(), d.getMonth(), d.getDate() + day, firstH + k * stepH, mm || 0, 0, 0).getTime();
+            if (t > ref) return t;
+          }
+        }
       }
       let next = rm.next + rm.ms;
       while (next <= now) next += rm.ms;
@@ -11799,7 +12099,7 @@
           c.notified = true; changed = true;
         }
       });
-      if (changed) { saveState(); if (state.tab === 'home' && state.homeTab === 'care') openTab('home'); }
+      if (changed) { saveState({ bg: true }); if (state.tab === 'home' && state.homeTab === 'care') openTab('home'); }
     }, 5000);
 
     // ======================= PET CALENDAR =======================
@@ -11857,10 +12157,11 @@
     }
 
     // ======================= AGE FROM BIRTHDAY =======================
-    function petAge(bday) {
+    function petAge(bday, at) {
       if (!bday) return '';
       const b = new Date(bday + 'T00:00:00'); if (isNaN(b)) return '';
-      const now = new Date();
+      const now = at ? new Date(at + 'T00:00:00') : new Date(); // at: age on that day (a pet that passed)
+      if (isNaN(now)) return '';
       let months = (now.getFullYear() - b.getFullYear()) * 12 + (now.getMonth() - b.getMonth());
       if (now.getDate() < b.getDate()) months--;
       if (months < 0) return '';
@@ -12011,8 +12312,12 @@
       btn.disabled = true; btn.textContent = 'Creating your account…';
       const { data, error } = await cloud.auth.signUp({ email: email, password: pass });
       btn.disabled = false; btn.textContent = 'Create my account ☁️';
-      if (error) {
-        err.textContent = /already/i.test(error.message)
+      // With email confirmation on, an email that already has an account comes
+      // back with no error and a user with no identities (#34): same as "already"
+      const already = error ? /already/i.test(error.message)
+        : !!(data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
+      if (error || already) {
+        err.textContent = already
           ? 'That email already has an account — use "Log in" on the welcome screen instead.'
           : error.message;
         err.style.display = 'block';
@@ -12086,6 +12391,18 @@
             '<p id="np-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
             '<button class="btn" id="np-btn" onclick="setNewPassword()">Save new password</button>');
         }
+        // Signed out from elsewhere (another device, an expired session) while
+        // the app is open: stop syncing, keep this device's copy and its unsaved
+        // changes, and ask to log in again. Our own logOut/delete set ownSignOut.
+        if (event === 'SIGNED_OUT' && !ownSignOut && cloudUser && appActive()) {
+          clearTimeout(cloudSaveTimer); cloudSaveTimer = null; // a pending change keeps its dirty mark for the next log-in
+          pausedUid = cloudUser.id;
+          liveDisconnect();
+          cloudUser = null;
+          openLogin();
+          const e = document.getElementById('li-email'); if (e && state.lastEmail) e.value = state.lastEmail;
+          toast('Please log in again to continue');
+        }
       });
     }
     async function setNewPassword() {
@@ -12099,10 +12416,23 @@
         btn.disabled = false; btn.textContent = 'Save new password';
         err.textContent = error.message; err.style.display = 'block'; return;
       }
+      await finishPasswordReset();
+    }
+    async function finishPasswordReset() {
+      const btn = document.getElementById('np-btn'), err = document.getElementById('np-err');
       // They're logged in now — pull their world down (clean slate) and walk them in
-      const { data: row } = await cloud.from('account_data').select('data, updated_at').eq('id', cloudUser.id).maybeSingle();
+      const { data: row, error: rowErr } = await cloud.from('account_data').select('data, updated_at').eq('id', cloudUser.id).maybeSingle();
+      if (rowErr) {
+        // Same guard as doLogin: a flaky connection must never send an existing
+        // member back through onboarding (#19). The password is already saved,
+        // so the button now only retries the load.
+        if (btn) { btn.disabled = false; btn.textContent = 'Try again'; btn.setAttribute('onclick', 'finishPasswordReset()'); }
+        if (err) { err.textContent = 'Your new password is saved, but your account didn\'t load — check your connection and try again.'; err.style.display = 'block'; }
+        return;
+      }
       resetState();
       if (row && row.data) { Object.assign(state, row.data); state.savedAt = row.updated_at || state.savedAt; }
+      if (row) noteSeen(cloudUser.id, row.updated_at); // the next save builds on this row
       state.ageId = cloudUser.id;
       closeSheet();
       // Only say "welcome back" if they actually got in (the age check may still stand in the way)
@@ -12119,7 +12449,16 @@
       const { data, error } = await cloud.auth.signInWithPassword({ email: email, password: pass });
       if (error) {
         btn.disabled = false; btn.textContent = 'Log in';
-        err.textContent = 'Wrong email or password — try again.';
+        // Say what actually went wrong (#35)
+        const msg = String(error.message || '');
+        if (error.code === 'email_not_confirmed' || /not confirmed/i.test(msg)) {
+          err.innerHTML = 'Your email isn\'t confirmed yet — tap the link we sent to ' + esc(email) + ' (check spam), then log in.' +
+            '<button class="btn secondary" id="resend-btn" style="margin-top:0.5rem;" onclick="resendConfirm(\'' + jsStr(email) + '\')">Send the link again</button>';
+        } else if (/fetch|network/i.test(msg) || error.name === 'AuthRetryableFetchError') {
+          err.textContent = 'No connection right now — check your internet and try again.';
+        } else {
+          err.textContent = 'Wrong email or password — try again.';
+        }
         err.style.display = 'block';
         return;
       }
@@ -12134,7 +12473,14 @@
         return;
       }
       resetState();
-      if (row && row.data) { Object.assign(state, row.data); state.savedAt = row.updated_at || state.savedAt; }
+      pausedUid = null;
+      // Changes this device made for this login that never reached the cloud
+      // (e.g. logged out from another device mid-edit) are kept and pushed up;
+      // the conditional write still lets a newer save from elsewhere win.
+      const unsaved = dirtyLocalCopy(cloudUser.id);
+      if (unsaved) { Object.assign(state, unsaved); noteSeen(cloudUser.id, readDirty().base); }
+      else if (row && row.data) { Object.assign(state, row.data); state.savedAt = row.updated_at || state.savedAt; }
+      if (!unsaved) noteSeen(cloudUser.id, row ? row.updated_at : null);
       state.lastEmail = email;
       state.ageId = cloudUser.id; // this device's age answer follows the saved copy
       closeSheet();
@@ -12149,6 +12495,7 @@
         return;
       }
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+      if (unsaved) flushCloudSave();
       syncCloud();
       enterApp();
       if (appActive()) toast('Welcome back 🐾'); // not to someone the age check kept out
@@ -12176,7 +12523,8 @@
         // age, and the avatar's custom look.
         mate_picks: {
           picks: state.showMates && (state.matePicks || []).length ? state.matePicks : null,
-          favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: f.url })),
+          // Favorites are unlabelled on the profile, so Petfi's own tag is stripped
+          favs: (state.favorites || []).slice(0, 10).map(f => ({ cat: f.cat, label: f.label, url: stripAffTag(f.url) })),
           sugg: (state.suggestions || []).slice(0, 10),
           age: state.accountType === 'pet' ? petAge(state.bday) : '', // a person's age stays private
           pets: state.accountType === 'owner' ? (state.pets || []).slice(0, 8).map(x => ({ n: String(x.name || '').slice(0, 30), s: String(x.species || '').slice(0, 20), b: String(x.breed || '').slice(0, 40) })) : null,
@@ -12196,19 +12544,118 @@
       Object.keys(state).forEach(k => { if (EPHEMERAL_KEYS.indexOf(k) < 0) copy[k] = state[k]; });
       return copy;
     }
-    function cloudSaveState() {
-      if (!cloud || !cloudUser) return;
+    // ---- Sync safety ----
+    // 'petfi-dirty' = { uid, savedAt, base, user }: this device holds changes the
+    // cloud hasn't confirmed. It survives a reload, so an edit made offline (or
+    // closed inside the debounce) is pushed up next time instead of being
+    // replaced by the older cloud copy. base = the row's updated_at when the
+    // edit was made, user = a real tap caused it (see saveState's opts.bg).
+    const DIRTY_KEY = 'petfi-dirty';
+    // The row's updated_at exactly as the database last returned it (string,
+    // never parsed): a write only lands if the row still carries this value.
+    let cloudSeenAt = null, cloudSeenFor = null;
+    let cloudSaving = null, cloudSaveSeq = 0, lastCloudRetry = 0;
+    let ownSignOut = false; // this device's own logOut/delete, not another device
+    let pausedUid = null;   // logged out from elsewhere: whose edits are still waiting
+    let cloudSavesOff = false; // an account delete is under way: nothing may write the row back
+    function noteSeen(uid, at) { cloudSeenFor = uid; cloudSeenAt = at || null; }
+    function readDirty() { try { return JSON.parse(localStorage.getItem(DIRTY_KEY)); } catch (e) { return null; } }
+    function dirtyFor(uid) { const d = uid && readDirty(); return !!(d && d.uid === uid); }
+    function markDirty(uid, user) {
+      const d = readDirty(), same = !!(d && d.uid === uid);
+      const base = cloudSeenFor === uid ? cloudSeenAt : (same ? d.base : null);
+      cloudSaveSeq++;
+      try { localStorage.setItem(DIRTY_KEY, JSON.stringify({ uid, savedAt: state.savedAt, base, user: !!user || (same && !!d.user) })); } catch (e) {}
+    }
+    function clearDirty() { try { localStorage.removeItem(DIRTY_KEY); } catch (e) {} }
+    // This login's saved copy, but only while it holds unconfirmed changes
+    function dirtyLocalCopy(uid) {
+      if (!dirtyFor(uid)) return null;
+      let saved = null;
+      try { saved = JSON.parse(localStorage.getItem('petfi-account')); } catch (e) {}
+      return saved && saved.accountType && savedIsMine(saved) ? saved : null;
+    }
+    // Replace the local state with a cloud row, keeping this device's screen state
+    function adoptCloudRow(row) {
+      const keep = {};
+      EPHEMERAL_KEYS.forEach(k => { if (state[k] !== undefined) keep[k] = state[k]; });
+      resetState(); Object.assign(state, row.data, keep);
+      state.savedAt = row.updated_at || state.savedAt;
+      state.ageId = cloudUser.id;
+      noteSeen(cloudUser.id, row.updated_at);
+      cloudSyncedJson = snapJson();
+      try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+    }
+    // What the cloud row is known to hold (savedAt aside). A save whose content
+    // matches it is skipped: otherwise two open devices would keep adopting and
+    // re-writing each other's identical copy, each write making the other stale.
+    let cloudSyncedJson = null;
+    function snapJson() { const c = cloudSnapshot(); delete c.savedAt; return JSON.stringify(c); }
+    function cloudSaveState(user) {
+      // Cloud library didn't load (offline start): still mark the change so it goes up next time
+      if (!cloud) { if (state.ageId && state.accountType) markDirty(state.ageId, user); return; }
+      // Logged out from another device: keep the change marked so it goes up after the next log-in
+      if (!cloudUser) { if (pausedUid) markDirty(pausedUid, user); return; }
+      markDirty(cloudUser.id, user);
       clearTimeout(cloudSaveTimer);
       cloudSaveTimer = setTimeout(flushCloudSave, 800);
     }
+    // Resolves to 'ok', 'lost' (another device saved first; its copy was
+    // adopted), 'fail' (try again later) or undefined (nothing to do).
     function flushCloudSave() {
       clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
-      if (!cloud || !cloudUser) return; // logged out while the save was pending
+      if (!cloud || !cloudUser || cloudSavesOff) return Promise.resolve(); // logged out while the save was pending
+      // One write at a time: a second one waits, then goes only if still needed
+      if (cloudSaving) return cloudSaving.then(() => (cloudUser && dirtyFor(cloudUser.id) ? flushCloudSave() : undefined));
+      cloudSaving = writeCloudSave().finally(() => { cloudSaving = null; });
+      return cloudSaving;
+    }
+    async function writeCloudSave() {
+      const uid = cloudUser.id, seq = cloudSaveSeq;
+      const d = readDirty(), user = !!(d && d.uid === uid && d.user);
       const at = state.savedAt || new Date().toISOString();
-      return cloud.from('account_data').upsert({ id: cloudUser.id, data: cloudSnapshot(), updated_at: at })
-        .then(({ error }) => {
-          if (error) { console.warn('cloud save:', error.message); if (!cloudSaveWarned) { cloudSaveWarned = true; toast('⚠️ Changes aren\'t syncing to the cloud right now'); } }
-        });
+      const seen = cloudSeenFor === uid ? cloudSeenAt : null;
+      const sent = snapJson();
+      if (seen && sent === cloudSyncedJson) { if (cloudSaveSeq === seq) clearDirty(); return 'ok'; } // nothing new to write
+      const failed = msg => {
+        console.warn('cloud save:', msg);
+        if (!cloudSaveWarned) { cloudSaveWarned = true; toast('⚠️ Changes aren\'t syncing to the cloud right now'); }
+        return 'fail'; // the dirty mark stays; the heartbeat and 'online' retry
+      };
+      try {
+        // A fresh builder per query: supabase-js builders keep their filters
+        const q = () => cloud.from('account_data');
+        // Seen the row before: write only if nobody else has since. First save: plain upsert.
+        const { data: rows, error } = seen
+          ? await q().update({ data: cloudSnapshot(), updated_at: at }).eq('id', uid).eq('updated_at', seen).select('updated_at')
+          : await q().upsert({ id: uid, data: cloudSnapshot(), updated_at: at }).select('updated_at');
+        if (error) return failed(error.message);
+        if (!cloudUser || cloudUser.id !== uid) return; // logged out mid-save
+        if ((rows || []).length || !seen) {
+          // Keep what the database RETURNED: its timestamp format differs from ours
+          if ((rows || []).length) { noteSeen(uid, rows[0].updated_at); cloudSyncedJson = sent; }
+          if (cloudSaveSeq === seq) clearDirty(); // a change made meanwhile is still pending
+          return 'ok';
+        }
+        // No row matched: another device saved after we last looked. Theirs wins.
+        const { data: row, error: rowErr } = await q().select('data, updated_at').eq('id', uid).maybeSingle();
+        if (rowErr || !row || !row.data || !row.data.accountType) return failed(rowErr ? rowErr.message : 'row missing');
+        if (!cloudUser || cloudUser.id !== uid) return;
+        const userLost = user || dirtyFor(uid) && readDirty().user;
+        clearTimeout(cloudSaveTimer); cloudSaveTimer = null; // anything pending was built on the stale copy
+        adoptCloudRow(row);
+        clearDirty();
+        if (appActive()) { applyTheme(); refreshTopAvatar(); openTab(state.tab || 'home'); }
+        if (userLost) toast('Updated from your other device. Please redo your last change.');
+        return 'lost';
+      } catch (e) { return failed(e && e.message); }
+    }
+    // Retry a save that didn't make it (heartbeat: at most once a minute)
+    function retryCloudSave(now) {
+      if (!cloud || !cloudUser || cloudSaveTimer || cloudSaving || !dirtyFor(cloudUser.id)) return;
+      if (!now && Date.now() - lastCloudRetry < 60000) return;
+      lastCloudRetry = Date.now();
+      flushCloudSave();
     }
 
     // Which copy of the account is newer — this device's or the cloud's?
@@ -12216,20 +12663,64 @@
     // must never overwrite what you did on your phone yesterday.
     async function adoptNewerCloudState() {
       if (!cloud || !cloudUser) return false;
-      const { data: row, error } = await cloud.from('account_data').select('data, updated_at').eq('id', cloudUser.id).maybeSingle();
-      if (error || !row || !row.data || !row.data.accountType) return false;
-      const cloudAt = new Date(row.updated_at || row.data.savedAt || 0).getTime();
-      const localAt = new Date(state.savedAt || 0).getTime();
-      if (!state.accountType || cloudAt > localAt + 1500) {
-        const keep = {};
-        EPHEMERAL_KEYS.forEach(k => { if (state[k] !== undefined) keep[k] = state[k]; });
-        resetState(); Object.assign(state, row.data, keep);
-        state.savedAt = row.updated_at || state.savedAt;
-        state.ageId = cloudUser.id;
-        try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+      const uid = cloudUser.id;
+      const { data: row, error } = await cloud.from('account_data').select('data, updated_at').eq('id', uid).maybeSingle();
+      // A failed fetch decides nothing: neither copy replaces the other
+      if (error || !cloudUser || cloudUser.id !== uid) return false;
+      // Changes this device never got up: keep them and push them now. The
+      // write is conditional on the row as it was when they were made, so a
+      // newer save from another device still wins (and is adopted instead).
+      const local = dirtyLocalCopy(uid);
+      if (local) {
+        let loaded = false;
+        if (!state.accountType) {
+          const keep = {};
+          EPHEMERAL_KEYS.forEach(k => { if (state[k] !== undefined) keep[k] = state[k]; });
+          resetState(); Object.assign(state, local, keep);
+          state.ageId = uid; loaded = true;
+        }
+        if (cloudSeenFor !== uid) {
+          const base = readDirty().base;
+          // No record of the row these edits were built on, yet a row exists:
+          // fall back to "whoever saved last wins" rather than overwrite blindly.
+          if (!base && row && row.data && row.data.accountType) {
+            const cloudAt = new Date(row.updated_at || 0).getTime(), localAt = new Date(local.savedAt || 0).getTime();
+            if (cloudAt > localAt + 1500) { adoptCloudRow(row); clearDirty(); return true; }
+            noteSeen(uid, row.updated_at);
+          } else noteSeen(uid, base);
+        }
+        const r = await flushCloudSave();
+        return loaded || r === 'lost';
+      }
+      if (!row || !row.data || !row.data.accountType) return false;
+      if (!state.accountType) { adoptCloudRow(row); return true; }
+      if (!dirtyFor(uid)) {
+        // Nothing unsaved here, so the cloud row is the truth. Background saves
+        // bump savedAt without changing anything, so clocks can't decide this:
+        // compare the row we last saw, then the content itself.
+        if (cloudSeenFor === uid && row.updated_at === cloudSeenAt) return false;
+        const mine = cloudSnapshot(), theirs = Object.assign({}, row.data);
+        delete mine.savedAt; delete theirs.savedAt;
+        EPHEMERAL_KEYS.forEach(k => { delete theirs[k]; });
+        if (stableJson(mine) === stableJson(theirs)) { noteSeen(uid, row.updated_at); cloudSyncedJson = snapJson(); return false; }
+        adoptCloudRow(row);
         return true;
       }
+      // Unsaved changes whose saved copy can't be trusted as this login's: whoever saved last wins
+      const cloudAt = new Date(row.updated_at || row.data.savedAt || 0).getTime();
+      const localAt = new Date(state.savedAt || 0).getTime();
+      if (cloudAt > localAt + 1500) {
+        adoptCloudRow(row); clearDirty();
+        return true;
+      }
+      noteSeen(uid, row.updated_at); // our next write builds on the row as it is now
       return false;
+    }
+    // JSON with sorted keys, so two copies of the same account compare equal
+    function stableJson(v) {
+      if (Array.isArray(v)) return '[' + v.map(stableJson).join(',') + ']';
+      if (v && typeof v === 'object') return '{' + Object.keys(v).filter(k => v[k] !== undefined).sort().map(k => JSON.stringify(k) + ':' + stableJson(v[k])).join(',') + '}';
+      return JSON.stringify(v === undefined ? null : v);
     }
 
     // On page load: if a cloud session survives (Supabase keeps it in this
@@ -12393,7 +12884,7 @@
           if (!prev || prev.likes !== p.likes || prev.comments !== (p.comments || []).length) statsChanged = true;
           state.myPostStats[p.cloudId] = { likes: p.likes, comments: (p.comments || []).length };
         });
-        if (statsChanged) saveState();
+        if (statsChanged) saveState({ bg: true });
       }
       // If the feed is on screen, refresh it — unless the user is mid-typing
       if (appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
@@ -12434,7 +12925,7 @@
           const { error } = await cloud.from('member_locations').upsert({ user_id: cloudUser.id, lat: Math.round(g.lat * 100) / 100, lon: Math.round(g.lon * 100) / 100, updated_at: new Date().toISOString() });
           if (error) { console.warn('location:', error.message); return; }
         }
-        state.locSyncedZip = zip; saveState();
+        state.locSyncedZip = zip; saveState({ bg: true });
       } catch (e) {}
     }
     async function loadPeople(force) {
@@ -12452,11 +12943,11 @@
       let data = null;
       if (near && near.length) {
         const miles = {}; near.forEach(x => { miles[x.id] = x.miles; });
-        const res = await cloud.from('profiles').select('*').in('id', near.map(x => x.id));
+        const res = await cloud.from('profiles').select(PROFILE_COLS).in('id', near.map(x => x.id));
         data = (res.data || []).map(p => Object.assign(p, { _mi: miles[p.id] })).sort((a, b) => a._mi - b._mi);
         PEOPLE_MODE = 'near';
       } else {
-        const res = await cloud.from('profiles').select('*').neq('id', cloudUser.id).order('created_at', { ascending: false }).limit(40);
+        const res = await cloud.from('profiles').select(PROFILE_COLS).neq('id', cloudUser.id).order('created_at', { ascending: false }).limit(40);
         data = res.data;
         PEOPLE_MODE = state.zip ? 'none-near' : 'newest';
       }
@@ -12475,7 +12966,7 @@
       (ids || []).forEach(id => { if (id && (fresh || !PROFILE_BY_ID[id]) && !(cloudUser && id === cloudUser.id)) missing[id] = 1; });
       const want = Object.keys(missing);
       if (!want.length) return;
-      const { data } = await cloud.from('profiles').select('*').in('id', want.slice(0, 100));
+      const { data } = await cloud.from('profiles').select(PROFILE_COLS).in('id', want.slice(0, 100));
       (data || []).forEach(p => { PROFILE_BY_ID[p.id] = p; });
     }
     async function loadFriendships() {
@@ -12491,8 +12982,11 @@
       if (cloudUser && id === cloudUser.id) { openTab('profile'); return; }
       await ensureProfiles([id]);
       const u = PROFILE_BY_ID[id];
-      if (!u) { toast('That member isn\'t around anymore'); return; }
+      // Someone who blocked me is gone from my side too
+      if (!u || BLOCKED_ME[id]) { toast('That member isn\'t around anymore'); return; }
       let i = PEOPLE.indexOf(u);
+      // A hidden, suspended or filtered member opens here but never joins the Nearby list
+      if (i < 0 && (u.visible === false || u.banned || hiddenUser(u.id))) { showPersonSheet(u); return; }
       if (i < 0) { PEOPLE.push(u); i = PEOPLE.length - 1; }
       openPersonSheet(i);
     }
@@ -12504,20 +12998,23 @@
     }
     function areFriendsWith(id) { const f = friendshipWith(id); return !!(f && f.status === 'accepted'); }
 
-    function openPersonSheet(i) {
-      const u = PEOPLE[i]; if (!u) return;
+    function openPersonSheet(i) { const u = PEOPLE[i]; if (u) showPersonSheet(u); }
+    function showPersonSheet(u) {
       const f = friendshipWith(u.id);
       let friendBtn;
       if (!f) friendBtn = '<button class="btn" onclick="sendFriendRequest(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🐾 Add friend</button>';
-      else if (f.status === 'accepted') friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">✔︎ You\'re friends</button>';
-      else if (f.addressee_id === cloudUser.id) friendBtn = '<button class="btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✅ Accept friend request</button>';
-      else friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">⏳ Request sent</button>';
+      else if (f.status === 'accepted') friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">✔︎ You\'re friends</button>' +
+        '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="removeFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">Remove friend</button>';
+      else if (f.addressee_id === cloudUser.id) friendBtn = '<button class="btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✅ Accept friend request</button>' +
+        '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">✕ Decline</button>';
+      else friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">⏳ Request sent</button>' +
+        '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">Cancel request</button>';
       const x = pubExtras(u);
       // Pet ages are part of the fun; a person's age is private
       const ageStr = u.kind !== 'owner' && x.age ? (String(x.age).match(/yr|mo/) ? x.age : x.age + ' yrs') : '';
       x.favs = (x.favs || []).filter(f => !isLegacyFav(f));
       const favRow = f =>
-        '<div class="fav-item" onclick="openLink(\'' + jsStr(f.url || '#') + '\')">' +
+        '<div class="fav-item" onclick="openLink(\'' + jsStr(stripAffTag(f.url) || '#') + '\')">' +
           '<span class="fi">' + (FAV_ICON[f.cat] || '⭐') + '</span>' +
           '<span class="ft">' + esc(f.label) + '</span>' +
           '<span class="fl">' + (FAV_LABELS[f.cat] || 'Open') + ' ↗</span></div>';
@@ -12576,6 +13073,55 @@
       if (f) livePing(f.requester_id, { type: 'friend', accepted: true });
       closeSheet(); toast('You and ' + name + ' are now friends 🎉');
       if (state.tab === 'profile') openTab('profile');
+    }
+    // Decline, cancel and unfriend all delete the friendships row. .select()
+    // returns the deleted row, so a silent RLS refusal (0 rows) is reported.
+    // `from` says which sheet to redraw: 'notif' | 'friends' | 'person'.
+    async function dropFriendship(fid, okMsg, from) {
+      if (!cloud || !cloudUser) { toast('Log in first'); return; }
+      const f = FRIENDSHIPS.find(x => x.id === fid);
+      const other = f ? (f.requester_id === cloudUser.id ? f.addressee_id : f.requester_id) : null;
+      let res;
+      try { res = await cloud.from('friendships').delete().eq('id', fid).select(); } catch (e) { res = { error: e }; }
+      if (res.error || !res.data || !res.data.length) { toast('⚠️ That didn\'t go through — try again'); uiSound('error'); return; }
+      FRIENDSHIPS = FRIENDSHIPS.filter(x => x.id !== fid);
+      updateBadges();
+      toast(okMsg);
+      if (from === 'notif') openNotifications();
+      else if (from === 'friends') openFriendsList();
+      else if (from === 'person' && other) openPersonSheetById(other);
+      else closeSheet();
+      if (state.tab === 'profile' && appActive()) openTab('profile');
+    }
+    function declineFriend(fid, name, from) { return dropFriendship(fid, 'Request from ' + name + ' declined', from); }
+    function cancelFriendRequest(fid, name, from) { return dropFriendship(fid, 'Request to ' + name + ' cancelled', from); }
+    function removeFriend(fid, name, from) {
+      if (!confirm('Remove ' + name + ' from your friends? They aren\'t told.')) return;
+      return dropFriendship(fid, name + ' removed from your friends', from);
+    }
+    // Your friends and the requests still open, from the Friends count on your profile
+    function openFriendsList() {
+      if (!cloudUser) { toast('Log in to see your friends'); return; }
+      const me = cloudUser.id;
+      const otherOf = f => f.requester_id === me ? f.addressee_id : f.requester_id;
+      const row = (f, actions) => {
+        const id = otherOf(f), who = PROFILE_BY_ID[id], name = authorName(id, 'Petfi member');
+        return '<div class="row"><div class="ricon" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')">' + (who ? personAvatar(who, 46) : '🐾') + '</div>' +
+          '<div class="rmain" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')"><div class="rtitle">' + esc(name) + '</div></div>' +
+          (actions ? '<div class="raction" style="display:flex;gap:0.3rem;">' + actions(f, name) + '</div>' : '') + '</div>';
+      };
+      const friends = FRIENDSHIPS.filter(f => f.status === 'accepted' && !hiddenUser(otherOf(f)));
+      const incoming = incomingFriendRequests();
+      const sent = FRIENDSHIPS.filter(f => f.status === 'pending' && f.requester_id === me);
+      let h = '';
+      if (incoming.length) h += '<div class="sec"><h3>🐾 Requests for you</h3></div>' + incoming.map(f => row(f, (f, name) =>
+        '<button class="pill-btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\')">Accept</button>' +
+        '<button class="pill-btn ghost" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Decline</button>')).join('');
+      if (sent.length) h += '<div class="sec"><h3>⏳ Requests you sent</h3></div>' + sent.map(f => row(f, (f, name) =>
+        '<button class="pill-btn ghost" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Cancel</button>')).join('');
+      h += '<div class="sec"><h3>🤝 Friends</h3></div>' + (friends.length ? friends.map(f => row(f, null)).join('')
+        : '<p class="sub" style="font-size:0.85rem;">No friends yet. Find members on the <b>Nearby</b> tab and tap Add friend.</p>');
+      openSheet('🤝 Friends', h);
     }
     function sendCloudBark(i) { const u = PEOPLE[i]; if (u) sendCloudBarkById(u.id); }
     function sendCloudBarkById(id) {
@@ -12646,7 +13192,7 @@
       state.matchNotified = state.matchNotified || {};
       Object.keys(state.mateBarks || {}).forEach(id => {
         if (!state.matchNotified[id] && MY_MESSAGES.some(m => m.sender_id === id && isMateHi(m))) {
-          state.matchNotified[id] = 1; saveState();
+          state.matchNotified[id] = 1; saveState({ bg: true });
           confetti(); uiSound('match');
           toast('💘 It\'s a match with ' + authorName(id, 'someone') + '! You can message each other now 🎉');
         }
@@ -12673,8 +13219,13 @@
     function updateBadges() {
       const unread = cloudUser ? unreadConvos().reduce((s, c) => s + c.unread, 0) : 0;
       setBadge('dm-dot', unread);
-      const pend = cloudUser ? FRIENDSHIPS.filter(f => f.status === 'pending' && f.addressee_id === cloudUser.id).length : 0;
+      const pend = cloudUser ? incomingFriendRequests().length : 0;
       setBadge('notif-dot', pend);
+    }
+    // Requests waiting on my answer; ones from members I blocked don't count or show
+    function incomingFriendRequests() {
+      if (!cloudUser) return [];
+      return FRIENDSHIPS.filter(f => f.status === 'pending' && f.addressee_id === cloudUser.id && !isBlocked(f.requester_id));
     }
     function openChats() {
       if (!cloudUser) { toast('Log in to send messages'); return; }
@@ -12704,7 +13255,7 @@
       if (!u) {
         // Profile not loaded yet (e.g. an ad or mate owner we haven't fetched) —
         // pull it, then reopen. Don't dead-end with a misleading "Log in" toast.
-        cloud.from('profiles').select('*').eq('id', userId).maybeSingle()
+        cloud.from('profiles').select(PROFILE_COLS).eq('id', userId).maybeSingle()
           .then(({ data }) => {
             if (data) { PROFILE_BY_ID[userId] = data; openCloudDM(userId); }
             else toast('Could not open that conversation');
@@ -12722,11 +13273,13 @@
         const f = friendshipWith(userId);
         openSheet('🔒 ' + esc(u.username),
           '<div class="note">' + esc(u.username) + ' only accepts messages from friends.' + (u.kind === 'owner' ? '' : ' You can still say hi!') + '</div>' +
-          (u.kind === 'owner' ? '' : '<button class="btn" onclick="sendCloudBarkById(\'' + userId + '\')">' + sendVoiceLabel() + '</button>') +
-          (!f ? '<button class="btn secondary" onclick="sendFriendRequest(\'' + userId + '\',\'' + esc(u.username).replace(/'/g,'') + '\')">🐾 Add friend</button>'
+          (u.kind === 'owner' ? '' : '<button class="btn" onclick="sendCloudBarkById(\'' + jsStr(userId) + '\')">' + sendVoiceLabel() + '</button>') +
+          (!f ? '<button class="btn secondary" onclick="sendFriendRequest(\'' + jsStr(userId) + '\',\'' + jsStr(u.username) + '\')">🐾 Add friend</button>'
               : f.status === 'pending' && f.addressee_id === cloudUser.id
-                ? '<button class="btn secondary" onclick="acceptFriend(' + f.id + ',\'' + esc(u.username).replace(/'/g,'') + '\')">✅ Accept their request</button>'
-                : '<p class="sub" style="text-align:center;">⏳ Friend request pending</p>'));
+                ? '<button class="btn secondary" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✅ Accept their request</button>' +
+                  '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✕ Decline</button>'
+                : '<p class="sub" style="text-align:center;">⏳ Friend request pending</p>' +
+                  '<button class="btn secondary" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">Cancel request</button>'));
         return;
       }
       dmOpenWith = userId;
@@ -12794,7 +13347,7 @@
       if (data.length) {
         state.dmSeen = state.dmSeen || {};
         const last = data[data.length - 1].created_at;
-        if (state.dmSeen[other] !== last) { state.dmSeen[other] = last; saveState(); updateBadges(); }
+        if (state.dmSeen[other] !== last) { state.dmSeen[other] = last; saveState({ bg: true }); updateBadges(); }
       }
     }
     async function sendCloudDM() {
@@ -12821,13 +13374,13 @@
         } else {
           entry.failed = true; toast('📡 No connection — will retry'); uiSound('error');
         }
-        saveState();
+        saveState({ bg: true }); // the outbox stays on this device; also runs from the heartbeat
         if (dmOpenWith === entry.to) renderDMThread(threadWith(entry.to));
         return false;
       }
       if (i >= 0) state.outbox.splice(i, 1);
       if (data) MY_MESSAGES.unshift(data);
-      saveState();
+      saveState({ bg: true });
       if (dmOpenWith === entry.to) renderDMThread(threadWith(entry.to));
       livePing(entry.to, { type: 'dm' });
       return true;
@@ -12862,7 +13415,8 @@
       lastMatesFetch = Date.now();
       const [m, a] = await Promise.all([
         cloud.from('mate_listings').select('id, owner_id, content, created_at').order('created_at', { ascending: false }).limit(80),
-        cloud.from('ads').select('id, owner_id, content, expires_at').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(10),
+        // Generous cap: every running paid ad must be able to take its turn (was 10)
+        cloud.from('ads').select('id, owner_id, content, expires_at, reach').gt('expires_at', new Date().toISOString()).order('created_at', { ascending: false }).limit(200),
       ]);
       // Trusted columns are applied LAST so row content can't override ids/owners;
       // photos only from our bucket, location only as plain numbers.
@@ -12873,7 +13427,8 @@
         c.count = Math.max(1, parseInt(c.count, 10) || 1);
         return c;
       });
-      if (a.data) CLOUD_ADS = a.data.map(r => Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, expiresAt: r.expires_at, mine: !!(cloudUser && r.owner_id === cloudUser.id) }));
+      // The paid reach column wins over the client-written content.reach
+      if (a.data) CLOUD_ADS = a.data.map(r => Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, expiresAt: r.expires_at, mine: !!(cloudUser && r.owner_id === cloudUser.id) }, AD_REACHES.indexOf(r.reach) >= 0 ? { reach: r.reach } : {}));
       await ensureProfiles(CLOUD_MATES.map(x => x.ownerId).concat(CLOUD_ADS.map(x => x.ownerId)));
       ensureMyGeo();
       noteNewMatches();
@@ -12920,7 +13475,8 @@
       if (!data) return;
       await ensureProfiles(data.map(r => r.seller_id));
       // Trusted columns LAST; seller name from the real profile; photos from our bucket only
-      LISTINGS = data.filter(r => !hiddenUser(r.seller_id)).map(r => Object.assign({}, r.content, {
+      // Sold items stay visible to their seller only
+      LISTINGS = data.filter(r => !hiddenUser(r.seller_id) && !(r.content && r.content.sold && !(cloudUser && r.seller_id === cloudUser.id))).map(r => Object.assign({}, r.content, {
         cloudId: r.id, sellerId: r.seller_id, mine: !!(cloudUser && r.seller_id === cloudUser.id),
         seller: authorName(r.seller_id, r.content && r.content.seller), affiliate: false,
         photos: safePhotos(r.content && r.content.photos), bg: safeBg(r.content && r.content.bg), emo: '🐾',
@@ -12995,46 +13551,61 @@
         } catch (e) {}
       })();
     }
-    let livePingTimer = null;
+    let livePingTimer = null, livePings = new Map(); // kind -> Map(from -> latest ping)
     function onLivePing(p) {
       if (!cloudUser || !p || hiddenUser(p.from)) return;
       liveLastPing = Date.now();
-      // Coalesce bursts (someone spamming barks) into one refresh
+      // Coalesce bursts (someone spamming barks) into one refresh per kind; a
+      // burst of mixed kinds (a DM then a friend request) handles every kind,
+      // not just the last one
+      const kind = p.type === 'bark' ? 'dm' : p.type === 'comment' ? 'like' : String(p.type || '');
+      if (!livePings.has(kind)) livePings.set(kind, new Map());
+      livePings.get(kind).set(p.from, p);
       clearTimeout(livePingTimer);
       livePingTimer = setTimeout(() => {
-        if (p.type === 'dm' || p.type === 'bark') {
-          if (dmOpenWith && p.from === dmOpenWith) refreshDMThread();
-          loadMessages();
-        } else if (p.type === 'group') {
-          loadGroups(true);
-        } else if (p.type === 'friend') {
-          loadFriendships().then(() => {
-            // A broadcast is just a nudge: the toast comes from the row the
-            // database actually holds, so nobody can fake a request or an accept.
-            const me = cloudUser.id;
+        const batch = livePings; livePings = new Map();
+        batch.forEach(byFrom => { try { handleLivePings(Array.from(byFrom.values())); } catch (e) {} });
+      }, 250);
+    }
+    // ps: one kind of ping, one per sender
+    function handleLivePings(ps) {
+      const p = ps[ps.length - 1];
+      if (p.type === 'dm' || p.type === 'bark') {
+        if (dmOpenWith && ps.some(x => x.from === dmOpenWith)) refreshDMThread();
+        loadMessages();
+      } else if (p.type === 'group') {
+        loadGroups(true);
+      } else if (p.type === 'friend') {
+        loadFriendships().then(() => {
+          // A broadcast is just a nudge: the toast comes from the row the
+          // database actually holds, so nobody can fake a request or an accept.
+          const me = cloudUser.id;
+          ps.forEach(p => {
             const f = FRIENDSHIPS.find(x => (x.requester_id === p.from && x.addressee_id === me) || (x.requester_id === me && x.addressee_id === p.from));
             const accepted = f && f.status === 'accepted' && f.requester_id === me;
             const asked = f && f.status === 'pending' && f.addressee_id === me;
             if (accepted) { toast('🎉 ' + authorName(p.from, 'Someone') + ' accepted your friend request'); uiSound('friend'); }
             else if (asked && notifPref('friends')) { toast('🐾 ' + authorName(p.from, 'Someone') + ' wants to be your friend'); uiSound('receive'); ringBell(); }
-            if (state.tab === 'profile' || state.tab === 'nearby') openTab(state.tab);
           });
-        } else if (p.type === 'like' || p.type === 'comment') {
-          lastPostsFetch = 0; loadCloudPosts(true);
-        } else if (p.type === 'mate_listing') {
-          // Someone just listed an animal that pairs with one of yours
-          loadMatesAndAds(true).then(() => {
-            // The broadcast is only a hint: the listing has to exist and pair with one of mine
-            visibleMates();
+          if (state.tab === 'profile' || state.tab === 'nearby') openTab(state.tab);
+        });
+      } else if (p.type === 'like' || p.type === 'comment') {
+        lastPostsFetch = 0; loadCloudPosts(true);
+      } else if (p.type === 'mate_listing') {
+        // Someone just listed an animal that pairs with one of yours
+        loadMatesAndAds(true).then(() => {
+          // The broadcast is only a hint: the listing has to exist and pair with one of mine
+          visibleMates();
+          ps.forEach(p => {
             const hit = MATES_VIEW.filter(m => m.mine).some(m => matchesFor(m).some(x => x.ownerId === p.from));
             if (!hit) return;
             const theirs = CLOUD_MATES.find(x => x.ownerId === p.from && !isClosedListing(x));
             toast('🎯 New ' + speciesLabel((theirs && theirs.species) || p.species).toLowerCase() + ' breeding listing near you matches yours!');
             uiSound('match'); ringBell();
-            if (state.tab !== 'mate') { state.mateUnseen = (state.mateUnseen || 0) + 1; saveState(); setMateNavBadge(state.mateUnseen); }
+            if (state.tab !== 'mate') { state.mateUnseen = (state.mateUnseen || 0) + 1; saveState({ bg: true }); setMateNavBadge(state.mateUnseen); }
           });
-        }
-      }, 250);
+        });
+      }
     }
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
@@ -13057,18 +13628,21 @@
       if (Date.now() - lastHeartbeat < every - 500) return;
       lastHeartbeat = Date.now();
       loadMessages(); loadFriendships(); flushOutbox(); flushPendingReports();
+      retryCloudSave(); // a save that failed earlier (at most once a minute)
     }, 5000);
 
     // ======================= PERSISTENCE =======================
     // Your account survives a refresh — saved in this browser AND the cloud.
-    function saveState() {
+    // opts.bg: a save nobody tapped for (timers, data loads). It still goes to
+    // the cloud, but if another device saved first it is dropped quietly.
+    function saveState(opts) {
       // Nothing to save until you're actually inside an account — this also
       // protects a saved account from being overwritten from the welcome screen.
       if (!state.accountType) return;
       state.savedAt = new Date().toISOString();
       if (cloudUser) state.ageId = cloudUser.id; // the age answer follows the saved copy (see AGE CHECK)
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
-      cloudSaveState();
+      cloudSaveState(!(opts && opts.bg));
       schedulePushSync(); // reminders or the calendar may have changed (no-op unless they did)
       schedulePassportSync(); // shared health passports follow the record
       scheduleCareSync();     // and so do care-team snapshots
@@ -13078,11 +13652,17 @@
     async function logOut(opts) {
       const ageBlock = !!(opts && opts.ageBlock);
       // Push the last change before the session goes away
-      if (cloudSaveTimer) { try { await flushCloudSave(); } catch (e) {} }
-      if (!ageBlock) { try { localStorage.removeItem('petfi-account'); } catch (e) {} forgetAge('local'); } // the next offline profile answers for itself
-      if (cloud) { try { await (ageBlock ? cloud.auth.signOut({ scope: 'local' }) : cloud.auth.signOut()); } catch (e) {} }
+      const me = cloudUser ? cloudUser.id : pausedUid;
+      if (cloudSaveTimer || (cloudUser && dirtyFor(me))) { try { await flushCloudSave(); } catch (e) {} }
+      // Logging out wipes this device's copy, so unsaved changes would vanish with it
+      if (!ageBlock && dirtyFor(me) && !confirm('Your latest changes have not been saved to the cloud yet. Log out anyway and lose them?')) return;
+      if (!ageBlock) { try { localStorage.removeItem('petfi-account'); localStorage.removeItem(DIRTY_KEY); } catch (e) {} forgetAge('local'); } // the next offline profile answers for itself
+      // Only THIS device logs out; your other phones and browsers stay logged in
+      ownSignOut = true;
+      if (cloud) { try { await cloud.auth.signOut({ scope: 'local' }); } catch (e) {} }
       liveDisconnect();
-      cloudUser = null;
+      cloudUser = null; pausedUid = null; cloudSeenAt = null; cloudSeenFor = null; ownSignOut = false;
+      BLOCKED_ME = {};
       resetState(); // factory-fresh state so nothing leaks to the next user
       applyTheme(); // back to daylight for the welcome screen
       FEED.length = 0; feedLoadedOnce = false;
@@ -13170,6 +13750,46 @@
     if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')) {
       window.addEventListener('load', () => { navigator.serviceWorker.register('sw.js').catch(() => {}); });
     }
+    // ---- A new version is live: one quiet "Refresh" prompt (#36) ----
+    // sw.js is tiny and names the cache version, which changes with every
+    // release. Read it at load, then again when the tab comes back (at most
+    // every 15 minutes). Never reloads by itself; offline stays silent.
+    let swVerSeen = '', swVerCheckedAt = 0, swVerPrompted = false;
+    async function swVersion() {
+      const r = await fetch('./sw.js', { cache: 'no-store' });
+      if (!r.ok) return '';
+      const m = /CACHE\s*=\s*'([^']+)'/.exec(await r.text());
+      return m ? m[1] : '';
+    }
+    async function checkForUpdate(force) {
+      if (swVerPrompted || !/^https?:$/.test(location.protocol)) return;
+      if (!force && Date.now() - swVerCheckedAt < 15 * 60000) return;
+      swVerCheckedAt = Date.now();
+      try {
+        const v = await swVersion();
+        if (!v) return;
+        if (!swVerSeen) { swVerSeen = v; return; }
+        if (v === swVerSeen) return;
+        swVerPrompted = true;
+        try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) reg.update().catch(() => {}); } catch (e) {}
+        showUpdatePrompt();
+      } catch (e) {}
+    }
+    function showUpdatePrompt() {
+      // Not over a half-filled form (a sheet with fields, or a sign-up screen): wait
+      const formSheet = document.body.classList.contains('sheet-open') && document.querySelector('#sheet input, #sheet textarea, #sheet select');
+      if (formSheet || !appActive()) { setTimeout(showUpdatePrompt, 30000); return; }
+      if (document.getElementById('update-toast')) return;
+      const t = document.createElement('div');
+      t.id = 'update-toast'; t.className = 'toast show'; t.setAttribute('role', 'status');
+      t.style.cssText = 'pointer-events:auto;top:calc(12px + env(safe-area-inset-top));bottom:auto;display:flex;align-items:center;gap:0.6rem;';
+      t.innerHTML = '<span>A new version of Petfi is ready</span>' +
+        '<button onclick="location.reload()" style="background:none;border:0;color:inherit;font:inherit;font-weight:800;text-decoration:underline;cursor:pointer;padding:0;">Refresh</button>' +
+        '<button onclick="this.parentNode.remove()" aria-label="Dismiss" style="background:none;border:0;color:inherit;font:inherit;cursor:pointer;padding:0 0.2rem;">×</button>';
+      document.body.appendChild(t);
+    }
+    setTimeout(() => checkForUpdate(true), 4000); // the version this page started with
+    document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') checkForUpdate(); });
     // ---- Connectivity: say so when the network drops, catch up when it's back ----
     function setOfflineBar(mode) {
       let bar = document.getElementById('offline-bar');
@@ -13180,7 +13800,7 @@
       if (mode === 'back') setTimeout(() => { const b = document.getElementById('offline-bar'); if (b && b.classList.contains('back')) b.remove(); }, 2500);
     }
     window.addEventListener('offline', () => { setOfflineBar('on'); });
-    window.addEventListener('online', () => { setOfflineBar('back'); if (cloudUser) { flushOutbox(); loadMessages(); loadFriendships(); lastPostsFetch = 0; if (state.tab === 'home') loadCloudPosts(true); } });
+    window.addEventListener('online', () => { setOfflineBar('back'); if (cloudUser) { retryCloudSave(true); flushOutbox(); loadMessages(); loadFriendships(); lastPostsFetch = 0; if (state.tab === 'home') loadCloudPosts(true); } });
     if (!navigator.onLine) setTimeout(() => setOfflineBar('on'), 500);
 
     let deferredInstall = null;

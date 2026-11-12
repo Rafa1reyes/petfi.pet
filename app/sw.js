@@ -5,7 +5,7 @@
 // responses are cached, so an error page can never replace the app shell.
 // Third-party calls (Supabase, OpenStreetMap, Amazon, the Supabase CDN)
 // are left entirely to the browser.
-const CACHE = 'petfi-v38';
+const CACHE = 'petfi-v39';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './petfi-icon.svg', './store.json',
   './brand/petfi-wordmark-sm.webp', './brand/petfi-wordmark-sm.png',
@@ -71,6 +71,9 @@ self.addEventListener('push', e => {
     return self.registration.showNotification(title, {
       body: String(d.body || '').slice(0, 300),
       tag,
+      // A new alert that replaces an old one with the same tag (tomorrow's dose)
+      // still rings instead of swapping in silently
+      renotify: !!tag,
       icon: 'icons/petfi-192.png',
       badge: 'icons/petfi-192.png',
       data: { url: './' },
