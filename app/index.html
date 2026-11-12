@@ -3692,9 +3692,9 @@
       if (idx >= 0) FEED.splice(idx, 1);
       lastPostsFetch = Date.now(); // don't refetch until the delete has landed
       if (state.tab === 'home') openTab('home');
-      const { error } = await cloud.from('posts').delete().eq('id', cloudId);
+      const { data, error } = await cloud.from('posts').delete().eq('id', cloudId).select('id');
       if (error) { toast('⚠️ Could not delete from the cloud'); loadCloudPosts(true); return; }
-      removePostMedia(gone);
+      if (Array.isArray(data) && data.length) removePostMedia(gone); // only once the server confirms the row is gone
       toast('Post deleted 🗑');
     }
     // Admins pin a post to the top of the Everyone feed for a set time
@@ -3827,15 +3827,49 @@
     // is already gone, so a storage error changes nothing the user can see.
     function removePostMedia(p) {
       if (!cloud || !p) return;
-      const prefix = PHOTO_ORIGIN + 'photos/';
-      const paths = [];
-      [p.videoUrl, p.posterUrl].concat(Array.isArray(p.photoUrls) ? p.photoUrls : []).forEach(u => {
-        if (typeof u === 'string' && u.indexOf(prefix) === 0) {
-          try { paths.push(decodeURIComponent(u.slice(prefix.length).split('?')[0])); } catch (e) {}
-        }
-      });
-      if (!paths.length) return;
-      try { cloud.storage.from('photos').remove(paths).then(() => {}, () => {}); } catch (e) {}
+      removeMyPhotos([p.videoUrl, p.posterUrl].concat(Array.isArray(p.photoUrls) ? p.photoUrls : []).map(u => myPhotoPath(u, POST_FILE_RE)), 'post media');
+    }
+    // The storage path of a file this app uploaded into MY folder of the photos
+    // bucket (uid/name), from its public URL; null for anything else: another
+    // member's file, an external or older link, a name the app didn't make.
+    // Clean-up only ever deletes paths that come from here.
+    const LISTING_FILE_RE = /^\d{10,}-\d{1,2}\.jpg$/, AD_FILE_RE = /^ad-\d{10,}-\d{1,2}\.jpg$/,
+      POST_FILE_RE = /^(post-\d{10,}-\d{1,2}\.jpg|video-\d{10,}\.[a-z0-9]{2,5})$/;
+    function myPhotoPath(u, nameRe) {
+      if (!cloudUser || !cloudUser.id || typeof u !== 'string') return null;
+      const prefix = PHOTO_ORIGIN + 'photos/' + cloudUser.id + '/';
+      if (u.indexOf(prefix) !== 0) return null;
+      let name = '';
+      try { name = decodeURIComponent(u.slice(prefix.length).split(/[?#]/)[0]); } catch (e) { return null; }
+      return nameRe.test(name) ? cloudUser.id + '/' + name : null;
+    }
+    // Best effort: the row is already changed or gone, so a storage error
+    // changes nothing the user can see (console only)
+    function removeMyPhotos(paths, what) {
+      paths = Array.from(new Set((paths || []).filter(Boolean)));
+      if (!cloud || !paths.length) return;
+      try {
+        cloud.storage.from('photos').remove(paths)
+          .then(r => { if (r && r.error) console.warn((what || 'photos') + ' clean-up:', r.error.message || r.error); }, e => console.warn((what || 'photos') + ' clean-up:', e && e.message));
+      } catch (e) { console.warn((what || 'photos') + ' clean-up:', e && e.message); }
+    }
+    // A listing's (or service's) photo files that `before` had and `after` no
+    // longer has, once the database change is confirmed. Every listing upload is
+    // a new file (uid/<ms>-<i>.jpg), but a file one of my listings still shows
+    // (read back from the server) is kept anyway; if that check fails, nothing goes.
+    async function dropListingPhotos(before, after) {
+      try {
+        if (!cloud || !cloudUser) return;
+        const keep = new Set((Array.isArray(after) ? after : []).map(u => myPhotoPath(u, LISTING_FILE_RE)).filter(Boolean));
+        let paths = (Array.isArray(before) ? before : []).map(u => myPhotoPath(u, LISTING_FILE_RE)).filter(p => p && !keep.has(p));
+        if (!paths.length) return;
+        const r = await cloud.from('listings').select('content').eq('seller_id', cloudUser.id);
+        if (r.error || !Array.isArray(r.data)) throw r.error || new Error('listings not read');
+        const used = new Set();
+        r.data.forEach(row => { const ph = row && row.content && row.content.photos; if (Array.isArray(ph)) ph.forEach(u => { const p = myPhotoPath(u, LISTING_FILE_RE); if (p) used.add(p); }); });
+        paths = paths.filter(p => !used.has(p));
+        removeMyPhotos(paths, 'listing photos');
+      } catch (e) { console.warn('listing photos clean-up:', e && e.message); }
     }
     function toggleCmts(i) {
       const d = document.getElementById('cmts-' + i);
@@ -3944,7 +3978,12 @@
       const i = CLOUD_ADS.findIndex(a => a.cloudId === id);
       if (i >= 0) CLOUD_ADS.splice(i, 1);
       if (state.tab === 'home') openTab('home');
-      cloud.from('ads').delete().eq('id', id).then(({ error }) => { toast(error ? '⚠️ Could not end the ad' : 'Ad ended 📣'); });
+      cloud.from('ads').delete().eq('id', id).select('id, content').then(({ data, error }) => {
+        toast(error ? '⚠️ Could not end the ad' : 'Ad ended 📣');
+        // Each ad uploads its own files (uid/ad-<ms>-<i>.jpg): they go with the confirmed row
+        const c = !error && Array.isArray(data) && data[0] && data[0].content;
+        if (c && Array.isArray(c.photos)) removeMyPhotos(c.photos.map(u => myPhotoPath(u, AD_FILE_RE)), 'ad photos');
+      });
     }
 
     // Only ever render photo links that point at our own storage bucket (or
@@ -5860,8 +5899,11 @@
       if (cloudId) {
         const li = LISTINGS.findIndex(x => x.cloudId === cloudId); if (li >= 0) LISTINGS.splice(li, 1);
         closeSheet(); if (state.tab === 'store') openTab('store');
-        cloud.from('listings').delete().eq('id', cloudId)
-          .then(({ error }) => { toast(error ? '⚠️ Could not remove from the cloud' : 'Listing removed 🗑'); });
+        cloud.from('listings').delete().eq('id', cloudId).select('id, content')
+          .then(({ data, error }) => {
+            toast(error ? '⚠️ Could not remove from the cloud' : 'Listing removed 🗑');
+            if (!error && Array.isArray(data) && data.length) dropListingPhotos((data[0].content || {}).photos, []);
+          });
       } else {
         const p = STORE_VIEW[i]; const li = LOCAL_LISTINGS.indexOf(p); if (li >= 0) LOCAL_LISTINGS.splice(li, 1);
         closeSheet(); if (state.tab === 'store') openTab('store'); toast('Listing removed 🗑');
@@ -6765,7 +6807,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.27.0';
+    const APP_VERSION = '1.27.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8247,6 +8289,7 @@
         if (up.error || !up.data || !up.data.length) throw up.error || new Error('refused');
         const saved = up.data[0].content || content, l = LISTINGS.find(x => x.cloudId === cloudId);
         if (l) Object.assign(l, saved, { cloudId, sellerId: l.sellerId, mine: true, seller: l.seller, affiliate: false, photos: safePhotos(saved.photos), bg: l.bg, emo: l.emo });
+        dropListingPhotos((cur.data.content || {}).photos, saved.photos); // the photos the seller took off
         return true;
       } catch (e) {
         console.warn('listing edit:', e && e.message);
@@ -8462,8 +8505,11 @@
       const cloudId = Number(l.cloudId);
       const li = LISTINGS.findIndex(x => x.cloudId === cloudId); if (li >= 0) LISTINGS.splice(li, 1);
       closeSheet(); if (appActive() && (state.tab === 'store' || state.tab === 'nearby')) openTab(state.tab);
-      cloud.from('listings').delete().eq('id', cloudId)
-        .then(({ error }) => { toast(error ? '⚠️ Could not remove from the cloud' : 'Service removed 🗑'); });
+      cloud.from('listings').delete().eq('id', cloudId).select('id, content')
+        .then(({ data, error }) => {
+          toast(error ? '⚠️ Could not remove from the cloud' : 'Service removed 🗑');
+          if (!error && Array.isArray(data) && data.length) dropListingPhotos((data[0].content || {}).photos, []);
+        });
     }
     // Same report flow as a product listing
     function reportService(i) {
@@ -12055,8 +12101,10 @@
         x.id = m.id;
         if (medFreq(m).ms) x.sched = { f: medFreq(m).key, s: hxValidYmd(m.start) ? m.start : '', t: /^\d{2}:\d{2}$/.test(m.time || '') ? m.time : '09:00', e: hxValidYmd(m.end) ? m.end : '' };
       });
+      // tz: the owner's time zone, which the schedules' days and times are on (a carer elsewhere converts)
+      if ((c.meds || []).some(x => x.sched)) { const tz = pushTz(); if (tz && tz.length <= 64) c.tz = tz; }
       // The team row holds at most 16 kB (petfi_care_teams check): drop the schedules before anything else
-      if (JSON.stringify(c).length > 15000) (c.meds || []).forEach(x => { delete x.sched; });
+      if (JSON.stringify(c).length > 15000) { (c.meds || []).forEach(x => { delete x.sched; }); delete c.tz; }
       return c;
     }
 
@@ -12178,7 +12226,7 @@
       openSheet('💊 Which med did ' + esc(t.pet_name) + ' get?',
         meds.map((m, i) => '<div class="row" style="cursor:pointer;" onclick="careMedsConfirm(\'' + jsStr(teamId) + '\',' + i + ')"><div class="ricon">💊</div>' +
           '<div class="rmain"><div class="rtitle">' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);">' + esc(m.strength) + '</span>' : '') + '</div>' +
-          '<div class="rmeta">' + esc([m.dose, m.freq, m.time].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>').join(''));
+          '<div class="rmeta">' + esc([m.dose, m.freq, careMedTime(t.card, m)].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>').join(''));
     }
     // Before logging a dose: someone may already have given it
     function careMedsConfirm(teamId, i) {
@@ -12277,7 +12325,7 @@
           line('Vet', c.vet ? [c.vet.name, c.vet.phone].filter(Boolean).join(' · ') : '') + line('Microchip', c.chip) +
           (c.vet && c.vet.phone ? '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;display:inline-block;" href="tel:' + esc(hxTel(c.vet.phone)) + '">📞 Call the vet</a>' : '') + '</div>';
         if ((c.meds || []).length) h += '<div class="sec"><h3>💊 Meds</h3></div>' + c.meds.map(m => '<div class="row"><div class="ricon">💊</div><div class="rmain"><div class="rtitle">' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);">' + esc(m.strength) + '</span>' : '') + '</div>' +
-          '<div class="rmeta">' + esc([m.dose, m.freq, m.time].filter(Boolean).join(' · ')) + (m.notes ? '<br>' + esc(m.notes) : '') + '</div></div></div>').join('');
+          '<div class="rmeta">' + esc([m.dose, m.freq, careMedTime(c, m)].filter(Boolean).join(' · ')) + (m.notes ? '<br>' + esc(m.notes) : '') + '</div></div></div>').join('');
         // Opt-in dose reminders for me as a carer, on the owner's schedule
         if ((c.meds || []).length) {
           const on = careRemOn(teamId), owner = careWho(t.owner_id);
@@ -12706,11 +12754,21 @@
       const out = [], now = Date.now();
       CARE_TEAMS.forEach(t => {
         if (careIsMine(t) || !careRemOn(t.id)) return;
+        const tz = careCardTz(t.card);
         ((t.card && t.card.meds) || []).forEach(x => {
           const s = x && x.sched;
           if (!s || !MED_FREQS.some(f => f.key === s.f) || !/^[A-Za-z0-9_-]{1,40}$/.test(String(x.id || ''))) return;
           const m = { freq: s.f, start: hxValidYmd(s.s) ? s.s : '', time: /^\d{2}:\d{2}$/.test(s.t || '') ? s.t : '09:00', end: hxValidYmd(s.e) ? s.e : '' };
           const f = medFreq(m);
+          // The owner is in another time zone: the slots, start and last day are on their clock
+          if (tz && f.ms) {
+            const e = m.end ? m.end.split('-').map(Number) : null;
+            const until = e ? tzToMs(tz, e[0], e[1], e[2], 23, 59) + 59000 : 0, next = tzMedNextDose(m, now + 1, tz);
+            if (!next || (until && next > until)) return;
+            out.push({ what: '💊 ' + String(t.pet_name || '') + ': ' + String(x.name || '') + (x.strength ? ' ' + x.strength : '') + (x.dose ? ', ' + x.dose : ''),
+              freqLabel: f.label, ms: f.ms, months: f.months || 0, day: tzWall(tzFmt(tz), next).d, next, time: m.time, medId: String(x.id), teamId: t.id, until, tz });
+            return;
+          }
           if (!f.ms || !medActive(m)) return;
           const next = medNextDose(m, now + 1), until = isFinite(medEndMs(m)) ? medEndMs(m) : 0;
           if (!next || (until && next > until)) return;
@@ -12724,6 +12782,33 @@
     function careRemWaiting(t) {
       const meds = (t && t.card && t.card.meds) || [];
       return meds.length > 0 && !meds.some(x => x && x.sched);
+    }
+    // The owner's time zone from their card (careCard), only when it differs from
+    // mine and this browser knows it; '' otherwise (old cards, same zone): then
+    // everything runs on my clock exactly as before
+    function careCardTz(card) {
+      const tz = card && typeof card.tz === 'string' ? card.tz : '';
+      return tz && tz !== pushTz() && tzFmt(tz) ? tz : '';
+    }
+    // medNextDose on the clock of zone tz: the start day (or that zone's today)
+    // at the dose time there, stepped forward on that clock
+    function tzMedNextDose(m, from, tz) {
+      const f = medFreq(m), z = tzFmt(tz);
+      if (!f.ms || !z) return 0;
+      const [hh, mm] = (m.time || '09:00').split(':').map(Number);
+      const s = hxValidYmd(m.start) ? m.start.split('-').map(Number) : null, w = s ? { y: s[0], m: s[1], d: s[2] } : tzWall(z, Date.now());
+      let next = tzToMs(tz, w.y, w.m, w.d, hh || 0, mm || 0);
+      if (!isFinite(next)) return 0;
+      if (next < from) next = nextReminderTime({ next, ms: f.ms, months: f.months || 0, day: w.d, time: m.time || '09:00', tz }, from - 1);
+      return next;
+    }
+    // A card med's dose time as I should read it: the owner's own text, or, when
+    // the owner is in another time zone, the same moment on my clock
+    function careMedTime(card, x) {
+      const tz = careCardTz(card), s = x && x.sched;
+      if (!x || !x.time || !tz || !s || !/^\d{2}:\d{2}$/.test(s.t || '')) return x ? x.time : '';
+      const w = tzWall(tzFmt(tz), Date.now()), [hh, mm] = s.t.split(':').map(Number), d = new Date(tzToMs(tz, w.y, w.m, w.d, hh, mm));
+      return isFinite(d.getTime()) ? hxTime(String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0')) : x.time;
     }
     function setCareRemind(teamId, on) {
       const t = careTeam(teamId); if (!t || careIsMine(t)) return;
@@ -12784,7 +12869,13 @@
         // the local time across DST and the day of the month (#24)
         if (rm.ms % 86400000 === 0 || rm.months > 0) {
           const d = new Date(next), tz = pushTz();
-          if (tz) {
+          // A carer's reminder on the owner's clock (careReminders): the owner's zone and wall time
+          if (rm.tz && tzFmt(rm.tz)) {
+            const w = tzWall(tzFmt(rm.tz), next);
+            row.tz = rm.tz;
+            row.local_time = String(w.hh).padStart(2, '0') + ':' + String(w.mm).padStart(2, '0');
+            row.anchor_day = rm.months > 0 ? Math.min(31, Math.max(1, rm.day || w.d)) : null;
+          } else if (tz) {
             row.tz = tz;
             row.local_time = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
             row.anchor_day = rm.months > 0 ? Math.min(31, Math.max(1, rm.day || d.getDate())) : null;
@@ -12915,9 +13006,80 @@
       return new Date(c.date + 'T08:00:00').getTime();
     }
 
+    // ---- Wall clock in another IANA zone (a carer's reminders follow the owner's
+    // zone, careCardTz). Same math as the server's petfi-push/slots.ts, Intl only.
+    const TZ_FMTS = {};
+    function tzFmt(tz) {
+      if (typeof tz !== 'string' || !tz || tz.length > 64) return null;
+      if (TZ_FMTS[tz] !== undefined) return TZ_FMTS[tz];
+      let f = null;
+      try { f = new Intl.DateTimeFormat('en-US', { timeZone: tz, hourCycle: 'h23', year: 'numeric', month: 'numeric', day: 'numeric', hour: 'numeric', minute: 'numeric', second: 'numeric' }); } catch (e) { f = null; }
+      return (TZ_FMTS[tz] = f);
+    }
+    // {y, m (1-12), d, hh, mm, ss} of instant ms on that zone's clock
+    function tzWall(f, ms) {
+      const p = {};
+      f.formatToParts(new Date(ms)).forEach(x => { if (x.type !== 'literal') p[x.type] = Number(x.value); });
+      return { y: p.year, m: p.month, d: p.day, hh: p.hour === 24 ? 0 : p.hour, mm: p.minute, ss: p.second };
+    }
+    function tzOffsetAt(f, ms) {
+      const w = tzWall(f, ms);
+      return Date.UTC(w.y, w.m - 1, w.d, w.hh, w.mm, w.ss) - Math.floor(ms / 1000) * 1000;
+    }
+    // The instant of wall-clock y-m-d hh:mm in zone tz (d and hh may overflow;
+    // Date.UTC normalises). As a JS Date does on the owner's own device, and as
+    // the server does: a time skipped by spring-forward moves on by the gap
+    // (02:30 -> 03:30), and a repeated fall-back time is the first (earlier) one.
+    // NaN for a zone this browser doesn't know.
+    function tzToMs(tz, y, m, d, hh, mm) {
+      const f = tzFmt(tz); if (!f) return NaN;
+      const guess = Date.UTC(y, m - 1, d, hh, mm);
+      const o1 = tzOffsetAt(f, guess - 12 * 3600000), t1 = guess - o1, o2 = tzOffsetAt(f, t1);
+      if (o2 === o1) return t1;
+      const t2 = guess - o2;
+      return tzOffsetAt(f, t2) === o2 ? t2 : Math.max(t1, t2);
+    }
+    // nextReminderTime for a reminder on another zone's clock (rm.tz), step for step
+    function tzNextReminderTime(rm, now) {
+      const tz = rm.tz, f = tzFmt(tz);
+      if (!f) return 0;
+      if (rm.months > 0) {
+        const w = tzWall(f, rm.next), day = rm.day || w.d;
+        let y = w.y, mo = w.m, t = 0;
+        do {
+          mo += rm.months; while (mo > 12) { mo -= 12; y++; }
+          t = tzToMs(tz, y, mo, Math.min(day, new Date(Date.UTC(y, mo, 0)).getUTCDate()), w.hh, w.mm);
+        } while (t <= now);
+        return t;
+      }
+      const tm = /^(\d{1,2}):(\d{2})$/.exec(String(rm.time || '')), hh = tm ? Number(tm[1]) : 0, mi = tm ? Number(tm[2]) : 0;
+      const days = rm.ms > 0 && rm.ms % 86400000 === 0 ? rm.ms / 86400000 : 0;
+      if (days && tm) {
+        const w = tzWall(f, rm.next), at = k => tzToMs(tz, w.y, w.m, w.d + k * days, hh, mi);
+        // Jump close to now (a clock change can make the jump one step late), then walk
+        let k = Math.max(1, Math.floor((now - rm.next) / rm.ms)), t = at(k);
+        while (t > now && k > 1 && at(k - 1) > now) { k--; t = at(k); }
+        while (t <= now) { k++; t = at(k); }
+        return t;
+      }
+      const perDay = rm.ms >= 4 * 3600000 && rm.ms < 86400000 && rm.ms % 3600000 === 0 && 86400000 % rm.ms === 0 ? 86400000 / rm.ms : 0;
+      if (perDay && tm) {
+        const stepH = rm.ms / 3600000, firstH = hh % stepH, ref = Math.max(rm.next, now), w = tzWall(f, ref);
+        for (let day = 0; day < 3; day++) {
+          for (let k = 0; k < perDay; k++) {
+            const t = tzToMs(tz, w.y, w.m, w.d + day, firstH + k * stepH, mi);
+            if (t > ref) return t;
+          }
+        }
+      }
+      let next = rm.next + rm.ms;
+      while (next <= now) next += rm.ms;
+      return next;
+    }
     // Step a reminder forward. Day-based ones anchored to a clock time keep that
     // local time across a DST change instead of drifting an hour.
     function nextReminderTime(rm, now) {
+      if (rm.tz) { const z = tzNextReminderTime(rm, now); if (z) return z; }
       if (rm.months > 0) {
         // Monthly: the same day each month (clamped to short months), same time
         const d = new Date(rm.next), day = rm.day || d.getDate();
