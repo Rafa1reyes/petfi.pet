@@ -4542,8 +4542,11 @@
     const MONTHLY_PRESETS = [200, 500, 1000, 2000];
     let MONTHLY_NOW = null;
     function monthlyHtml(r) {
-      if (IS_PLAY_APP || !r || r.ready === false || r.error) return '';
+      if (!r || r.error) return '';
       MONTHLY_NOW = r.monthly || null;
+      // A gift started on the website must be visible and cancellable everywhere,
+      // the Android app included; only starting one is web-only.
+      if (!MONTHLY_NOW && (IS_PLAY_APP || r.ready === false)) return '';
       if (MONTHLY_NOW) {
         return '<div class="hx-card" style="text-align:center;margin-top:0.6rem;"><div style="font-weight:800;">💞 You give ' + pledgeMoney(MONTHLY_NOW.amount_cents) + ' every month</div>' +
           '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.4rem;">Since ' + pledgeDate(MONTHLY_NOW.since) + '. Thank you for keeping the fund going.</p>' +
@@ -6300,7 +6303,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.24.1';
+    const APP_VERSION = '1.24.2';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7034,7 +7037,7 @@
     }
     function openDeleteAccount() {
       openSheet('🗑 Delete your account?',
-        '<div class="note" style="background:#fdeef0;color:#a03a5a;">This <b>permanently erases</b> your profile, posts, listings, groups, messages you\'ve sent, and saved data. There is no undo.</div>' +
+        '<div class="note" style="background:#fdeef0;color:#a03a5a;">This <b>permanently erases</b> your profile, posts, listings, groups, messages you\'ve sent, and saved data. A monthly gift, if you have one, is cancelled too. There is no undo.</div>' +
         '<label>Type <b>DELETE</b> to confirm</label>' +
         '<input id="da-confirm" placeholder="DELETE" autocomplete="off">' +
         '<button class="btn" style="background:#c0392b;box-shadow:0 6px 18px rgba(192,57,43,0.35);" onclick="reallyDeleteAccount()">Permanently delete everything</button>' +
@@ -7048,12 +7051,29 @@
       if (cloud && cloudUser) {
         const uid = cloudUser.id;
         clearTimeout(cloudSaveTimer); cloudSaveTimer = null; // no stray save can resurrect the account
+        // Stop a monthly gift first, while the member can still be told it failed.
+        // (The delete function cancels it too; this covers a server that hasn't.)
+        const notDeleted = () => openSheet('🗑 Not deleted yet',
+          '<div class="note" style="background:#fdeef0;color:#a03a5a;">Your monthly gift could not be cancelled just now, so nothing was deleted. Please try again in a minute, or email support@petfi.pet and we will cancel it and delete the account for you.</div>' +
+          '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+        try {
+          const st = await donateCall('status');
+          if (st && st.monthly) {
+            const c = await donateCall('monthly_cancel');
+            if (!(c && (c.ok || c.error === 'no_monthly'))) { notDeleted(); return; }
+          }
+        } catch (e) {}
         // The server does the real erase (storage objects, every row, the login
         // itself) with the service key; the row-by-row wipe below is only the
         // fallback when the function can't be reached.
         try {
           const { data: r, error } = await cloud.functions.invoke('petfi-delete-account', { method: 'POST' });
           if (!error && r && r.ok) serverDone = true;
+          // The server refuses to erase an account whose monthly gift it could not
+          // cancel: deleting anyway would leave a charge nobody can stop.
+          let why = null;
+          if (error && error.context && typeof error.context.json === 'function') { try { why = (await error.context.json()).error; } catch (e) {} }
+          if (why === 'monthly_gift') { notDeleted(); return; }
         } catch (e) {}
         const wipes = serverDone ? [] : [
           ['post_likes', 'user_id'], ['post_comments', 'author_id'], ['posts', 'author_id'],
