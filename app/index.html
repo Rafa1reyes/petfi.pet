@@ -252,6 +252,7 @@
       transition: opacity 0.25s, transform 0.35s var(--ease-spring);
     }
     .toast.show { opacity: 1; transform: translate(-50%, 0) scale(1); }
+    .toast-act { margin-left: 0.7rem; background: none; border: 0; color: inherit; font: inherit; font-weight: 800; text-decoration: underline; cursor: pointer; padding: 0.2rem 0.3rem; }
 
     .steps { display: flex; gap: 6px; margin-bottom: 1.4rem; }
     .steps .dot { height: 5px; flex: 1; background: var(--line); border-radius: 999px; transition: background 0.3s; }
@@ -1232,7 +1233,7 @@
     let LANG = (() => { try { return localStorage.getItem(LANG_KEY) || ''; } catch (e) { return ''; } })();
     let ES = null, ES_RX = [], ES_RX_BY = new Map(), ES_MEMO = new Map(), esObserver = null;
     const ES_ATTRS = ['placeholder', 'aria-label', 'title', 'alt', 'label']; // label: <optgroup>
-    const ES_SKIP = '[translate="no"], .notranslate, script, style, textarea, .logo, .post-body, .post-name, .cmt, .dm-bubble';
+    const ES_SKIP = '[translate="no"], .notranslate, script, style, textarea, .logo, .post-body, .post-name, .cwho, .cwho + span, .dm-bubble';
     function langIsEs() { return LANG === 'es'; }
     function esLocale() { return LANG === 'es' ? 'es-MX' : undefined; }
     function esNorm(t) { return String(t).replace(/\s+/g, ' ').trim(); }
@@ -2332,12 +2333,23 @@
       window.scrollTo(0, 0);
     }
 
-    function toast(msg) {
+    // action (optional): { label, fn, ms } adds one tappable button (e.g. Undo)
+    // and keeps the toast up longer (8 s unless ms says otherwise)
+    function toast(msg, action) {
       const t = document.getElementById('toast');
       t.textContent = msg;
+      t.style.pointerEvents = '';
+      const act = action && action.label && typeof action.fn === 'function' ? action : null;
+      if (act) {
+        const b = document.createElement('button');
+        b.type = 'button'; b.className = 'toast-act'; b.textContent = act.label;
+        b.onclick = () => { clearTimeout(window._tt); t.classList.remove('show'); t.style.pointerEvents = ''; b.disabled = true; act.fn(); };
+        t.appendChild(b);
+        t.style.pointerEvents = 'auto';
+      }
       t.classList.add('show');
       clearTimeout(window._tt);
-      window._tt = setTimeout(() => t.classList.remove('show'), 1800);
+      window._tt = setTimeout(() => { t.classList.remove('show'); t.style.pointerEvents = ''; }, act ? (act.ms || 8000) : 1800);
     }
 
     // ---------- Flow entry ----------
@@ -2484,6 +2496,18 @@
         .replace(/[&<>"]/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;' }[c]))
         .replace(/[\r\n]+/g, ' ');
     }
+    // Remove/delete taps carry the item's identity as well as its position: a sync
+    // can reorder or replace a list between the render and the tap. itemAt finds
+    // the item the button was drawn for, or -1 (then nothing is removed).
+    function itemSig(o) { return o ? [o.id, o.name || o.what || o.label, o.url || o.time || o.species, o.ms || o.breed].map(v => String(v == null ? '' : v)).join('|') : ''; }
+    function sigArg(o) { return '\'' + jsStr(itemSig(o)) + '\''; }
+    function itemAt(list, i, sig) {
+      if (!Array.isArray(list)) return -1;
+      if (sig == null) return list[i] ? i : -1;
+      if (list[i] && itemSig(list[i]) === sig) return i;
+      return list.findIndex(o => itemSig(o) === sig);
+    }
+    function listChanged() { toast('That list just changed. Please try again.'); }
     function val(id) { const e = document.getElementById(id); return e ? e.value.trim() : ''; }
     function vbadge() { return '<span class="verified" title="Verified by Petfi">✔︎</span>'; }
     // The badge is granted by Petfi on the server (profiles.verified); the app only displays it
@@ -3271,9 +3295,10 @@
       const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink', like: '❤️ Like' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
-        '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span>' +
-          (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) && !isAdmin() ? '<span title="Report comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
-          (c.cid && ((cloudUser && c.authorId === cloudUser.id) || isAdmin()) ? '<span title="Delete comment" style="margin-left:0.4rem;cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteComment(' + Number(c.cid) + ')">' + (cloudUser && c.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') +
+        '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span>' + (c.edited ? '<small style="color:var(--muted);white-space:nowrap;">(edited)</small>' : '') +
+          (c.cid && cloudUser && c.authorId === cloudUser.id ? '<span title="Edit comment" style="margin-left:0.15rem;padding:0.2rem 0.3rem;cursor:pointer;opacity:0.65;font-size:0.85rem;" onclick="editComment(' + Number(c.cid) + ')">✏️</span>' : '') +
+          (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) && !isAdmin() ?'<span title="Report comment" style="margin-left:0.15rem;padding:0.2rem 0.3rem;cursor:pointer;opacity:0.55;font-size:0.85rem;" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
+          (c.cid && ((cloudUser && c.authorId === cloudUser.id) || isAdmin()) ? '<span title="Delete comment" style="margin-left:0.15rem;padding:0.2rem 0.3rem;cursor:pointer;opacity:0.65;font-size:0.85rem;" onclick="deleteComment(' + Number(c.cid) + ')">' + (cloudUser && c.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') +
         '</div>').join('');
       const nCmts = (p.comments || []).length;
       const likes = Number(p.likes) || 0;
@@ -3282,7 +3307,8 @@
         ? '<button data-on="' + (p.likedByMe ? '1' : '') + '"' + (p.likedByMe ? ' class="on"' : '') + ' onclick="toggleCloudLike(' + i + ',this)">' + react + ' <span class="cnt">' + likes + '</span></button>'
         : '<button data-on="" onclick="likePost(this,' + likes + ',\'' + (VOICE_PLAYERS[p.kind] ? p.kind : 'like') + '\')">' + react + ' <span class="cnt">' + likes + '</span></button>';
       const del = p.mine
-        ? '<span class="post-tool" title="Delete post" onclick="deleteMyPost(' + i + ')">🗑</span>'
+        ? (p.cloudId ? '<span class="post-tool" title="Edit post" onclick="editMyPost(' + Number(p.cloudId) + ')">✏️</span>' : '') +
+          '<span class="post-tool" title="Delete post" onclick="deleteMyPost(' + i + ')">🗑</span>'
         : isAdmin() && p.cloudId
           ? '<span class="post-tool" title="Remove this post (admin)" onclick="adminDeletePost(' + Number(p.cloudId) + ')">🛡️🗑</span>'
           : '<span class="post-tool" style="color:var(--muted);" title="Report post" onclick="openReport(\'post\',\'' + jsStr(p.who) + '\',' + (Number(p.cloudId) || 'null') + ')">🚩</span>';
@@ -3294,8 +3320,8 @@
         (pinned ? '<div class="post-pin">📌 Pinned</div>' : '') +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
-          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + '</div></div>' +
-          (pinTool ? '<span style="margin-left:auto;display:flex;">' + pinTool + del + '</span>' : del) +
+          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + '</div><div class="post-sub">' + esc(p.sub) + (p.edited ? '<span> · edited</span>' : '') + '</div></div>' +
+          (pinTool || (p.mine && p.cloudId) ? '<span style="margin-left:auto;display:flex;">' + pinTool + del + '</span>' : del) +
         '</div>' +
         (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + vidHtml + photo +
         '<div class="post-actions">' +
@@ -3467,6 +3493,81 @@
       if (state.tab === 'home') openTab('home');
       toast('Comment deleted 🗑');
     }
+    // ---- Edit your own post or comment: only the text changes. The row's
+    // content is re-read first so photos, video and everything else stay.
+    // Until the server allows authors to update, the update returns zero
+    // rows and nothing changes on screen.
+    function editTextSheet(title, text, saveCall) {
+      openSheet(title,
+        '<textarea id="edit-text" maxlength="600" style="width:100%;min-height:110px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;">' + esc(text) + '</textarea>' +
+        '<button class="btn" id="edit-text-btn" onclick="' + saveCall + '">Save changes</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Cancel</button>');
+    }
+    function editMyPost(cloudId) {
+      const p = FEED.find(x => x.cloudId === cloudId);
+      if (!p || !p.mine) return;
+      if (!canSaveToCloud('edit your post')) return;
+      editTextSheet('✏️ Edit your post', p.text, 'saveEditPost(' + Number(cloudId) + ')');
+    }
+    function editComment(cid) {
+      let c = null;
+      FEED.forEach(p => { (p.comments || []).forEach(x => { if (x.cid === cid) c = x; }); });
+      if (!c || !cloudUser || c.authorId !== cloudUser.id) return;
+      if (!canSaveToCloud('edit your comment')) return;
+      editTextSheet('✏️ Edit your comment', c.text, 'saveEditComment(' + Number(cid) + ')');
+    }
+    // Shared by both: re-read the row, swap the text, ask for the row back
+    async function saveEditedText(table, id, text) {
+      const cur = await cloud.from(table).select('content').eq('id', id).eq('author_id', cloudUser.id).maybeSingle();
+      if (cur.error || !cur.data) return { fail: 'error' };
+      const content = Object.assign({}, cur.data.content || {}, { text: text, edited: new Date().toISOString() });
+      let res;
+      try { res = await cloud.from(table).update({ content }).eq('id', id).eq('author_id', cloudUser.id).select('id'); } catch (e) { res = { error: e }; }
+      if (res.error) return { fail: 'error' };
+      if (!res.data || !res.data.length) return { fail: 'off' };
+      return { content };
+    }
+    function editFailToast(r) {
+      toast(r.fail === 'off' ? '⚠️ Editing isn\'t switched on yet. Please try again later.' : '⚠️ Couldn\'t save your changes. Please try again.');
+      uiSound('error');
+    }
+    async function saveEditPost(cloudId) {
+      const p = FEED.find(x => x.cloudId === cloudId);
+      if (!p || !p.mine || !canSaveToCloud('edit your post')) return;
+      const t = val('edit-text');
+      const hasMedia = safePhotos(p.photoUrls).length || safeVideo(p.videoUrl);
+      if (!t && !hasMedia) { toast('Write something, or delete the post instead'); return; }
+      if (t === p.text) { closeSheet(); return; }
+      if (postScope(p) === 'national') { const bad = pgOffender(t); if (bad) { toast('🌎 “' + bad + '” can\'t go in the Everyone feed — reword it'); uiSound('error'); return; } }
+      const btn = document.getElementById('edit-text-btn');
+      if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Saving…'; }
+      const r = await saveEditedText('posts', cloudId, t);
+      if (btn) { btn.disabled = false; btn.textContent = 'Save changes'; }
+      if (r.fail) { editFailToast(r); return; }
+      FEED.forEach(x => { if (x.cloudId === cloudId) { x.text = t; x.edited = r.content.edited; } });
+      lastPostsFetch = Date.now();
+      closeSheet();
+      if (state.tab === 'home') openTab('home');
+      toast('✏️ Post updated');
+    }
+    async function saveEditComment(cid) {
+      let c = null, post = null;
+      FEED.forEach(p => { (p.comments || []).forEach(x => { if (x.cid === cid) { c = x; post = p; } }); });
+      if (!c || !cloudUser || c.authorId !== cloudUser.id || !canSaveToCloud('edit your comment')) return;
+      const t = val('edit-text');
+      if (!t) { toast('Write something, or delete the comment instead'); return; }
+      if (t === c.text) { closeSheet(); return; }
+      if (postScope(post) === 'national') { const bad = pgOffender(t); if (bad) { toast('🌎 “' + bad + '” can\'t go in the Everyone feed — reword it'); uiSound('error'); return; } }
+      const btn = document.getElementById('edit-text-btn');
+      if (btn) { if (btn.disabled) return; btn.disabled = true; btn.textContent = 'Saving…'; }
+      const r = await saveEditedText('post_comments', cid, t);
+      if (btn) { btn.disabled = false; btn.textContent = 'Save changes'; }
+      if (r.fail) { editFailToast(r); return; }
+      FEED.forEach(p => { (p.comments || []).forEach(x => { if (x.cid === cid) { x.text = t; x.edited = true; } }); });
+      closeSheet();
+      if (state.tab === 'home') { openTab('home'); const d = document.getElementById('cmts-' + FEED.indexOf(post)); if (d) d.style.display = 'block'; }
+      toast('✏️ Comment updated');
+    }
     // Group posts: their author, or an admin
     async function deleteGroupPost(i, gid) {
       if (!cloud || !cloudUser) return;
@@ -3513,9 +3614,10 @@
       // Cloud posts keep their comments for everyone. The name shown to
       // others comes from the author's profile, not from this row.
       uiSound('send'); haptic(8);
-      const { error } = await cloud.from('post_comments').insert({ post_id: p.cloudId, author_id: cloudUser.id, content: { who, text: t } });
+      const { data: cRow, error } = await cloud.from('post_comments').insert({ post_id: p.cloudId, author_id: cloudUser.id, content: { who, text: t } }).select('id').maybeSingle();
       if (error) { div.remove(); inp.value = t; toast('⚠️ Comment didn\'t send — try again'); uiSound('error'); return; }
-      p.comments.push({ who, text: t });
+      // Keep its id, so it can be edited or deleted before the next feed load
+      p.comments.push(cRow && cRow.id ? { who, text: t, authorId: cloudUser.id, cid: cRow.id } : { who, text: t });
       const btn = document.querySelector('#cmts-' + i) && document.querySelector('#cmts-' + i).previousElementSibling && document.querySelector('#cmts-' + i).previousElementSibling.children[1];
       if (btn) btn.textContent = '💬 ' + p.comments.length;
       if (p.authorId) livePing(p.authorId, { type: 'comment', post: p.cloudId });
@@ -3923,6 +4025,8 @@
       h += servicesSection('nearby'); // walkers, sitters, groomers… from ID-verified members
       // Members first — the people (and pets) you can actually talk to
       h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
+      if (cloudUser) h += '<input id="member-q" type="text" enterkeyhint="search" aria-label="Find a member by username" placeholder="🔎 Find a member by username" autocomplete="off" maxlength="40" value="' + esc(MEMBER_Q) + '" oninput="memberSearchInput(this.value)" style="margin:0 0 0.5rem;">' +
+        '<div id="member-res">' + memberResultsHTML() + '</div>';
       if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
       if (!cloudUser) {
         h += '<div class="note">Log in to see members and make friends.</div>';
@@ -3937,7 +4041,7 @@
             (u.status ? '<div class="status-bubble">' + esc(u.status) + '</div>' : '') +
             '<div class="u-avatar" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + personAvatar(u, 62) + '</div>' +
             '<div class="u-name" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + '</div>' +
-            '<div class="u-meta">' + esc(personMeta(u)) + (u._mi != null ? ' · ' + Number(u._mi) + ' mi' : '') + '</div>' +
+            '<div class="u-meta">' + esc(personMeta(u)) + (u._mi != null && isFinite(Number(u._mi)) ? ' · ' + (Number(u._mi) >= 5 ? 'within ' + Number(u._mi) + ' mi' : 'nearby') : '') + '</div>' +
             '<div class="u-actions">' +
               '<button class="btn-friend" onclick="openPersonSheet(' + i + ')">👤 View</button>' +
               '<button class="btn-sound" onclick="sendCloudBark(' + i + ')" title="Say hi">🔊</button>' +
@@ -4384,7 +4488,7 @@
     let donateShelters = null; // shelters near the user's ZIP, cached
 
     function pledgeMoney(cents) { const d = (+cents || 0) / 100; return '$' + (Number.isInteger(d) ? d.toLocaleString('en-US') : d.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })); }
-    function pledgeDate(d) { try { return new Date(String(d).length === 10 ? d + 'T12:00:00' : d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return esc(d); } }
+    function pledgeDate(d) { try { return new Date(String(d).length === 10 ? d + 'T12:00:00' : d).toLocaleDateString(esLocale(), { month: 'short', day: 'numeric', year: 'numeric' }); } catch (e) { return esc(d); } }
 
     // ---- The live tracker: every paid gift + half of each month's profit ----
     // Totals come from petfi_pledge_totals() (public, sums only). Profit is
@@ -5394,7 +5498,7 @@
             ? '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>.</div>'
             : '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 Amazon\'s best-selling pet products, most popular first. <span class="link" onclick="openSell()">Sell your own</span> and it shows up here too.</p>');
       } else {
-        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + nBest + ' best seller' + (nBest === 1 ? '' : 's') + ' for ' + esc(state.storeCat.toLowerCase() === 'aquatic' ? 'fish & aquariums' : state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
+        h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + nBest + ' best seller' + (nBest === 1 ? '' : 's') + ' for ' + esc({ aquatic: 'fish & aquariums', 'small pets': 'small pets', farm: 'farm animals' }[state.storeCat.toLowerCase()] || state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
       }
       // 🧬 needs a sentence of context — nobody shops for a cheek swab by name
       if (state.storeType === 'DNA') {
@@ -5613,7 +5717,8 @@
       if (!cloudUser) { toast('Log in to join groups'); return; }
       if (g.joinBusy) return; g.joinBusy = true;
       if (g.joined) {
-        const { error } = await cloud.from('group_members').delete().eq('group_id', g.cloudId).eq('user_id', cloudUser.id);
+        // No error means we are out: zero rows back is a leave already done on another device
+        const { data: gone, error } = await cloud.from('group_members').delete().eq('group_id', g.cloudId).eq('user_id', cloudUser.id).select('group_id');
         if (!error) { g.joined = false; g.members = Math.max(0, g.members - 1); g.memberIds = (g.memberIds || []).filter(x => x !== cloudUser.id); g.meta = groupMeta(g); toast('Left ' + g.title); }
         else toast('⚠️ Couldn\'t leave the group');
       } else if (g.isPrivate && g.creatorId !== cloudUser.id) {
@@ -5702,7 +5807,7 @@
           '<span class="fi">' + (FAV_ICON[f.cat] || '⭐') + '</span>' +
           '<span class="ft">' + esc(f.label) + '</span>' +
           '<span class="fl">' + (FAV_LABELS[f.cat] || '') + ' ↗</span>' +
-          '<span title="Remove favorite" onclick="event.stopPropagation();removeFav(' + i + ')" style="color:var(--muted);margin-left:0.4rem;cursor:pointer;font-size:0.85rem;padding:0.2rem;">✕</span>' +
+          '<span title="Remove favorite" onclick="event.stopPropagation();removeFav(' + i + ',' + sigArg(f) + ')" style="color:var(--muted);margin-left:0.4rem;cursor:pointer;font-size:0.85rem;padding:0.2rem;">✕</span>' +
         '</div>').join('');
 
       // Currently holding — dog parks this pet is the newest to have claimed
@@ -5722,7 +5827,7 @@
         ? state.suggestions.map((s, i) =>
             '<div class="fav-item" onclick="openLink(\'' + jsStr(s.url || '#') + '\')">' +
               '<span class="fi">🛍️</span><span class="ft">' + esc(s.label) + '</span><span class="fl">Shop ↗</span>' +
-              '<span title="Remove" onclick="event.stopPropagation();removeSuggestion(' + i + ')" style="color:var(--muted);margin-left:0.4rem;cursor:pointer;font-size:0.85rem;padding:0.2rem;">✕</span></div>').join('')
+              '<span title="Remove" onclick="event.stopPropagation();removeSuggestion(' + i + ',' + sigArg(s) + ')" style="color:var(--muted);margin-left:0.4rem;cursor:pointer;font-size:0.85rem;padding:0.2rem;">✕</span></div>').join('')
         : '<div class="note">Nothing here yet — recommend the food, toys or gear you swear by. Your profile visitors can buy straight from your links.</div>';
 
       // Reminders & calendar live in the private "My Care" tab on Home
@@ -5837,8 +5942,13 @@
         c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, 320, 320);
         c.toBlob(blob => { if (blob) uploadAvatarPhoto(blob); else toast('⚠️ Couldn\'t read that photo'); }, 'image/jpeg', 0.85);
       };
-      img.onerror = () => { URL.revokeObjectURL(url); toast('⚠️ Couldn\'t read that photo'); };
+      img.onerror = () => photoUnreadable(url);
       img.src = url;
+    }
+    // The browser couldn't decode a picked photo (HEIC on most browsers, a broken file): say so
+    function photoUnreadable(url) {
+      try { URL.revokeObjectURL(url); } catch (e) {}
+      toast('⚠️ That photo type can\'t be read here. Try a JPG or PNG, or take a screenshot of it.');
     }
     async function uploadAvatarPhoto(blob) {
       const old = state.avatarUrl;
@@ -6393,7 +6503,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.25.0';
+    const APP_VERSION = '1.26.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -6451,7 +6561,7 @@
         '<p class="lu">The short version: we collect only what the app needs, we don\'t sell your data, and you can delete everything.</p>' +
         '<h3>What we collect</h3>' +
         '<ul><li><b>Account:</b> your email and password (password is stored encrypted by our provider, never readable by us).</li>' +
-        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members; its approximate centre is stored privately too, to find members near you, and they see only a distance in whole miles. Your age is private too, unless you publish a Mate Match for people card.</li>' +
+        '<li><b>Profile:</b> the name, species/breed, photos, status, and ZIP code you choose to add. Your ZIP itself is stored in your private account data and is never shown to other members; its approximate center is stored privately too, to find members near you, and they see only a distance in whole miles. Your age is private too, unless you publish a Mate Match for people card.</li>' +
         '<li><b>Content:</b> your posts, comments, messages, listings, groups and favorites.</li>' +
         '<li><b>Pledge help requests (optional):</b> a request for help from the Pledge fund includes the bill you upload, which only you and Petfi\'s reviewers can see.</li>' +
         '<li><b>Dating profile (optional, Owner accounts, 18+):</b> Mate Match for people asks your age, <b>gender</b>, <b>who you\'re interested in</b> (men, women or everyone), the age range and pets you\'d like, a search radius and an optional bio. Saving it publishes a card with your first name, age, gender, who you\'re interested in, age range, bio, kinds of pets, verified status and your town with a point rounded to about 1 km. While it\'s published, <b>other signed-in members can see it</b>. Never your ZIP, email or exact location. To take it down, tap <b>Hide my card</b> in your Mate Match for people preferences, email <a href="mailto:' + SUPPORT_EMAIL + '" style="color:var(--brand);">' + SUPPORT_EMAIL + '</a> or delete your account.</li>' +
@@ -6471,7 +6581,7 @@
         '<li>Sharing: a profile link or QR code opens that profile for anyone who has it, <b>even without a Petfi account</b> — the same public profile members see (name, picture or icon, species or breed, badge, status). A link you send carries your member id, so if someone joins from it they send you a friend request.</li>' +
         '<li>Your ZIP is used to show nearby places and, if you opt into Mate Match for people, to estimate distance to other opted-in members.</li>' +
         '<li>Crash reports are used only to fix problems.</li>' +
-        '<li>We <b>do not sell your personal data</b> and we don\'t show third-party ad trackers.</li></ul>' +
+        '<li><b>We do not sell your personal data</b> and we don\'t show third-party ad trackers.</li></ul>' +
         '<h3>Who else sees data</h3>' +
         '<ul><li><b>Supabase</b> hosts our database, login, and photo storage.</li>' +
         '<li><b>OpenStreetMap services</b> (Nominatim &amp; Overpass) receive your ZIP code when you search for nearby places — never your name or email.</li>' +
@@ -7076,15 +7186,21 @@
       loadBlockedMe();
       const { data, error } = await cloud.from('blocks').select('blocked_id');
       if (error || !data) return;
-      state.blocked = state.blocked || [];
+      // The server list is the truth (an unblock on another device must stick).
+      // Only blocks this device made that never reached the server are kept and pushed.
+      const old = state.blocked || [], pend = state.blocksPending || {};
       const inCloud = {};
-      let added = false;
-      data.forEach(r => { inCloud[r.blocked_id] = 1; if (!isBlocked(r.blocked_id)) { state.blocked.push({ id: r.blocked_id, name: authorName(r.blocked_id, 'A member') }); added = true; } });
-      // Blocks made on this device before the table existed go up now
-      state.blocked.filter(b => !inCloud[b.id] && UUID_RE.test(b.id || '')).forEach(b => {
-        cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: b.id }).then(() => {});
+      data.forEach(r => { inCloud[r.blocked_id] = 1; });
+      const next = data.map(r => { const o = old.find(b => b.id === r.blocked_id); return { id: r.blocked_id, name: o ? o.name : authorName(r.blocked_id, 'A member') }; });
+      old.filter(b => pend[b.id] && !inCloud[b.id] && UUID_RE.test(b.id || '')).forEach(b => {
+        next.push(b);
+        cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: b.id })
+          .then(({ error }) => { if (!error || /duplicate/i.test(error.message)) { delete (state.blocksPending || {})[b.id]; saveState({ bg: true }); } });
       });
-      if (added) saveState({ bg: true });
+      Object.keys(pend).forEach(id => { if (inCloud[id]) delete pend[id]; });
+      const changed = JSON.stringify(old.map(b => b.id).sort()) !== JSON.stringify(next.map(b => b.id).sort());
+      state.blocked = next;
+      if (changed) { lastPeopleFetch = 0; lastPostsFetch = 0; saveState({ bg: true }); }
     }
     function blockUser(id, name) {
       openSheet('🚫 Block ' + esc(name) + '?',
@@ -7095,9 +7211,14 @@
     function reallyBlock(id, name) {
       state.blocked = state.blocked || [];
       if (!isBlocked(id)) state.blocked.push({ id, name });
+      // Pending until the server has it, so the next load pushes it instead of dropping it
+      if (UUID_RE.test(id)) { state.blocksPending = state.blocksPending || {}; state.blocksPending[id] = 1; }
       saveState();
       if (cloud && cloudUser && UUID_RE.test(id)) cloud.from('blocks').insert({ blocker_id: cloudUser.id, blocked_id: id })
-        .then(({ error }) => { if (error && !/duplicate/i.test(error.message)) console.warn('block:', error.message); });
+        .then(({ error }) => {
+          if (error && !/duplicate/i.test(error.message)) { console.warn('block:', error.message); return; }
+          if (state.blocksPending) { delete state.blocksPending[id]; saveState({ bg: true }); }
+        });
       // Scrub them from everything already on screen
       for (let i = FEED.length - 1; i >= 0; i--) if (FEED[i].authorId === id) FEED.splice(i, 1);
       PEOPLE = PEOPLE.filter(p => p.id !== id);
@@ -7112,14 +7233,22 @@
           ? list.map((b, i) =>
               '<div class="row"><div class="ricon">🚫</div>' +
               '<div class="rmain"><div class="rtitle">' + esc(b.name) + '</div><div class="rmeta">Can\'t message you, add you or see your profile</div></div>' +
-              '<div class="raction"><button class="pill-btn ghost" onclick="unblockUser(' + i + ')">Unblock</button></div></div>').join('')
+              '<div class="raction"><button class="pill-btn ghost" onclick="unblockUser(\'' + jsStr(b.id) + '\')">Unblock</button></div></div>').join('')
           : '<div class="note">You haven\'t blocked anyone. If someone bothers you, open their profile and tap 🚫 Block.</div>') +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
-    function unblockUser(i) {
-      const b = (state.blocked || []).splice(i, 1)[0];
+    function unblockUser(id) {
+      // By id, not list position: the list can change (sync) between render and tap
+      const list = state.blocked || [], i = list.findIndex(x => x.id === id);
+      const b = i >= 0 ? list.splice(i, 1)[0] : null;
+      if (state.blocksPending) delete state.blocksPending[id];
       saveState();
-      if (b && cloud && cloudUser) cloud.from('blocks').delete().eq('blocker_id', cloudUser.id).eq('blocked_id', b.id).then(() => {});
+      if (b && cloud && cloudUser) cloud.from('blocks').delete().eq('blocker_id', cloudUser.id).eq('blocked_id', b.id)
+        .then(({ error }) => {
+          if (!error) return;
+          if (!isBlocked(b.id)) { (state.blocked = state.blocked || []).push(b); saveState(); }
+          toast('⚠️ Couldn\'t unblock ' + b.name + '. Try again in a moment.');
+        });
       lastPeopleFetch = 0; lastPostsFetch = 0; // let them reappear on next refresh
       openBlockedList();
       if (b) toast(b.name + ' unblocked');
@@ -7268,8 +7397,12 @@
       } else {
         h += state.reminders.map((rm, i) =>
           '<div class="row"><div class="ricon">' + remIcon(rm.what) + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(rm.what) + '</div><div class="rmeta">' + esc(rm.freqLabel) + (rm.time ? ' at ' + esc(rm.time) : '') + ' · next ' + nextIn(rm.next) + '</div></div>' +
-          '<div class="raction"><button class="pill-btn ghost" onclick="deleteReminder(' + i + ')">🗑</button></div></div>').join('');
+          '<div class="rmain"><div class="rtitle">' + esc(rm.what) + '</div><div class="rmeta">' + esc(rm.freqLabel) + (rm.time ? ' at ' + esc(rm.time) : '') + ' · next ' + nextIn(rm.next) +
+            (rm.snoozeUntil > Date.now() ? ' · 😴 snoozed until ' + esc(new Date(rm.snoozeUntil).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' })) : '') + '</div>' +
+            (remSnoozable(rm) ? '<span class="link" style="font-size:0.78rem;" onclick="snoozeReminder(' + i + ',' + sigArg(rm) + ')">😴 Snooze 1 hour</span>' : '') + '</div>' +
+          // Dose reminders follow their med, so they're changed from the med itself
+          '<div class="raction" style="display:flex;gap:0.3rem;">' + (rm.medId ? '' : '<button class="pill-btn ghost" title="Edit reminder" onclick="openAddReminder(' + i + ',' + sigArg(rm) + ')">✏️</button>') +
+            '<button class="pill-btn ghost" onclick="deleteReminder(' + i + ',' + sigArg(rm) + ')">🗑</button></div></div>').join('');
       }
 
       // Pet calendar
@@ -7500,6 +7633,7 @@
           postPhotos.push(c.toDataURL('image/jpeg', 0.85));
           renderPostPreviews();
         };
+        img.onerror = () => photoUnreadable(url);
         img.src = url;
       });
       input.value = '';
@@ -7685,7 +7819,8 @@
         '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Favorites show on your public profile so friends can shop or visit the same spots — affiliate links welcome.</p>' +
         '<button class="btn" onclick="saveFav()">Add to favorites</button>');
     }
-    function removeFav(i) {
+    function removeFav(i, sig) {
+      i = itemAt(state.favorites, i, sig); if (i < 0) { listChanged(); openTab('profile'); return; }
       state.favorites.splice(i, 1);
       saveState(); cloudSaveProfile();
       openTab('profile'); toast('Removed from favorites');
@@ -7705,7 +7840,8 @@
       saveState(); cloudSaveProfile();
       closeSheet(); openTab('profile'); toast('Added to your suggestions 🛍️');
     }
-    function removeSuggestion(i) {
+    function removeSuggestion(i, sig) {
+      i = itemAt(state.suggestions, i, sig); if (i < 0) { listChanged(); openTab('profile'); return; }
       state.suggestions.splice(i, 1);
       saveState(); cloudSaveProfile();
       openTab('profile'); toast('Suggestion removed');
@@ -7772,6 +7908,7 @@
           sellPhotos.push(c.toDataURL('image/jpeg', 0.82));
           renderSellPreviews();
         };
+        img.onerror = () => photoUnreadable(url);
         img.src = url;
       });
       input.value = '';
@@ -8200,6 +8337,7 @@
           adPhotos.push(c.toDataURL('image/jpeg', 0.85));
           renderAdPreviews();
         };
+        img.onerror = () => photoUnreadable(url);
         img.src = url;
       });
       input.value = '';
@@ -8738,12 +8876,13 @@
           const m = p.id ? MATES_VIEW.find(x => x.cloudId === p.id) : null;
           return '<div class="row"><div class="ricon">💘</div><div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(p.breed || '') + (m ? '' : ' · no longer listed') + '</div></div>' +
             '<div class="raction" style="display:flex;gap:0.3rem;">' + (m ? '<button class="pill-btn" onclick="openMateDetail(' + MATES_VIEW.indexOf(m) + ')">Open</button>' : '') +
-            '<button class="pill-btn ghost" onclick="removeMatePick(' + k + ')">Remove</button></div></div>';
+            '<button class="pill-btn ghost" onclick="removeMatePick(' + k + ',' + sigArg(p) + ')">Remove</button></div></div>';
         }).join('') : '<div class="note">Tap ⭐ Save to my picks on any listing to keep it here.</div>') +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
-    function removeMatePick(k) {
-      (state.matePicks || []).splice(k, 1);
+    function removeMatePick(k, sig) {
+      k = itemAt(state.matePicks, k, sig); if (k < 0) { listChanged(); openMyPicks(); return; }
+      state.matePicks.splice(k, 1);
       saveState(); if (state.showMates) cloudSaveProfile();
       openMyPicks();
     }
@@ -8926,6 +9065,7 @@
           brPhotos.push(c.toDataURL('image/jpeg', 0.84));
           renderBrPreviews();
         };
+        img.onerror = () => photoUnreadable(url);
         img.src = url;
       });
       input.value = '';
@@ -9294,6 +9434,11 @@
         .then(({ error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); return; }
           if (mateCtx) { state.mateBarks = state.mateBarks || {}; state.mateBarks[id] = 1; saveState(); }
+          // Answering from the bell counts as reading their hello: clear its unread badge
+          let lastIn = '';
+          MY_MESSAGES.forEach(m => { if (m.sender_id === id && m.recipient_id === cloudUser.id && m.created_at > lastIn) lastIn = m.created_at; });
+          state.dmSeen = state.dmSeen || {};
+          if (lastIn && (!state.dmSeen[id] || state.dmSeen[id] < lastIn)) { state.dmSeen[id] = lastIn; saveState({ bg: true }); updateBadges(); }
           if (matchedWith(id)) {
             state.matchNotified = state.matchNotified || {};
             state.matchNotified[id] = 1; saveState();
@@ -9368,7 +9513,60 @@
         (canPost
           ? '<div class="cmt-input-row"><input id="grp-post-in" type="text" placeholder="Post to the group..." onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
             '<button class="pill-btn" onclick="postToGroup(' + i + ')">Post</button></div>'
-          : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? (g.requested ? '⏳ Request sent' : '🔒 Request to join') : '👥 Join to post') + '</button>');
+          : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? (g.requested ? '⏳ Request sent' : '🔒 Request to join') : '👥 Join to post') + '</button>') +
+        groupOwnerHtml(g, i);
+    }
+    // ---- Owner tools: the group's creator sees its members (with Remove)
+    // and can delete the group. Server rules: the creator may delete member
+    // rows and the group itself.
+    function groupOwnerHtml(g, i) {
+      if (!g.cloudId || !g.mine || !cloudUser) return '';
+      const others = (g.memberIds || []).filter(id => id !== cloudUser.id);
+      return '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>👥 Members (' + others.length + ')</h3></div>' +
+        (others.length ? others.map(uid => '<div class="row"><div class="ricon" style="overflow:hidden;cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(uid) + '\')">' + (PROFILE_BY_ID[uid] ? personAvatar(PROFILE_BY_ID[uid], 40) : '🐾') + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(authorName(uid, 'A member')) + '</div></div>' +
+          '<div class="raction"><button class="pill-btn ghost" onclick="removeGroupMember(' + Number(g.cloudId) + ',\'' + jsStr(uid) + '\')">Remove</button></div></div>').join('')
+          : '<p class="sub" style="font-size:0.8rem;">Nobody else has joined yet.</p>') +
+        '<p style="text-align:center;margin-top:0.9rem;"><span class="link" style="color:#c0392b;" onclick="confirmDeleteGroup(' + Number(g.cloudId) + ')">🗑 Delete group</span></p>';
+    }
+    function groupByCloudId(gid) { const i = GROUPS_VIEW.findIndex(x => x.cloudId === gid); return { g: i >= 0 ? GROUPS_VIEW[i] : null, i }; }
+    async function removeGroupMember(gid, uid) {
+      const { g, i } = groupByCloudId(gid);
+      if (!g || !g.mine || !cloud || !cloudUser || uid === cloudUser.id) return;
+      const name = authorName(uid, 'this member');
+      if (!confirm('Remove ' + name + ' from ' + g.title + '?')) return;
+      let res;
+      try { res = await cloud.from('group_members').delete().eq('group_id', gid).eq('user_id', uid).select('group_id'); } catch (e) { res = { error: e }; }
+      if (res.error || !res.data || !res.data.length) { toast('⚠️ Couldn\'t remove that member. Please try again.'); uiSound('error'); return; }
+      g.memberIds = (g.memberIds || []).filter(x => x !== uid);
+      g.members = Math.max(0, (g.members || 0) - 1); g.meta = groupMeta(g);
+      toast(name + ' was removed from the group');
+      openGroupDetail(i);
+    }
+    function confirmDeleteGroup(gid) {
+      const { g } = groupByCloudId(gid);
+      if (!g || !g.mine) return;
+      openSheet('Delete ' + esc(g.title) + '?',
+        '<p class="sub">The group <b>' + esc(g.title) + '</b> will be deleted for everyone, and the posts in it are removed too. This can\'t be undone.</p>' +
+        '<button class="btn" onclick="reallyDeleteGroup(' + Number(gid) + ')">🗑 Yes, delete the group</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Keep it</button>');
+    }
+    async function reallyDeleteGroup(gid) {
+      const { g } = groupByCloudId(gid);
+      if (!g || !g.mine || !cloud || !cloudUser) return;
+      let res;
+      try { res = await cloud.from('groups').delete().eq('id', gid).eq('creator_id', cloudUser.id).select('id'); } catch (e) { res = { error: e }; }
+      if (res.error || !res.data || !res.data.length) {
+        // e.g. posts or members that don't go with the group (a foreign key without cascade)
+        console.warn('delete group:', res.error ? (res.error.code || '') + ' ' + (res.error.message || res.error) : 'no row returned');
+        toast('⚠️ Couldn\'t delete the group'); uiSound('error'); return;
+      }
+      CLOUD_GROUPS = CLOUD_GROUPS.filter(x => x.cloudId !== gid);
+      GROUPS_VIEW = GROUPS_VIEW.filter(x => x.cloudId !== gid);
+      if (state.groupRequests) delete state.groupRequests['c:' + gid];
+      closeSheet();
+      if (state.tab === 'groups') openTab('groups');
+      toast('Group deleted 🗑');
     }
     async function openGroupDetail(i) {
       const g = GROUPS_VIEW[i]; if (!g) return;
@@ -9376,7 +9574,7 @@
         openSheet(esc(g.emo) + ' ' + esc(g.title), '<p class="sub">Loading posts…</p>');
         const mySeq = sheetSeq;
         const { data } = await cloud.from('group_posts').select('id, author_id, content, created_at').eq('group_id', g.cloudId).order('created_at', { ascending: false }).limit(30);
-        await ensureProfiles((data || []).map(r => r.author_id).concat(g.requests || []));
+        await ensureProfiles((data || []).map(r => r.author_id).concat(g.requests || []).concat(g.mine ? g.memberIds || [] : []));
         g.posts = (data || []).filter(r => !hiddenUser(r.author_id)).map(r => ({ who: authorName(r.author_id, r.content && r.content.who), text: String((r.content && r.content.text) || ''), at: r.created_at, authorId: r.author_id, gid: r.id }));
         if (sheetSeq !== mySeq) return; // user closed/switched sheets while loading
         openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
@@ -9411,8 +9609,8 @@
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
         (pt.id ? '<button class="btn" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health, meds &amp; vaccines</button>' : '') +
         '<button class="btn' + (pt.id ? ' secondary' : '') + '" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
-        '<button class="btn secondary" onclick="confirmPassed(' + i + ')">🕊️ ' + esc(pt.name) + ' passed away</button>' +
-        '<button class="btn secondary" onclick="confirmRemovePet(' + i + ')">🗑 Remove ' + esc(pt.name) + '</button>');
+        '<button class="btn secondary" onclick="confirmPassed(' + i + ',' + sigArg(pt) + ')">🕊️ ' + esc(pt.name) + ' passed away</button>' +
+        '<button class="btn secondary" onclick="confirmRemovePet(' + i + ',' + sigArg(pt) + ')">🗑 Remove ' + esc(pt.name) + '</button>');
     }
     // ---- In loving memory ----
     // A pet who has passed keeps a place on the profile and their records, and
@@ -9421,16 +9619,18 @@
       const pt = petId && (state.pets || []).find(x => x.id === petId);
       return pt && pt.passed ? pt.passed : '';
     }
-    function confirmPassed(i) {
-      const pt = state.pets[i]; if (!pt) return;
+    function confirmPassed(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
       openSheet('🕊️ We\'re so sorry',
         '<p class="sub">' + esc(pt.name) + '\'s reminders and refill and vaccine alerts will stop. ' + esc(pt.name) + '\'s health record and photos stay right here, in memory. You can undo this any time.</p>' +
         '<label for="pp-date">When did ' + esc(pt.name) + ' pass?</label><input type="date" id="pp-date" value="' + hxToday() + '" max="' + hxToday() + '">' +
-        '<button class="btn" onclick="markPassed(' + i + ')">🕊️ Remember ' + esc(pt.name) + '</button>' +
+        '<button class="btn" onclick="markPassed(' + i + ',' + sigArg(pt) + ')">🕊️ Remember ' + esc(pt.name) + '</button>' +
         '<button class="btn secondary" onclick="openPetDetail(' + i + ')">Go back</button>');
     }
-    function markPassed(i) {
-      const pt = state.pets[i]; if (!pt) return;
+    function markPassed(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
       const d = val('pp-date');
       pt.passed = hxValidYmd(d) && d <= hxToday() ? d : hxToday();
       (state.meds || []).filter(m => m.petId === pt.id && medActive(m)).forEach(m => { m.stopped = hxToday(); syncMedReminder(m); });
@@ -9440,8 +9640,9 @@
       saveState(); openMemorial(i);
       if (state.tab === 'profile') openTab('profile');
     }
-    function unmarkPassed(i) {
-      const pt = state.pets[i]; if (!pt) return;
+    function unmarkPassed(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
       delete pt.passed; saveState(); closeSheet();
       if (state.tab === 'profile') openTab('profile');
       toast(pt.name + '\'s alerts can be turned back on from their meds in My care');
@@ -9460,21 +9661,106 @@
         '<button class="btn" onclick="closeSheet();composeDraft=' + esc(JSON.stringify('Remembering ' + pt.name + ' 🕊️ ')) + ';openCompose()">📸 Share a memory of ' + esc(pt.name) + '</button>' +
         (pt.id ? '<button class="btn secondary" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health record</button>' : '') +
         '<div class="note">💗 A goodbye can be expensive. The Petfi Pledge helps members with cremation costs. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="openDonate()">See how</span></div>' +
-        '<button class="btn secondary" onclick="unmarkPassed(' + i + ')">↺ Undo — ' + esc(pt.name) + ' is still with us</button>' +
-        '<button class="btn secondary" onclick="confirmRemovePet(' + i + ')">🗑 Remove ' + esc(pt.name) + ' from my profile</button>');
+        '<button class="btn secondary" onclick="unmarkPassed(' + i + ',' + sigArg(pt) + ')">↺ Undo — ' + esc(pt.name) + ' is still with us</button>' +
+        '<button class="btn secondary" onclick="confirmRemovePet(' + i + ',' + sigArg(pt) + ')">🗑 Remove ' + esc(pt.name) + ' from my profile</button>');
     }
-    function confirmRemovePet(i) {
-      const pt = state.pets[i]; if (!pt) return;
+    function confirmRemovePet(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
+      // The QR tag and a shared care team are deleted on the server, so Undo can't bring those back
+      const lost = pt.id ? [TAGS[pt.id] ? 'QR tag' : '', myCareTeam(pt.id) ? 'shared care team' : ''].filter(Boolean) : [];
       openSheet('Remove ' + esc(pt.name) + '?',
         '<p class="sub">' + esc(pt.name) + ' will be taken off your profile, along with their meds, vaccines and vet records in My care.</p>' +
-        '<button class="btn" onclick="removePet(' + i + ')">🗑 Yes, remove</button>' +
+        (lost.length ? '<p class="sub">' + esc(pt.name) + '\'s ' + lost.join(' and ') + ' will be deleted too, and Undo can\'t bring ' + (lost.length > 1 ? 'those' : 'that') + ' back.</p>' : '') +
+        '<button class="btn" onclick="removePet(' + i + ',' + sigArg(pt) + ')">🗑 Yes, remove</button>' +
+        '<button class="btn secondary" onclick="savePetCopy(' + i + ',' + sigArg(pt) + ')">📄 Save a copy of ' + esc(pt.name) + '\'s records</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Keep</button>');
     }
-    function removePet(i) {
+    // Everything this device holds about one pet (what hxForgetPet removes locally)
+    function petSnapshot(pt) {
+      const id = pt.id;
+      const of = key => id ? (state[key] || []).filter(x => x.petId === id) : []; // no id: hxForgetPet removes nothing
+      const medIds = new Set(of('meds').map(m => m.id));
+      return {
+        pet: pt,
+        info: id && state.petInfo ? state.petInfo[id] : undefined,
+        meds: of('meds'),
+        reminders: (state.reminders || []).filter(r => r.medId && medIds.has(r.medId)),
+        vaccines: of('vaccines'), visits: of('visits'), journal: of('journal'), supplies: of('supplies'),
+      };
+    }
+    function removePet(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); closeSheet(); return; }
+      const snap = state.pets[i] ? Object.assign(petSnapshot(state.pets[i]), { at: i }) : null;
       const pt = state.pets.splice(i, 1)[0];
       if (pt) hxForgetPet(pt.id);
       saveState(); closeSheet(); openTab('profile');
-      if (pt) toast(pt.name + ' removed 🐾');
+      if (pt) toast(pt.name + ' removed 🐾', { label: 'Undo', fn: () => undoRemovePet(snap) });
+    }
+    // Puts the pet and its records back on this device (the server-side QR tag
+    // and care team are gone for good)
+    function undoRemovePet(snap) {
+      if (!snap || !snap.pet) return;
+      const pt = snap.pet;
+      if ((state.pets || []).some(p => p === pt || (pt.id && p.id === pt.id))) return;
+      state.pets = state.pets || [];
+      state.pets.splice(Math.min(snap.at || 0, state.pets.length), 0, pt);
+      if (pt.id && snap.info !== undefined) { state.petInfo = state.petInfo || {}; state.petInfo[pt.id] = snap.info; }
+      const back = (key, list) => { const have = new Set(state[key] || []); state[key] = (state[key] || []).concat(list.filter(x => !have.has(x))); };
+      back('meds', snap.meds); back('reminders', snap.reminders); back('vaccines', snap.vaccines);
+      back('visits', snap.visits); back('journal', snap.journal);
+      snap.supplies.forEach(s => { if (!s.petId) s.petId = pt.id; });
+      saveState();
+      if (state.tab === 'profile') openTab('profile');
+      toast(pt.name + ' is back 🐾');
+    }
+    // "Save a copy": the pet's records as a plain text file, made on this device
+    function petRecordsText(pt) {
+      const s = petSnapshot(pt);
+      const skip = { id: 1, petId: 1, medId: 1 };
+      const show = v => {
+        if (typeof v === 'number' && v > 1e12 && v < 1e13) return new Date(v).toLocaleString();
+        if (v && typeof v === 'object') return JSON.stringify(v);
+        return String(v);
+      };
+      const block = o => Object.keys(o || {}).filter(k => !skip[k] && o[k] !== '' && o[k] != null && typeof o[k] !== 'function')
+        .map(k => '  ' + k + ': ' + show(o[k])).join('\n');
+      const section = (title, list) => list.length ? '\n== ' + title + ' ==\n' + list.map(block).join('\n\n') + '\n' : '';
+      return 'Petfi records for ' + (pt.name || 'my pet') + '\n' +
+        'Saved ' + new Date().toLocaleString() + '\n\n' +
+        'Name: ' + (pt.name || '') + '\n' +
+        'Species: ' + (pt.species || '') + '\n' +
+        'Breed: ' + (pt.breed || '') + '\n' +
+        'Birthday: ' + ((s.info && s.info.bday) || pt.bday || '') + '\n' +
+        (pt.passed ? 'Passed away: ' + pt.passed + '\n' : '') +
+        (s.info && block(s.info) ? '\n== About ==\n' + block(s.info) + '\n' : '') +
+        section('Meds', s.meds) + section('Vaccines', s.vaccines) + section('Vet visits', s.visits) +
+        section('Notes', s.journal) + section('Reminders', s.reminders) + section('Supplies', s.supplies);
+    }
+    function savePetCopy(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
+      const name = 'petfi-' + (String(pt.name || 'pet').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'pet') + '-records.txt';
+      const text = petRecordsText(pt);
+      const share = () => {
+        try {
+          const file = new File([text], name, { type: 'text/plain' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) { navigator.share({ files: [file], title: name }).catch(() => {}); return true; }
+        } catch (e) {}
+        return false;
+      };
+      let saved = false;
+      if ('download' in HTMLAnchorElement.prototype) {
+        try {
+          const a = document.createElement('a');
+          a.href = URL.createObjectURL(new Blob([text], { type: 'text/plain' })); a.download = name;
+          document.body.appendChild(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+          saved = true;
+        } catch (e) {}
+      }
+      if (saved) toast('📄 Saved a copy of ' + pt.name + '\'s records');
+      else if (!share()) toast('⚠️ Couldn\'t save the file on this device');
     }
 
     // ======================= VERIFICATION =======================
@@ -9637,8 +9923,15 @@
       const btn = document.getElementById('vf-btn');
       if (btn) { btn.disabled = true; btn.textContent = label; }
     }
-    function verifyFail(code) {
+    function verifyFail(code, r) {
+      // petfi-verify caps failed ID checks at 3 per 30 days (429 too_many_tries, retry_at)
+      let retryOn = 'in a few weeks';
+      if (code === 'too_many_tries' && r && r.retry_at) {
+        const d = new Date(r.retry_at);
+        if (!isNaN(d.getTime())) retryOn = 'on ' + d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+      }
       const text = {
+        too_many_tries: 'The ID check didn\'t pass 3 times. You can try again ' + retryOn + '. Your payment is kept, so you won\'t pay again.',
         cancelled: 'No charge — you cancelled.',
         play_pending: 'Your Google Play payment is still pending. Once it clears, come back here to finish the ID check.',
         not_paid: 'We couldn\'t find your payment yet. If you did pay, reopen this in a minute — nothing is charged twice.',
@@ -9668,7 +9961,7 @@
       if (r.verified) { markVerifiedLocally(); return; }
       if (r.paid) { continueVerify(); return; }
       if (r.url) { location.href = r.url; return; }
-      verifyFail(r.error);
+      verifyFail(r.error, r);
     }
     async function payWithPlay(svc) {
       let token = null, resp = null;
@@ -9781,7 +10074,7 @@
         openSheet('🪪 Checking your ID', '<div class="note">Stripe is still processing your ID. Your badge appears by itself once it clears — usually within a few minutes.</div><button class="btn secondary" onclick="closeSheet()">OK</button>');
         return;
       }
-      verifyFail(r.error);
+      verifyFail(r.error, r);
     }
     // Back in the app after Checkout or the ID page (called once a login is live).
     // Back in the app after a payment page (called once a login is live).
@@ -10824,7 +11117,7 @@
       const c = { v: 1, name: pet.name.slice(0, 40), species: pet.species };
       if (pet.id === 'me' && typeof state.avatarUrl === 'string' && state.avatarUrl.indexOf(PHOTO_PUBLIC) === 0) c.photo = state.avatarUrl.slice(0, 300);
       if (inc.basics) {
-        c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? petAge(bday) : ''; c.sex = info.sex || ''; c.fixed = info.fixed || '';
+        c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? hxPetAge(pet, bday) : ''; // a pet that passed stops ageing here too c.sex = info.sex || ''; c.fixed = info.fixed || '';
         if (w) c.weight = { v: w.v, u: info.wu || 'lb', d: w.d };
       }
       if (inc.health) { c.allergies = info.allergies || ''; c.conditions = info.conditions || ''; c.diet = info.diet || ''; }
@@ -11854,20 +12147,34 @@
       if (Notification.permission === 'default') return '<div class="note" style="margin-top:0;">🔔 ' + why + link('askNotifPermission') + '</div>';
       return PUSH_ACTIVE || !pushSupported() ? '' : '<div class="note" style="margin-top:0;">🔔 ' + why + link('turnOnClosedAlerts') + '</div>';
     }
-    function openAddReminder() {
-      openSheet('⏰ New reminder',
-        '<label>What should we remind you about?</label><input id="rem-what" placeholder="e.g. Feed Tank, clean litter box">' +
+    // With (i, sig) the same sheet edits that reminder, prefilled
+    function openAddReminder(i, sig) {
+      let rm = null, fi = 3;
+      if (typeof i === 'number') {
+        const at = itemAt(state.reminders, i, sig);
+        if (at < 0) { listChanged(); refreshCare(); return; }
+        rm = state.reminders[at]; i = at;
+        const k = REM_FREQS.findIndex(f => f.ms === rm.ms && (f.months || 0) === (rm.months || 0));
+        if (k >= 0) fi = k;
+      }
+      openSheet(rm ? '✏️ Edit reminder' : '⏰ New reminder',
+        '<label>What should we remind you about?</label><input id="rem-what" placeholder="e.g. Feed Tank, clean litter box"' + (rm ? ' value="' + esc(rm.what) + '"' : '') + '>' +
         '<label>How often?</label><select id="rem-freq">' +
-          REM_FREQS.map((f, i) => '<option value="' + i + '"' + (i === 3 ? ' selected' : '') + '>' + f.label + '</option>').join('') + '</select>' +
+          REM_FREQS.map((f, k) => '<option value="' + k + '"' + (k === fi ? ' selected' : '') + '>' + f.label + '</option>').join('') + '</select>' +
         '<label>What time of day? <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
-        '<input type="time" id="rem-time">' +
+        '<input type="time" id="rem-time"' + (rm && rm.time ? ' value="' + esc(rm.time) + '"' : '') + '>' +
+        (rm ? '<button class="btn" onclick="saveReminder(' + i + ',' + sigArg(rm) + ')">Save changes</button>' : '') +
+        (rm ? '' :
         '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Pick a time and reminders land right then — e.g. daily at 7:30 AM. Leave it empty to just count from now.</p>' +
         '<div class="note">🔔 Remember: notifications must be enabled for alerts to reach you' +
           (('Notification' in window) && Notification.permission === 'default' ? ' — we\'ll ask when you save.' : '.') + '</div>' +
-        '<button class="btn" onclick="saveReminder()">Set reminder ⏰</button>');
+        '<button class="btn" onclick="saveReminder()">Set reminder ⏰</button>'));
     }
-    function saveReminder() {
+    function saveReminder(i, sig) {
       const what = val('rem-what'); if (!what) { toast('Tell us what to remind you about'); return; }
+      const editing = typeof i === 'number';
+      const at = editing ? itemAt(state.reminders, i, sig) : -1;
+      if (editing && at < 0) { listChanged(); closeSheet(); refreshCare(); return; }
       const f = REM_FREQS[parseInt(val('rem-freq'), 10) || 0];
       const time = val('rem-time');
       let next = Date.now() + f.ms;
@@ -11878,17 +12185,49 @@
         next = d.getTime();
         while (next <= Date.now()) next += f.ms; // first future occurrence
       }
-      state.reminders.push({ what, freqLabel: f.label, ms: f.ms, months: f.months || 0, day: new Date(next).getDate(), next: next, time: time || '' });
+      const fields = { what, freqLabel: f.label, ms: f.ms, months: f.months || 0, day: new Date(next).getDate(), next: next, time: time || '' };
+      if (editing) {
+        // A new schedule starts clean (no leftover snooze); new words keep it
+        const rm = state.reminders[at];
+        const sameSchedule = rm.ms === f.ms && (rm.months || 0) === (f.months || 0) && (rm.time || '') === (time || '');
+        if (sameSchedule) { delete fields.next; delete fields.day; } // only the words changed: keep the timing
+        Object.assign(rm, fields);
+        if (!sameSchedule) { delete rm.snoozeUntil; delete rm.firedAt; }
+        saveState(); // re-syncs the push schedule, like adding one
+        closeSheet(); refreshCare(); toast('Reminder updated ⏰');
+        return;
+      }
+      state.reminders.push(fields);
       saveState();
       askPushNow();
       closeSheet(); refreshCare(); toast('Reminder set ⏰' + (time ? ' for ' + time : ''));
     }
-    function deleteReminder(i) {
-      const rm = state.reminders.splice(i, 1)[0];
+    function deleteReminder(i, sig) {
+      const at = itemAt(state.reminders, i, sig);
+      if (at < 0) { listChanged(); refreshCare(); return; }
+      const rm = state.reminders.splice(at, 1)[0];
       // A med's dose reminder: the med stays, it just stops reminding
       const m = rm && rm.medId && hxMed(rm.medId);
       if (m) m.remind = false;
       saveState(); refreshCare(); toast('Reminder removed');
+    }
+    // Snooze: one extra alert an hour from now. The regular schedule (rm.next)
+    // never moves; the snooze is cleared when it fires or when the next regular
+    // slot comes first. Both the in-app scheduler and pushRows honour it.
+    const SNOOZE_MS = 3600000;
+    function remSnoozable(rm, now) {
+      return !!rm && !!rm.firedAt && (now || Date.now()) - rm.firedAt < 3 * 3600000 && !(rm.snoozeUntil > (now || Date.now()));
+    }
+    function snoozeReminder(i, sig) {
+      const at = itemAt(state.reminders, i, sig);
+      if (at < 0) { listChanged(); refreshCare(); return; }
+      const rm = state.reminders[at];
+      const until = Date.now() + SNOOZE_MS;
+      if (rm.next && rm.next <= until) { toast('The next reminder is due within the hour anyway ⏰'); return; }
+      rm.snoozeUntil = until;
+      saveState(); // re-syncs the push schedule
+      refreshCare();
+      toast('😴 Snoozed for 1 hour');
     }
     // Chrome for Android (so the Play app too) has no Notification constructor:
     // the service worker shows it there; the constructor is the desktop path.
@@ -11942,13 +12281,28 @@
         return true;
       } catch (e) { console.warn('push subscribe:', e && e.message); PUSH_ACTIVE = false; return false; }
     }
+    // A dose for this reminder's slot already logged by anyone on the pet's care
+    // team (me included): the reminder for that slot counts as done
+    function careSlotDone(rm, slot) {
+      if (!rm || !rm.medId || !cloudUser) return false;
+      const m = hxMed(rm.medId), t = m && myCareTeam(m.petId);
+      if (!t) return false;
+      const from = slot - Math.min((rm.ms || DAY_MS) / 2, 4 * 3600000);
+      return (CARE_LOG[t.id] || []).some(l => l.kind === 'meds' && l.med_id === rm.medId && new Date(l.at).getTime() >= from);
+    }
+    let pushCareSkips = ''; // which slots pushRows moved on (part of the sync signature)
     // The alerts the server should send, rebuilt from reminders + calendar
     function pushRows() {
       if (!notifPref('reminders')) return [];
       const now = Date.now(), rows = [];
+      pushCareSkips = '';
       (state.reminders || []).forEach((rm, k) => {
         if (!(rm.ms >= 3600000) || !rm.next) return;
-        const next = rm.next > now ? rm.next : nextReminderTime(rm, now);
+        let next = rm.next > now ? rm.next : nextReminderTime(rm, now);
+        // Someone on the care team already gave this dose: the alert waits for the next one
+        if (careSlotDone(rm, next)) { next = nextReminderTime(Object.assign({}, rm, { next }), next); pushCareSkips += k + ':' + next + ','; }
+        // A snooze is its own one-off alert; the repeating row below is unchanged
+        if (rm.snoozeUntil > now && rm.snoozeUntil < next) rows.push({ title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'snz:' + k, next_at: new Date(rm.snoozeUntil).toISOString(), every_ms: null, every_months: null, until_at: null });
         if (rm.until && next > rm.until) return;
         const row = { title: '🐾 Petfi reminder', body: String(rm.what || '').slice(0, 300), tag: 'rem:' + k, next_at: new Date(next).toISOString(), every_ms: rm.ms,
           every_months: rm.months > 0 ? rm.months : null, until_at: rm.until ? new Date(rm.until).toISOString() : null };
@@ -11962,6 +12316,9 @@
             row.anchor_day = rm.months > 0 ? Math.min(31, Math.max(1, rm.day || d.getDate())) : null;
           }
         }
+        // A med's dose reminder carries the med id the care team logs doses with
+        // (petfi_care_log.med_id), so a dose given by anyone skips this slot server-side
+        if (rm.medId && /^[A-Za-z0-9_-]{1,40}$/.test(String(rm.medId))) row.med_id = String(rm.medId);
         rows.push(row);
       });
       (state.calendar || []).forEach((c, k) => {
@@ -11982,7 +12339,7 @@
       toast(ok ? '🔔 Done — alerts now arrive with the app closed' : '⚠️ This device can\'t receive alerts while Petfi is closed');
       if (state.tab === 'home') openTab('home');
     }
-    let pushSyncTimer = null, pushSyncing = false;
+    let pushSyncTimer = null, pushSyncing = false, pushSyncAgain = false;
     function schedulePushSync(delay) {
       if (!PUSH_ACTIVE) return;
       clearTimeout(pushSyncTimer);
@@ -11992,41 +12349,91 @@
     // tz / local_time / anchor_day are optional columns that may not exist on the
     // server yet: after one unknown-column error, stop sending them this session
     let pushLocalCols = true;
+    // med_id is optional the same way (tier-3 SQL section F)
+    let pushMedCol = true;
+    // petfi_push_replace (tier-3 SQL section E) swaps the whole schedule in one
+    // statement. Until it exists on the server: insert-then-delete below.
+    let pushReplaceRpc = true;
+    function pushRowsFor(all) {
+      return all.map(r => {
+        if (pushReplaceRpc) return r;
+        let c = pushLocalCols ? r : pushRowNoLocal(r);
+        if (!pushMedCol && 'med_id' in c) { c = Object.assign({}, c); delete c.med_id; }
+        return c;
+      });
+    }
+    function pushRpcMissing(res) {
+      const e = res && res.error;
+      return !!e && (e.code === 'PGRST202' || res.status === 404 || /Could not find the function/i.test(String(e.message || '')));
+    }
     async function syncPushSchedule() {
-      if (!PUSH_ACTIVE || !cloud || !cloudUser || pushSyncing) return;
-      let rows = pushRows();
-      if (!pushLocalCols) rows = rows.map(pushRowNoLocal);
+      if (!PUSH_ACTIVE || !cloud || !cloudUser) return;
+      // One run at a time; a request made meanwhile runs once the current one ends
+      if (pushSyncing) { pushSyncAgain = true; return; }
+      const all = pushRows();
+      let rows = pushRowsFor(all);
       // Only the shape matters for the signature: next_at moves on its own server-side
       // (monthly rows keep next_at: their day of the month is part of the schedule).
-      // The zone and whether the wall-clock columns went too are part of it, so a
+      // The zone and which optional columns went too are part of it, so a
       // later session retries them once the server has the columns.
-      const sig = JSON.stringify(rows.map(r => [r.title, r.body, r.every_ms, r.every_months, r.until_at, r.every_ms && !r.every_months ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '']))
-        + '|' + pushTz() + '|' + (pushLocalCols ? 'L' : '');
-      if (sig === state.pushSyncedSig) return;
+      const sigBase = JSON.stringify(all.map(r => [r.title, r.body, r.every_ms, r.every_months, r.until_at, r.every_ms && !r.every_months ? '' : r.next_at, r.every_ms ? new Date(r.next_at).toISOString().slice(11, 16) : '', r.med_id || '']))
+        + '|' + pushTz() + (pushCareSkips ? '|C' + pushCareSkips : '') + '|';
+      const sigFlags = () => pushReplaceRpc ? 'R' : (pushLocalCols ? 'L' : '') + (pushMedCol ? 'M' : '');
+      if (sigBase + sigFlags() === state.pushSyncedSig) return;
       pushSyncing = true;
       try {
-        // Server-queued alerts (finder messages, lost pets, social) aren't the app's to replace
-        const del = await cloud.from('petfi_push_schedule').delete().eq('user_id', cloudUser.id)
-          .not('tag', 'like', 'srv:%').not('tag', 'like', 'found:%').not('tag', 'like', 'lost:%');
-        if (del.error) throw del.error;
-        let sent = sig;
+        const uid = cloudUser.id;
+        if (pushReplaceRpc) {
+          const res = await cloud.rpc('petfi_push_replace', { rows: rows.slice(0, 100) });
+          if (!res.error) {
+            state.pushSyncedSig = sigBase + sigFlags();
+            try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+            return;
+          }
+          // Any other error (a bad row, rate, network): the server schedule stays as
+          // it was and the next sync tries again; never half-replace it the old way
+          if (!pushRpcMissing(res)) { console.warn('push schedule (replace):', res.error.message || res.error.code); return; }
+          pushReplaceRpc = false;
+          rows = pushRowsFor(all);
+        }
+        // New rows go in first, then the app's older rows go: a failed insert leaves the
+        // old schedule standing, and a newer run (another device) has higher ids, so it
+        // is never deleted by this one.
+        let keepFrom = null;
         if (rows.length) {
-          let ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
-          if (ins.error && pushLocalCols && rows.some(r => 'tz' in r) && pushUnknownCol(ins.error)) {
-            pushLocalCols = false;
-            rows = rows.map(pushRowNoLocal);
-            sent = sig.replace(/\|L$/, '|');
-            ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: cloudUser.id }, r)));
+          let ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: uid }, r))).select('id');
+          // An optional column the server doesn't have yet: drop it for this session
+          // and try again (one column is reported at a time, so up to twice)
+          for (let tries = 0; tries < 2 && ins.error && pushUnknownCol(ins.error); tries++) {
+            const msg = String(ins.error.message || '');
+            const hasMed = rows.some(r => 'med_id' in r), hasLocal = rows.some(r => 'tz' in r);
+            if (hasMed && (/\bmed_id\b/.test(msg) || !hasLocal)) pushMedCol = false;
+            else if (hasLocal) pushLocalCols = false;
+            else break;
+            rows = pushRowsFor(all);
+            ins = await cloud.from('petfi_push_schedule').insert(rows.map(r => Object.assign({ user_id: uid }, r))).select('id');
           }
           if (ins.error) throw ins.error;
+          const ids = (ins.data || []).map(r => Number(r.id)).filter(n => n > 0);
+          if (!ids.length) throw new Error('inserted rows not returned'); // never delete blind
+          keepFrom = Math.min.apply(null, ids);
         }
-        state.pushSyncedSig = sent;
+        // Server-queued alerts (finder messages, lost pets, social) aren't the app's to replace
+        let del = cloud.from('petfi_push_schedule').delete().eq('user_id', uid)
+          .not('tag', 'like', 'srv:%').not('tag', 'like', 'found:%').not('tag', 'like', 'lost:%');
+        if (keepFrom != null) del = del.lt('id', keepFrom);
+        del = await del;
+        if (del.error) throw del.error;
+        state.pushSyncedSig = sigBase + sigFlags();
         try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       } catch (e) { console.warn('push schedule:', e && e.message); }
-      finally { pushSyncing = false; }
+      finally {
+        pushSyncing = false;
+        if (pushSyncAgain) { pushSyncAgain = false; schedulePushSync(0); }
+      }
     }
     function pushRowNoLocal(r) { const c = Object.assign({}, r); delete c.tz; delete c.local_time; delete c.anchor_day; return c; }
-    function pushUnknownCol(err) { return !!err && (err.code === 'PGRST204' || /\b(tz|local_time|anchor_day)\b/.test(String(err.message || ''))); }
+    function pushUnknownCol(err) { return !!err && (err.code === 'PGRST204' || /\b(tz|local_time|anchor_day|med_id)\b/.test(String(err.message || ''))); }
     // When to alert for a calendar entry: 1 hour before if a time was
     // set, otherwise 8 AM the morning of the appointment.
     function calNotifyTime(c) {
@@ -12077,9 +12484,15 @@
       let changed = false;
       (state.reminders || []).forEach(rm => {
         if (rm.next <= now) {
-          fireReminder(rm);
+          if (!careSlotDone(rm, rm.next)) { fireReminder(rm); rm.firedAt = now; } // a dose the care team already gave stays quiet
           // step forward on the schedule; time-anchored ones keep their time
           rm.next = nextReminderTime(rm, now);
+          delete rm.snoozeUntil; // the regular slot came first: the snooze is spent
+          changed = true;
+        } else if (rm.snoozeUntil && rm.snoozeUntil <= now) {
+          // A one-off snooze: fire once, the regular schedule stays as it was
+          delete rm.snoozeUntil;
+          if (!careSlotDone(rm, now)) { fireReminder(rm); rm.firedAt = now; } // a dose given since: stay quiet
           changed = true;
         }
       });
@@ -12384,6 +12797,27 @@
     if (cloud) {
       cloud.auth.onAuthStateChange((event, session) => {
         if (event === 'PASSWORD_RECOVERY' && session) {
+          // The reset link is for a different account than the one loaded here: drop the
+          // loaded one from memory first (its saved copy on this device stays untouched),
+          // so nothing of it is saved under the recovered login. finishPasswordReset then
+          // loads the recovered account's own cloud copy.
+          const rid = session.user.id, prev = (cloudUser && cloudUser.id) || (state.accountType ? state.ageId : null);
+          if (prev && prev !== rid) {
+            clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
+            liveDisconnect();
+            pausedUid = null; cloudSeenAt = null; cloudSeenFor = null; cloudSyncedJson = null;
+            BLOCKED_ME = {};
+            resetState();
+            FEED.length = 0; feedLoadedOnce = false;
+            PEOPLE = []; FRIENDSHIPS = []; MY_MESSAGES = []; CLOUD_GROUPS = []; LISTINGS = []; CLOUD_MATES = []; CLOUD_ADS = []; CLOUD_HUMANS = []; TERRITORY = [];
+            TAGS = {}; TAG_REPORTS = []; LOST_NEAR = []; tagsLoadedAt = 0;
+            CARE_TEAMS = []; CARE_MEMBERS = {}; CARE_LOG = {}; careLoadedAt = 0;
+            Object.keys(PROFILE_BY_ID).forEach(k => delete PROFILE_BY_ID[k]);
+            clearInterval(dmPollTimer); dmOpenWith = null; lastSeenMsgId = 0; firstMsgLoad = true;
+            lastPostsFetch = 0; lastPeopleFetch = 0; lastGroupsFetch = 0; lastListingsFetch = 0; lastMatesFetch = 0; lastTerritoryFetch = 0;
+            updateBadges();
+            if (appActive()) { applyTheme(); show('s-welcome'); }
+          }
           cloudUser = session.user;
           if (!appActive()) renderResume();
           openSheet('🔑 Choose a new password',
@@ -12834,7 +13268,7 @@
           cloudId: row.id, authorId: row.author_id,
           mine: !!(cloudUser && row.author_id === cloudUser.id),
           who: authorName(row.author_id, c.who), type: c.type === 'owner' ? 'owner' : 'pet',
-          species: c.species, breed: c.breed, text: String(c.text || ''),
+          species: c.species, breed: c.breed, text: String(c.text || ''), edited: c.edited ? String(c.edited) : '',
           kind: VOICE_PLAYERS[c.kind] ? c.kind : 'like',
           variant: c.variant || null, accessories: c.accessories || null,
           photo: safeAvatarUrl(c.photo),
@@ -12859,7 +13293,7 @@
         p.sub = meta + ' · ' + timeAgo(row.created_at) + (p.loc && p.loc.area ? ' · 📍 ' + p.loc.area : '');
         p.likes = likes.filter(x => x.post_id === row.id).length;
         p.likedByMe = !!(cloudUser && likes.some(x => x.post_id === row.id && x.user_id === cloudUser.id));
-        p.comments = comments.filter(x => x.post_id === row.id && !hiddenUser(x.author_id)).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || ''), authorId: x.author_id, cid: x.id }));
+        p.comments = comments.filter(x => x.post_id === row.id && !hiddenUser(x.author_id)).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || ''), authorId: x.author_id, cid: x.id, edited: !!(x.content && x.content.edited) }));
         FEED.unshift(p);
       });
       freshMine.forEach(p => FEED.unshift(p)); // your seconds-old posts stay on top
@@ -12956,6 +13390,44 @@
       PEOPLE = data.filter(p => p.visible !== false && !p.banned && !hiddenUser(p.id));
       if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
     }
+    // ---- Find a member by username (prefix match). Same filters as the
+    // Nearby list; results only open the person sheet and never join PEOPLE.
+    let MEMBER_Q = '', MEMBER_RES = null, memberSearchTimer = null, memberSearchSeq = 0;
+    function memberSearchInput(v) {
+      MEMBER_Q = String(v || '').slice(0, 40);
+      clearTimeout(memberSearchTimer);
+      memberSearchTimer = setTimeout(runMemberSearch, 350);
+    }
+    async function runMemberSearch() {
+      const seq = ++memberSearchSeq;
+      // * is a wildcard to the server too, so it is dropped; % _ \ are escaped
+      const q = MEMBER_Q.trim().replace(/\*/g, '');
+      if (q.length < 2 || !cloud || !cloudUser) { MEMBER_RES = null; drawMemberResults(); return; }
+      MEMBER_RES = 'loading'; drawMemberResults();
+      const pat = q.replace(/[\\%_]/g, c => '\\' + c) + '%';
+      let res;
+      try { res = await cloud.from('profiles').select(PROFILE_COLS).ilike('username', pat).neq('id', cloudUser.id).order('username').limit(20); } catch (e) { res = { error: e }; }
+      if (seq !== memberSearchSeq) return; // a newer search is on its way
+      if (res.error || !res.data) { MEMBER_RES = 'error'; drawMemberResults(); return; }
+      res.data.forEach(p => { PROFILE_BY_ID[p.id] = p; });
+      MEMBER_RES = res.data.filter(p => p.visible !== false && !p.banned && !hiddenUser(p.id));
+      drawMemberResults();
+    }
+    function memberResultsHTML() {
+      if (MEMBER_Q.trim().replace(/\*/g, '').length < 2 || MEMBER_RES == null) return '';
+      if (MEMBER_RES === 'loading') return '<p class="sub" style="font-size:0.8rem;">Searching…</p>';
+      if (MEMBER_RES === 'error') return '<p class="sub" style="font-size:0.8rem;">⚠️ Couldn\'t search right now. Please try again.</p>';
+      if (!MEMBER_RES.length) return '<p class="sub" style="font-size:0.8rem;">No members found with that name.</p>';
+      return MEMBER_RES.map(u =>
+        '<div class="row" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(u.id) + '\')">' +
+          '<div class="ricon" style="overflow:hidden;">' + personAvatar(u, 40) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + '</div><div class="rmeta">' + esc(personMeta(u)) + '</div></div>' +
+        '</div>').join('');
+    }
+    function drawMemberResults() {
+      const d = document.getElementById('member-res');
+      if (d) d.innerHTML = memberResultsHTML();
+    }
     // Make sure we hold the public profile of every author we're about to
     // show, so names/avatars come from real rows (one query for all missing).
     // fresh: re-read profiles already cached too, so a member's new name or
@@ -12984,11 +13456,9 @@
       const u = PROFILE_BY_ID[id];
       // Someone who blocked me is gone from my side too
       if (!u || BLOCKED_ME[id]) { toast('That member isn\'t around anymore'); return; }
-      let i = PEOPLE.indexOf(u);
-      // A hidden, suspended or filtered member opens here but never joins the Nearby list
-      if (i < 0 && (u.visible === false || u.banned || hiddenUser(u.id))) { showPersonSheet(u); return; }
-      if (i < 0) { PEOPLE.push(u); i = PEOPLE.length - 1; }
-      openPersonSheet(i);
+      // Opening a sheet never adds anyone to the Nearby list: only loadPeople fills it
+      // (with its visible / suspended / near-you filters)
+      showPersonSheet(u);
     }
     function friendshipWith(id) {
       if (!cloudUser) return null;
@@ -13282,10 +13752,11 @@
                   '<button class="btn secondary" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">Cancel request</button>'));
         return;
       }
-      dmOpenWith = userId;
+      dmOpenWith = userId; dmPickedId = null;
       const draft = pendingDMDraft; pendingDMDraft = '';
       const meta = u.kind === 'owner' ? 'Owner' : (u.breed || u.species || 'Pet');
-      openSheet('<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--card);border:2px solid var(--brand);display:inline-block;">' + personAvatar(u, 34) + '</span><span>' + esc(u.username) + '<small style="display:block;font-size:0.7rem;color:var(--muted);font-weight:600;">' + esc(meta) + (liveOK ? ' · live<span class="live-dot"></span>' : '') + '</small></span></span>',
+      openSheet('<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--card);border:2px solid var(--brand);display:inline-block;">' + personAvatar(u, 34) + '</span><span>' + esc(u.username) + '<small style="display:block;font-size:0.7rem;color:var(--muted);font-weight:600;">' + esc(meta) + (liveOK ? ' · live<span class="live-dot"></span>' : '') + '</small></span>' +
+          '<span title="More" aria-label="More options" style="cursor:pointer;color:var(--muted);font-size:1.1rem;padding:0.2rem 0.5rem;" onclick="dmMoreMenu(\'' + jsStr(u.id) + '\')">⋯</span></span>',
         '<div class="dm-thread" id="dm-thread" style="max-height:46vh;overflow-y:auto;"><p class="sub">Loading…</p></div>' +
         '<div class="cmt-input-row" style="align-items:center;">' +
           (u.kind === 'owner' ? '' : '<button class="pill-btn ghost" style="padding:0.45rem 0.6rem;" title="Say hi" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">🔊</button>') +
@@ -13323,13 +13794,47 @@
         const mine = m.sender_id === cloudUser.id;
         const t = new Date(m.created_at).getTime();
         if (lastMine !== null && (mine !== lastMine || t - lastAt > 20 * 60000)) html += '<div class="dm-time" style="margin:0.3rem 0 0.1rem;text-transform:none;font-weight:500;">' + clock(m.created_at) + '</div>';
-        html += '<div class="dm-bubble ' + (mine ? 'mine' : 'theirs') + (m.kind === 'bark' ? ' bark' : '') + (m.pending ? ' pending' : '') + (m.failed ? ' failed' : '') + '">' + (m.kind === 'bark' ? '🔊 ' : '') + esc(m.text) + '</div>';
+        // Your own sent message: tap it to show "Unsend" under it
+        const canUnsend = mine && !m.pending && !m.failed && m.id != null && !m.outboxAt;
+        html += '<div class="dm-bubble ' + (mine ? 'mine' : 'theirs') + (m.kind === 'bark' ? ' bark' : '') + (m.pending ? ' pending' : '') + (m.failed ? ' failed' : '') + '"' +
+          (canUnsend ? ' style="cursor:pointer;" title="Tap for options" onclick="dmPick(\'' + jsStr(String(m.id)) + '\')"' : '') + '>' + (m.kind === 'bark' ? '🔊 ' : '') + esc(m.text) + '</div>';
         if (m.failed) html += '<div class="dm-meta failed" onclick="retryOutbox(' + Number(m.outboxAt) + ')">Not sent · tap to retry</div>';
         else if (m.pending) html += '<div class="dm-meta">Sending…</div>';
+        else if (canUnsend && dmPickedId === String(m.id)) html += '<div class="dm-meta" style="cursor:pointer;color:var(--brand);font-weight:700;" onclick="unsendDM(\'' + jsStr(String(m.id)) + '\')">↩️ Unsend</div>';
         lastMine = mine; lastAt = t;
       });
       if (!rows.length) html = '<p class="sub">No messages yet — say hi! 👋</p>';
       if (th.dataset.last !== html) { const atBottom = th.scrollHeight - th.scrollTop - th.clientHeight < 60; th.innerHTML = html; th.dataset.last = html; if (atBottom || !th.dataset.scrolled) th.scrollTop = th.scrollHeight; th.dataset.scrolled = '1'; }
+    }
+    // ---- Unsend (the sender may delete their own message) ----
+    let dmPickedId = null;
+    function dmPick(id) {
+      dmPickedId = dmPickedId === String(id) ? null : String(id);
+      if (dmOpenWith) renderDMThread(threadWith(dmOpenWith));
+    }
+    async function unsendDM(id) {
+      if (!cloud || !cloudUser || !dmOpenWith) return;
+      const other = dmOpenWith;
+      const m = MY_MESSAGES.find(x => String(x.id) === String(id));
+      if (!m || m.sender_id !== cloudUser.id) return;
+      if (!confirm('Unsend this message? It disappears for both of you.')) return;
+      let res;
+      try { res = await cloud.from('messages').delete().eq('id', m.id).eq('sender_id', cloudUser.id).select('id'); } catch (e) { res = { error: e }; }
+      if (res.error || !res.data || !res.data.length) { toast('⚠️ Couldn\'t unsend that message. Please try again.'); uiSound('error'); return; }
+      MY_MESSAGES = MY_MESSAGES.filter(x => String(x.id) !== String(id));
+      dmPickedId = null;
+      if (dmOpenWith === other) renderDMThread(threadWith(other));
+      updateBadges();
+      toast('Message unsent ↩️');
+    }
+    // "⋯" at the top of a chat: report or block the other member, using the
+    // same sheets as their profile
+    function dmMoreMenu(id) {
+      const u = PROFILE_BY_ID[id]; if (!u) return;
+      openSheet(esc(u.username),
+        '<button class="btn secondary" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report ' + esc(u.username) + '</button>' +
+        '<button class="btn secondary" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block ' + esc(u.username) + '</button>' +
+        '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(u.id) + '\')">← Back to the chat</button>');
     }
     async function refreshDMThread() {
       if (!dmOpenWith || !cloudUser) return;
@@ -13342,6 +13847,13 @@
       // Fold the fresh rows into MY_MESSAGES so every view agrees
       const known = {}; MY_MESSAGES.forEach(m => { known[m.id] = true; });
       data.forEach(m => { if (!known[m.id]) MY_MESSAGES.unshift(m); });
+      // A message the sender unsent is gone from the server: drop it here too
+      // (only inside the window this fetch covered)
+      const have = {}; data.forEach(m => { have[m.id] = true; });
+      const from = data.length >= 100 ? data[0].created_at : '';
+      const newest = data.length ? data[data.length - 1].created_at : '';
+      MY_MESSAGES = MY_MESSAGES.filter(m => have[m.id] || m.created_at < from || (newest && m.created_at > newest) ||
+        !((m.sender_id === cloudUser.id && m.recipient_id === other) || (m.sender_id === other && m.recipient_id === cloudUser.id)));
       renderDMThread(threadWith(other));
       // Remember what we've read so the badge can clear (only write when it changed)
       if (data.length) {
