@@ -1,0 +1,12 @@
+<svg viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg"><ellipse cx="28" cy="58" rx="12" ry="28" fill="#d8c7ae" transform="rotate(22 28 58)"/>
+           <ellipse cx="92" cy="58" rx="12" ry="28" fill="#d8c7ae" transform="rotate(-22 92 58)"/>
+        <ellipse cx="60" cy="66" rx="32" ry="29" fill="#d8c7ae"/>
+        <ellipse cx="60" cy="79" rx="15" ry="11" fill="#e3d7c5"/>
+        <rect x="55" y="83" width="10" height="8" rx="3" fill="#fff"/>
+        <line x1="60" y1="83" x2="60" y2="91" stroke="#978b7a" stroke-width="1"/>
+        <path d="M56 74 L64 74 L60 79 Z" fill="#e0899a"/>
+        <ellipse cx="47" cy="60" rx="5" ry="6" fill="#2a2320"/><ellipse cx="73" cy="60" rx="5" ry="6" fill="#2a2320"/>
+        <circle cx="49" cy="58" r="1.6" fill="#fff"/><circle cx="75" cy="58" r="1.6" fill="#fff"/>
+        <g stroke="#d8cfc9" stroke-width="1.2" stroke-linecap="round" opacity="0.9">
+          <line x1="47" y1="78" x2="26" y2="74"/><line x1="47" y1="82" x2="26" y2="84"/>
+          <line x1="73" y1="78" x2="94" y2="74"/><line x1="73" y1="82" x2="94" y2="84"/></g></svg>
