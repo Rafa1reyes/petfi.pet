@@ -309,6 +309,18 @@
     .persona-strip.sm .ps-chip { width: 52px; }
     .persona-strip.sm .ps-ava { width: 38px; height: 38px; }
     .persona-strip.sm .ps-name { max-width: 52px; font-size: 0.66rem; }
+    /* Pet personas as other members see them: pet page, pets under owners */
+    .persona-strip.center { justify-content: center; }
+    .u-pets { font-size: 0.74rem; color: var(--muted); margin: -0.35rem 0 0.55rem; display: flex; flex-wrap: wrap; gap: 0.25rem; justify-content: center; align-items: center; }
+    .u-pets:empty { display: none; }
+    .pet-bub { display: inline-flex; align-items: center; gap: 0.2rem; max-width: 100%; background: var(--brand-soft); color: var(--ink); border-radius: 999px; padding: 0.1rem 0.45rem 0.1rem 0.12rem; font-weight: 700; cursor: pointer; }
+    .pb-ava { width: 20px; height: 20px; flex: 0 0 auto; border-radius: 50%; overflow: hidden; background: var(--card); display: flex; align-items: center; justify-content: center; }
+    .pb-ava svg { width: 100%; height: 100%; }
+    .pet-page .pp-ava { width: 96px; height: 96px; border-radius: 50%; overflow: hidden; margin: 0.5rem auto; border: 3px solid var(--brand); background: var(--card); }
+    .pet-page .pp-ava svg { width: 100%; height: 100%; }
+    .pet-page.memorial .pp-ava { border-color: #b9a7e0; filter: saturate(0.85); }
+    .pp-owner .link { color: var(--brand-text); font-weight: 700; cursor: pointer; }
+    .pp-post img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; margin-top: 0.4rem; }
     .post-as { border: 2px solid var(--line); border-radius: 14px; padding: 0.5rem 0.7rem 0.1rem; margin-bottom: 0.7rem; }
     .post-as .pa-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
     .post-as .pa-label b { color: var(--ink); }
@@ -3610,7 +3622,7 @@
       const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink', like: '❤️ Like' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
-        '<div class="cmt"><span class="cwho"' + (c.persona ? ' title="' + esc(personaWith(c.authorId)) + '"' : '') + '>' + esc(c.who) + (c.persona && isVerifiedUser(c.authorId) ? ' ' + vbadge('pet') : '') + '</span><span>' + esc(c.text) + '</span>' + (c.edited ? '<small style="color:var(--muted);white-space:nowrap;">(edited)</small>' : '') +
+        '<div class="cmt"><span class="cwho"' + (c.persona ? ' title="' + esc(personaWith(c.authorId)) + '"' + (c.persona.id ? ' style="cursor:pointer;" onclick="openPetSheetById(\'' + jsStr(c.persona.id) + '\')"' : '') : '') + '>' + esc(c.who) + (c.persona && isVerifiedUser(c.authorId) ? ' ' + vbadge('pet') : '') + '</span><span>' + esc(c.text) + '</span>' + (c.edited ? '<small style="color:var(--muted);white-space:nowrap;">(edited)</small>' : '') +
           (c.cid && cloudUser && c.authorId === cloudUser.id ? '<span class="cmt-act" role="button" tabindex="0" title="Edit comment" aria-label="Edit comment" onclick="editComment(' + Number(c.cid) + ')">✏️</span>' : '') +
           (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) && !isAdmin() ?'<span class="cmt-act rep" role="button" tabindex="0" title="Report comment" aria-label="Report comment" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
           (c.cid && ((cloudUser && c.authorId === cloudUser.id) || isAdmin()) ? '<span class="cmt-act" role="button" tabindex="0" title="Delete comment" aria-label="Delete comment" onclick="deleteComment(' + Number(c.cid) + ')">' + (cloudUser && c.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') +
@@ -4091,6 +4103,8 @@
       // attribute (was a stored-XSS / attribute-break vector via the name/breed).
       const p = (typeof i === 'object') ? i : FEED[i];
       if (!p) return;
+      // Made as a pet: that pet's page (yours too, as others see it)
+      if (p.persona && p.persona.id && personasOn()) { openPetSheetById(String(p.persona.id)); return; }
       // Real post → the real member's sheet (friend request, DM, bark all work)
       if (p.authorId && p.authorId !== (cloudUser && cloudUser.id)) { openPersonSheetById(p.authorId); return; }
       if (p.mine || (cloudUser && p.authorId === cloudUser.id)) { openTab('profile'); return; }
@@ -4391,7 +4405,7 @@
       h += servicesSection('nearby'); // walkers, sitters, groomers… from ID-verified members
       // Members first — the people (and pets) you can actually talk to
       h += '<div class="sec"><h3>' + (PEOPLE_MODE === 'near' ? '🐾 Members near you' : '🐾 Newest members') + '</h3><span class="link" onclick="refreshPeople()">↻ Refresh</span></div>';
-      if (cloudUser) h += '<input id="member-q" type="text" enterkeyhint="search" aria-label="Find a member by username" placeholder="🔎 Find a member by username" autocomplete="off" maxlength="40" value="' + esc(MEMBER_Q) + '" oninput="memberSearchInput(this.value)" style="margin:0 0 0.5rem;">' +
+      if (cloudUser) h += '<input id="member-q" type="text" enterkeyhint="search" ' + (personasOn() ? 'aria-label="Find a member or pet by name" placeholder="🔎 Find a member or pet by name"' : 'aria-label="Find a member by username" placeholder="🔎 Find a member by username"') + ' autocomplete="off" maxlength="40" value="' + esc(MEMBER_Q) + '" oninput="memberSearchInput(this.value)" style="margin:0 0 0.5rem;">' +
         '<div id="member-res">' + memberResultsHTML() + '</div>';
       if (cloudUser && PEOPLE_MODE !== 'near' && lastPeopleFetch) h += '<p class="sub" style="font-size:0.78rem;margin:-0.3rem 0 0.6rem;">' + (state.zip ? 'Nobody within ' + LOCAL_RADIUS_MI + ' miles has shared a ZIP yet — here are the newest members everywhere.' : 'Add your ZIP below to see members near you.') + '</p>';
       if (!cloudUser) {
@@ -4408,6 +4422,7 @@
             '<div class="u-avatar" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + personAvatar(u, 62) + '</div>' +
             '<div class="u-name" style="cursor:pointer;" onclick="openPersonSheet(' + i + ')">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + orgMark(u) + '</div>' +
             '<div class="u-meta">' + esc(personMeta(u)) + (u._mi != null && isFinite(Number(u._mi)) ? ' · ' + (Number(u._mi) >= 5 ? 'within ' + Number(u._mi) + ' mi' : 'nearby') : '') + '</div>' +
+            (personasOn() && isPersonKind(u.kind) ? '<div class="u-pets" data-pets-of="' + esc(u.id) + '">' + nearbyPetsHtml(u.id) + '</div>' : '') +
             '<div class="u-actions">' +
               '<button class="btn-friend" onclick="openPersonSheet(' + i + ')">👤 View</button>' +
               '<button class="btn-sound" onclick="sendCloudBark(' + i + ')" title="Say hi">🔊</button>' +
@@ -6278,6 +6293,7 @@
           (SPECIES_ART[sp] ? '<button class="pill-btn ghost" onclick="openAvatarStudio(\'' + id + '\')">🎨 Customize</button>' : '') +
           '<button class="pill-btn ghost" title="Use a photo of ' + esc(name) + '" onclick="pickPetPhoto(\'' + id + '\')">📷 Use a photo</button>' +
           (safeAvatarUrl(lk.p) ? '<button class="pill-btn ghost" onclick="clearPetPhoto(\'' + id + '\')">↺ Back to the drawn icon</button>' : '') +
+          (pt.ppid ? '<button class="pill-btn ghost" onclick="openPetSheetById(\'' + jsStr(pt.ppid) + '\')">👁 View ' + esc(name) + '\'s page</button>' : '') +
           '<input type="file" id="pet-photo-file" aria-label="📷 Use a photo" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this, uploadPetPhoto)">' +
         '</div>' +
         '<div class="settings-card" style="margin:0.7rem 0 0;text-align:left;">' + petShownToggle(pt) + '</div>' +
@@ -6853,6 +6869,16 @@
         lead = 'Send ' + esc(who.username) + '\'s profile to a friend. If they join from it, they send you a friend request automatically.';
         text = 'Check out ' + who.username + ' on Petfi 🐾';
         subject = text;
+      } else if (kind === 'pet') {
+        // A pet page: the link is its owner's profile (pet links come later)
+        const pet = PET_BY_ID[String(id || '').toLowerCase()];
+        if (!pet || !(cloud && cloudUser)) { toast('That pet isn\'t on Petfi right now'); return; }
+        const mine = pet.owner_id === cloudUser.id, pn = pet.name || 'this pet';
+        url = shareProfileLink(pet.owner_id); qrUrl = profileUrl(pet.owner_id);
+        title = '🔗 Share ' + esc(pn);
+        lead = 'Send ' + esc(pn) + ' to a friend. The link opens ' + (mine ? 'your' : esc(authorName(pet.owner_id, 'their owner')) + '\'s') + ' profile, where ' + esc(pn) + ' lives.';
+        text = 'Meet ' + pn + ' on Petfi 🐾';
+        subject = text;
       } else {
         url = shareInviteLink(); qrUrl = inviteUrl();
         title = '💌 Invite friends';
@@ -7003,7 +7029,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.28.0';
+    const APP_VERSION = '1.28.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -10138,7 +10164,7 @@
         (g.desc ? '<p style="font-size:0.88rem;margin-bottom:0.7rem;">' + esc(g.desc) + '</p>' : '') +
         groupRequestsHtml(g, i) +
         '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
-          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + ' <span class="post-sub" style="font-weight:400;">· ' + esc(personaWith(p.authorId)) + '</span>' : '') + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
+          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + (p.persona && p.persona.id ? '<span style="cursor:pointer;" onclick="openPetSheetById(\'' + jsStr(p.persona.id) + '\')">' + esc(p.who) + '</span>' : esc(p.who)) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + ' <span class="post-sub" style="font-weight:400;">· ' + esc(personaWith(p.authorId)) + '</span>' : '') + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
             (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin()) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
           : '<div class="note">No posts yet — start the conversation! 🐾</div>') + '</div>' +
         (canPost
@@ -10245,6 +10271,7 @@
         // Pet profiles: be this pet, and whether it shows on Petfi at all
         (iAmPerson() && personasOn() && pt.id
           ? (pt.hidden === true ? '' : '<button class="btn secondary" onclick="closeSheet();openTab(\'profile\');setActingAs(\'' + jsStr(pt.id) + '\')">🐾 Be ' + esc(pt.name) + ' on Petfi</button>') +
+            (pt.hidden !== true && pt.ppid ? '<button class="btn secondary" onclick="openPetSheetById(\'' + jsStr(pt.ppid) + '\')">👁 View ' + esc(pt.name) + '\'s page</button>' : '') +
             '<div class="settings-card" style="margin-bottom:0.7rem;">' + petShownToggle(pt) + '</div>'
           : '') +
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
@@ -14284,10 +14311,13 @@
       data.forEach(p => { PROFILE_BY_ID[p.id] = p; });
       PEOPLE = data.filter(p => p.visible !== false && !p.banned && !hiddenUser(p.id)); // hiddenUser also drops unverified organizations
       if (appActive() && state.tab === 'nearby') rerenderTab(renderNearby);
+      // Their pets ("with Echo, Max"): one query for the whole list, filled in when it lands
+      if (PERSONAS_STATE !== -1) ensureOwnerPets(PEOPLE.filter(p => isPersonKind(p.kind)).map(p => p.id)).then(got => { if (got) fillPetLines(); });
     }
     // ---- Find a member by username (prefix match). Same filters as the
     // Nearby list; results only open the person sheet and never join PEOPLE.
     let MEMBER_Q = '', MEMBER_RES = null, memberSearchTimer = null, memberSearchSeq = 0;
+    let PET_RES = [];   // pets found by name (pet personas), shown after the members
     function memberSearchInput(v) {
       MEMBER_Q = String(v || '').slice(0, 40);
       clearTimeout(memberSearchTimer);
@@ -14300,24 +14330,45 @@
       if (q.length < 2 || !cloud || !cloudUser) { MEMBER_RES = null; drawMemberResults(); return; }
       MEMBER_RES = 'loading'; drawMemberResults();
       const pat = q.replace(/[\\%_]/g, c => '\\' + c) + '%';
-      let res;
-      res = await profSelect(() => cloud.from('profiles').select(PROFILE_COLS).ilike('username', pat).neq('id', cloudUser.id).order('username').limit(20));
+      // Pets by name too, in parallel (pet_profiles' read rule already drops hidden
+      // pets and owners who are suspended or blocked me; my own blocks are below)
+      const petsOn = await personasProbe();
+      const [res, pres] = await Promise.all([
+        profSelect(() => cloud.from('profiles').select(PROFILE_COLS).ilike('username', pat).neq('id', cloudUser.id).order('username').limit(20)),
+        petsOn ? cloud.from('pet_profiles').select(PET_COLS).ilike('name', pat).neq('owner_id', cloudUser.id).order('name').limit(10).then(r => r, e => ({ error: e })) : null,
+      ]);
       if (seq !== memberSearchSeq) return; // a newer search is on its way
-      if (res.error || !res.data) { MEMBER_RES = 'error'; drawMemberResults(); return; }
+      if (res.error || !res.data) { MEMBER_RES = 'error'; PET_RES = []; drawMemberResults(); return; }
       res.data.forEach(p => { PROFILE_BY_ID[p.id] = p; });
+      let pets = [];
+      if (pres && !pres.error && Array.isArray(pres.data)) {
+        pets = pres.data.filter(r => r && r.id && r.owner_id && r.visible !== false);
+        pets.forEach(r => { PET_BY_ID[String(r.id).toLowerCase()] = r; });
+        await ensureProfiles(pets.map(r => r.owner_id));
+        if (seq !== memberSearchSeq) return;
+        pets = pets.filter(r => { const o = PROFILE_BY_ID[r.owner_id]; return o && o.visible !== false && !o.banned && !hiddenUser(r.owner_id); });
+      } else if (pres && pres.error) console.warn('pet search:', pres.error.code || pres.error.message);
       MEMBER_RES = res.data.filter(p => p.visible !== false && !p.banned && !hiddenUser(p.id));
+      PET_RES = pets;
       drawMemberResults();
     }
     function memberResultsHTML() {
       if (MEMBER_Q.trim().replace(/\*/g, '').length < 2 || MEMBER_RES == null) return '';
       if (MEMBER_RES === 'loading') return '<p class="sub" style="font-size:0.8rem;">Searching…</p>';
       if (MEMBER_RES === 'error') return '<p class="sub" style="font-size:0.8rem;">⚠️ Couldn\'t search right now. Please try again.</p>';
-      if (!MEMBER_RES.length) return '<p class="sub" style="font-size:0.8rem;">No members found with that name.</p>';
+      const pets = personasOn() ? PET_RES.filter(r => !hiddenUser(r.owner_id)) : [];
+      if (!MEMBER_RES.length && !pets.length) return '<p class="sub" style="font-size:0.8rem;">' + (personasOn() ? 'No members or pets found with that name.' : 'No members found with that name.') + '</p>';
+      // "Echo · Border Collie · with Jasmine": opens the pet page
+      const petRows = pets.map(r =>
+        '<div class="row pet-res" style="cursor:pointer;" onclick="openPetSheetById(\'' + jsStr(r.id) + '\')">' +
+          '<div class="ricon" style="overflow:hidden;">' + personaAvatar(r, 40) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(r.name) + (r.passed ? ' 🕊️' : '') + (isVerifiedUser(r.owner_id) ? ' ' + vbadge('pet') : '') + '</div><div class="rmeta">' + esc(personaMeta(r, r.owner_id)) + '</div></div>' +
+        '</div>').join('');
       return MEMBER_RES.map(u =>
         '<div class="row" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(u.id) + '\')">' +
           '<div class="ricon" style="overflow:hidden;">' + personAvatar(u, 40) + '</div>' +
           '<div class="rmain"><div class="rtitle">' + esc(u.username) + (u.verified ? ' ' + vbadge() : '') + orgMark(u) + '</div><div class="rmeta">' + esc(personMeta(u)) + '</div></div>' +
-        '</div>').join('');
+        '</div>').join('') + petRows;
     }
     function drawMemberResults() {
       const d = document.getElementById('member-res');
@@ -14403,6 +14454,190 @@
       const pet = personaOf(row.author_id, row.content, row.created_at);
       if (pet) { o.persona = pet; o.who = pet.name; }
       return o;
+    }
+
+    // ---- Pet personas: what other members see (pet page, pets under owners) ----
+    // Pets by owner for the owner's sheet, Nearby and the friends list: ONE
+    // query for a whole list of owners, kept 5 minutes. Rows also land in
+    // PET_BY_ID. No-op (and no query) without the pet_profiles table.
+    const PETS_BY_OWNER = {};        // owner id -> { at, rows } (rows = what pet_profiles lets me see)
+    const PETS_OWNER_TTL = 5 * 60000;
+    async function ensureOwnerPets(ownerIds) {
+      if (!cloud || !(await personasProbe())) return false;
+      const now = Date.now(), want = {};
+      (ownerIds || []).forEach(id => {
+        const e = typeof id === 'string' && UUID_RE.test(id) ? PETS_BY_OWNER[id] : true;
+        if (!e || now - e.at >= PETS_OWNER_TTL) want[id] = 1;
+      });
+      const o = Object.keys(want).slice(0, 100);
+      if (!o.length) return false;
+      try {
+        const { data, error } = await cloud.from('pet_profiles').select(PET_COLS).in('owner_id', o).order('created_at').limit(1000);
+        if (error) { console.warn('pets:', error.code || error.message); return false; }
+        o.forEach(id => { PETS_BY_OWNER[id] = { at: now, rows: [] }; LEGACY_PET_BY_OWNER[id] = null; });
+        (data || []).forEach(r => {
+          if (!r || !r.id || !r.owner_id || !PETS_BY_OWNER[r.owner_id]) return;
+          PET_BY_ID[String(r.id).toLowerCase()] = r;
+          if (r.legacy) LEGACY_PET_BY_OWNER[r.owner_id] = r;
+          PETS_BY_OWNER[r.owner_id].rows.push(r);
+        });
+        return true;
+      } catch (e) { console.warn('pets:', e && e.message); return false; }
+    }
+    // An owner's pets shown on Petfi (null = not loaded yet); living = not passed
+    function ownerPets(id) { const e = PETS_BY_OWNER[id]; return e ? e.rows.filter(r => r.visible !== false) : null; }
+    function livingPets(id) { const l = ownerPets(id); return l ? l.filter(r => !r.passed) : null; }
+    function petPageArg(r) { return 'openPetSheetById(\'' + jsStr(r.id) + '\')'; }
+    // Nearby card: "with (Echo) (Max)", at most 3 bubbles
+    function nearbyPetsHtml(id) {
+      const l = livingPets(id); if (!l || !l.length) return '';
+      return '<span>with</span>' + l.slice(0, 3).map(r => '<span class="pet-bub" onclick="event.stopPropagation();' + petPageArg(r) + '"><span class="pb-ava">' + personaAvatar(r, 20) + '</span>' + esc(r.name) + '</span>').join('') +
+        (l.length > 3 ? '<span>+' + (l.length - 3) + '</span>' : '');
+    }
+    // Friends list: "🐾 Echo, Max"
+    function petNamesHtml(id) {
+      const l = livingPets(id); if (!l || !l.length) return '';
+      return '🐾 ' + esc(l.slice(0, 4).map(r => r.name).join(', ') + (l.length > 4 ? ' +' + (l.length - 4) : ''));
+    }
+    // Lines drawn before their owner's pets arrived get filled in place (no re-render, focus kept)
+    function fillPetLines() {
+      document.querySelectorAll('[data-pets-of]').forEach(el => {
+        const id = el.getAttribute('data-pets-of');
+        el.innerHTML = el.classList.contains('u-pets') ? nearbyPetsHtml(id) : petNamesHtml(id);
+      });
+    }
+    // The owner's sheet: their living pets as bubbles; the old names from
+    // mate_picks until the owner has pet rows
+    function ownerSheetPetsHtml(u) {
+      const l = livingPets(u.id);
+      if (l && l.length) return '<div class="prof-meta" style="margin-top:0.6rem;font-weight:700;">' + (u.kind === 'org' ? '🐾 Animals in our care' : '🐾 Pets') + '</div>' +
+        '<div class="persona-strip center" role="group" aria-label="' + esc((u.kind === 'org' ? 'Animals: ' : 'Pets: ') + l.map(r => r.name).join(', ')) + '" style="margin-top:0.35rem;">' +
+        l.map(r => '<button type="button" class="ps-chip" onclick="' + petPageArg(r) + '"><span class="ps-ava">' + personaAvatar(r, 48) + '</span><span class="ps-name">' + esc(r.name) + '</span></button>').join('') + '</div>';
+      const x = pubExtras(u);
+      return u.kind === 'owner' && Array.isArray(x.pets) && x.pets.length
+        ? '<div class="prof-meta" style="margin-top:0.4rem;">🐾 Pets: ' + x.pets.map(q => esc(q.n) + (q.b || q.s ? ' (' + esc(q.b || q.s) + ')' : '')).join(', ') + '</div>' : '';
+    }
+
+    // ---- The pet page: a pet as other members see it ----
+    // Opened from a persona's name or face on a post, comment or group post,
+    // the owner's sheet, Nearby, search and your own pet hero. Everything on it
+    // acts on the OWNER'S account for now (friends, messages, hi, report, block).
+    let PET_PAGE = null;             // { id, owner, name, rows, more, busy } of the page on screen
+    const PET_POSTS_N = 10;
+    async function openPetSheetById(petId) {
+      if (!personasOn() || !cloud || typeof petId !== 'string' || !UUID_RE.test(petId)) return;
+      const id = petId.toLowerCase();
+      // Read fresh: a pet hidden (or an owner who blocked me) since the feed loaded is gone
+      let res;
+      try { res = await cloud.from('pet_profiles').select(PET_COLS).eq('id', id).maybeSingle(); } catch (e) { res = { error: e }; }
+      if (res && !res.error) PET_BY_ID[id] = res.data || null;
+      const pet = PET_BY_ID[id];
+      const gone = () => toast('That pet isn\'t on Petfi right now');
+      if (!pet || !pet.owner_id) { gone(); return; }
+      const mine = !!(cloudUser && pet.owner_id === cloudUser.id);
+      let owner = null;
+      if (!mine) {
+        await ensureProfiles([pet.owner_id]);
+        owner = PROFILE_BY_ID[pet.owner_id];
+        if (pet.visible === false || !owner || owner.banned || hiddenUser(pet.owner_id)) { gone(); return; }
+      }
+      showPetSheet(pet, owner);
+    }
+    function showPetSheet(pet, owner) {
+      const mine = !owner, oid = pet.owner_id, name = pet.name || 'Pet';
+      const passed = !!pet.passed;
+      const meta = passed ? 'In loving memory · ' + String(pet.passed).slice(0, 4)
+        : [pet.breed || speciesLabel(pet.species), pet.age].filter(Boolean).join(' · ');
+      const ownerName = mine ? (state.displayName || 'You') : (owner.username || 'Petfi member');
+      PET_PAGE = { id: String(pet.id).toLowerCase(), owner: oid, name, rows: [], more: false, busy: false };
+      openSheet(esc(name) + (passed ? ' 🕊️' : '') + (isVerifiedUser(oid) ? ' ' + vbadge('pet') : ''),
+        '<div class="pet-page' + (passed ? ' memorial' : '') + '" style="text-align:center;">' +
+          '<div class="pp-ava">' + personaAvatar(pet, 96) + '</div>' +
+          (pet.status ? '<div class="prof-status">' + esc(pet.status) + '</div>' : '') +
+          '<div class="prof-meta" style="margin-top:0.3rem;">' + esc(meta) + '</div>' +
+          '<div class="prof-meta pp-owner" style="margin-top:0.3rem;">Owner: ' + (mine ? esc(ownerName)
+            : '<span class="link" onclick="openPersonSheetById(\'' + jsStr(oid) + '\')">' + esc(ownerName) + (owner.verified ? ' ' + vbadge() : '') + '</span>' + orgMark(owner)) + '</div>' +
+          (passed ? '<p class="sub" style="margin-top:0.4rem;">Forever part of the family. 💜</p>' : '') +
+        '</div>' +
+        petPageActionsHtml(pet, owner) +
+        '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>📝 Recent posts</h3></div>' +
+        '<div id="pet-posts"><p class="sub" style="font-size:0.85rem;">Loading…</p></div>');
+      loadPetPagePosts(false);
+    }
+    // STAGE 5 SEAM: the pet page's action buttons. When the owner switches on
+    // the pet's own friends and messages (pet.social, which PET_COLS does not
+    // read yet), pet-level buttons go here instead. Today every action goes to
+    // the owner's account and says so.
+    function petPageActionsHtml(pet, owner) {
+      const pid = jsStr(pet.id), name = esc(pet.name || 'this pet');
+      if (!owner) {
+        // Your own pet: switch to it or manage it instead of friend/message buttons
+        const local = (state.pets || []).find(p => p && p.ppid && p.ppid === String(pet.id).toLowerCase()) ||
+          (state.pets || []).find(p => p && p.id === pet.local_id) || null;
+        return '<div class="note pp-mine" style="text-align:center;">🐾 This is your pet. This is how other members see ' + name + '.</div>' +
+          (local && !local.passed && local.hidden !== true ? '<button class="btn" onclick="closeSheet();openTab(\'profile\');setActingAs(\'' + jsStr(local.id) + '\')">🐾 Be ' + name + ' on Petfi</button>' : '') +
+          (local ? '<button class="btn secondary" onclick="petPageManage(\'' + jsStr(local.id) + '\')">⚙️ Manage ' + name + '</button>' : '') +
+          '<button class="pill-btn ghost" style="display:block;margin:0.6rem auto 0;" onclick="openShareSheet(\'pet\',\'' + pid + '\')">🔗 Share ' + name + '</button>';
+      }
+      const oid = jsStr(owner.id), on = esc(owner.username || 'their owner');
+      return '<p class="sub" style="font-size:0.8rem;text-align:center;margin:0.6rem 0 0.4rem;">Friend requests and messages go to ' + name + '\'s owner, ' + on + '.</p>' +
+        friendButtonsHtml(owner, true) +
+        '<button class="btn secondary" onclick="openCloudDM(\'' + oid + '\')">💬 Message ' + on + '</button>' +
+        '<button class="btn secondary" onclick="sendCloudBarkById(\'' + oid + '\')">' + sayHiLabel() + ' to ' + on + '</button>' +
+        '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;flex-wrap:wrap;">' +
+          '<button class="pill-btn ghost" style="flex:1;" onclick="openShareSheet(\'pet\',\'' + pid + '\')">🔗 Share</button>' +
+          '<button class="pill-btn ghost" style="flex:1;" onclick="reportPetOwner(\'' + pid + '\')">🚩 Report ' + on + '</button>' +
+          '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + oid + '\',\'' + jsStr(owner.username || 'this member') + '\')">🚫 Block ' + on + '</button>' +
+        '</div>';
+    }
+    function petPageManage(localId) {
+      closeSheet(); openTab('profile');
+      const i = (state.pets || []).findIndex(p => p && p.id === localId);
+      if (i >= 0) openPetDetail(i);
+    }
+    // A report from a pet page is about the owner's account, and says which pet's page it came from
+    function reportPetOwner(petId) {
+      const pet = PET_BY_ID[String(petId || '').toLowerCase()];
+      if (!pet) return;
+      const o = PROFILE_BY_ID[pet.owner_id], on = (o && o.username) || 'this member';
+      openReport('user', on, pet.owner_id, { authorId: pet.owner_id, text: 'Reported from ' + (pet.name || 'a pet') + '\'s pet page (pet ' + pet.id + ')' });
+    }
+    // The pet's own posts: made as this pet (content.as) AND by its owner, newest first
+    async function loadPetPagePosts(more) {
+      const pg = PET_PAGE; if (!pg || pg.busy || !cloud) return;
+      pg.busy = true;
+      const seq = sheetSeq;
+      let q = cloud.from('posts').select('id, author_id, content, created_at')
+        .eq('author_id', pg.owner).eq('content->>as', pg.id).is('content->>petfiType', null)
+        .order('created_at', { ascending: false }).limit(PET_POSTS_N + 1);
+      if (more && pg.rows.length) q = q.lt('created_at', pg.rows[pg.rows.length - 1].created_at);
+      let res;
+      try { res = await q; } catch (e) { res = { error: e }; }
+      pg.busy = false;
+      if (PET_PAGE !== pg || sheetSeq !== seq) return;
+      const box = document.getElementById('pet-posts'); if (!box) return;
+      if (res.error) {
+        if (more) toast('⚠️ Couldn\'t load more posts');
+        else box.innerHTML = '<p class="sub" style="font-size:0.85rem;">⚠️ Couldn\'t load posts right now.</p>';
+        return;
+      }
+      const rows = (res.data || []).filter(r => r && r.author_id === pg.owner && r.content && String(r.content.as || '').toLowerCase() === pg.id);
+      pg.more = rows.length > PET_POSTS_N;
+      pg.rows = pg.rows.concat(rows.slice(0, PET_POSTS_N));
+      box.innerHTML = petPostsHtml(pg);
+    }
+    function petPageMore() { loadPetPagePosts(true); }
+    function petPostsHtml(pg) {
+      if (!pg.rows.length) return '<p class="sub" style="font-size:0.85rem;">No posts from ' + esc(pg.name) + ' yet.</p>';
+      return pg.rows.map(r => {
+        const c = r.content || {}, ph = safePhotos(c.photoUrls)[0];
+        return '<div class="post pp-post" style="margin-bottom:0.6rem;">' +
+          '<div class="post-sub">' + esc(timeAgo(r.created_at)) + ((safeVideo(c.videoUrl)) ? ' · 📹' : '') + (c.edited ? ' · edited' : '') + '</div>' +
+          (c.text ? '<div class="post-body" style="margin-bottom:0;">' + esc(String(c.text)) + '</div>' : '') +
+          (ph ? '<img src="' + esc(ph) + '" alt="Photo from ' + esc(pg.name) + '" loading="lazy">' : '') +
+        '</div>';
+      }).join('') +
+        (pg.more ? '<button class="pill-btn ghost" style="display:block;margin:0 auto;" onclick="petPageMore()">See more</button>' : '');
     }
 
     // ---- Pet personas: acting as a pet (owner and organization accounts) ----
@@ -14679,16 +14914,20 @@
     function areFriendsWith(id) { const f = friendshipWith(id); return !!(f && f.status === 'accepted'); }
 
     function openPersonSheet(i) { const u = PEOPLE[i]; if (u) showPersonSheet(u); }
-    function showPersonSheet(u) {
-      const f = friendshipWith(u.id);
-      let friendBtn;
-      if (!f) friendBtn = '<button class="btn" onclick="sendFriendRequest(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🐾 Add friend</button>';
-      else if (f.status === 'accepted') friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">✔︎ You\'re friends</button>' +
+    // The friend buttons of a member's sheet. ofPet: shown on one of their
+    // pets' pages, so every label names the owner it goes to.
+    function friendButtonsHtml(u, ofPet) {
+      const f = friendshipWith(u.id), n = esc(u.username);
+      if (!f) return '<button class="btn" onclick="sendFriendRequest(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">' + (ofPet ? '🐾 Add ' + n + ' as a friend' : '🐾 Add friend') + '</button>';
+      if (f.status === 'accepted') return '<button class="btn secondary" disabled style="opacity:0.8;">' + (ofPet ? '✔︎ You\'re friends with ' + n : '✔︎ You\'re friends') + '</button>' +
         '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="removeFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">Remove friend</button>';
-      else if (f.addressee_id === cloudUser.id) friendBtn = '<button class="btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✅ Accept friend request</button>' +
+      if (f.addressee_id === cloudUser.id) return '<button class="btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">' + (ofPet ? '✅ Accept ' + n + '\'s friend request' : '✅ Accept friend request') + '</button>' +
         '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">✕ Decline</button>';
-      else friendBtn = '<button class="btn secondary" disabled style="opacity:0.8;">⏳ Request sent</button>' +
+      return '<button class="btn secondary" disabled style="opacity:0.8;">' + (ofPet ? '⏳ Request sent to ' + n : '⏳ Request sent') + '</button>' +
         '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">Cancel request</button>';
+    }
+    function showPersonSheet(u) {
+      const friendBtn = friendButtonsHtml(u, false);
       const x = pubExtras(u);
       // Pet ages are part of the fun; a person's age is private
       const ageStr = !isPersonKind(u.kind) && x.age ? (String(x.age).match(/yr|mo/) ? x.age : x.age + ' yrs') : '';
@@ -14710,7 +14949,8 @@
           '<div class="prof-meta" style="margin-top:0.3rem;">' + esc(personMeta(u)) + (ageStr ? ' · ' + esc(ageStr) : '') + ' · ' + kindLabel(u.kind) + '</div>' +
           (x.picks && x.picks.length
             ? '<div class="prof-meta" style="margin-top:0.4rem;">💘 Picks: ' + x.picks.map(p => esc(p.name) + ' (' + esc(p.breed) + ')').join(', ') + '</div>' : '') +
-          (u.kind === 'owner' && Array.isArray(x.pets) && x.pets.length
+          (personasOn() && isPersonKind(u.kind) ? '<div id="ps-pets" data-owner="' + esc(u.id) + '">' + ownerSheetPetsHtml(u) + '</div>' :
+          u.kind === 'owner' && Array.isArray(x.pets) && x.pets.length
             ? '<div class="prof-meta" style="margin-top:0.4rem;">🐾 Pets: ' + x.pets.map(q => esc(q.n) + (q.b || q.s ? ' (' + esc(q.b || q.s) + ')' : '')).join(', ') + '</div>' : '') +
         '</div>' +
         (oi ? orgProfileHtml(oi, false) : '') +
@@ -14736,6 +14976,14 @@
           '<button class="pill-btn ghost" style="flex:1;" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block</button>' +
         '</div>');
+      // Their pets: one query (cached), filled in place when it lands
+      if (personasOn() && isPersonKind(u.kind)) {
+        const seq = sheetSeq;
+        ensureOwnerPets([u.id]).then(got => {
+          const el = document.getElementById('ps-pets');
+          if (got && seq === sheetSeq && el && el.getAttribute('data-owner') === u.id) el.innerHTML = ownerSheetPetsHtml(u);
+        });
+      }
     }
     async function sendFriendRequest(id, name) {
       if (!cloudUser) { toast('Log in first'); return; }
@@ -14789,7 +15037,8 @@
       const row = (f, actions) => {
         const id = otherOf(f), who = PROFILE_BY_ID[id], name = authorName(id, 'Petfi member');
         return '<div class="row"><div class="ricon" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')">' + (who ? personAvatar(who, 46) : '🐾') + '</div>' +
-          '<div class="rmain" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')"><div class="rtitle">' + esc(name) + orgMark(who) + '</div></div>' +
+          '<div class="rmain" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')"><div class="rtitle">' + esc(name) + orgMark(who) + '</div>' +
+            (personasOn() ? '<div class="rmeta" data-pets-of="' + esc(id) + '">' + petNamesHtml(id) + '</div>' : '') + '</div>' +
           (actions ? '<div class="raction" style="display:flex;gap:0.3rem;">' + actions(f, name) + '</div>' : '') + '</div>';
       };
       const friends = FRIENDSHIPS.filter(f => f.status === 'accepted' && !hiddenUser(otherOf(f)));
@@ -14804,6 +15053,11 @@
       h += '<div class="sec"><h3>🤝 Friends</h3></div>' + (friends.length ? friends.map(f => row(f, null)).join('')
         : '<p class="sub" style="font-size:0.85rem;">No friends yet. Find members on the <b>Nearby</b> tab and tap Add friend.</p>');
       openSheet('🤝 Friends', h);
+      // Each friend's pets: one query for the whole list (cached), filled in place
+      if (personasOn()) {
+        const seq = sheetSeq;
+        ensureOwnerPets(friends.concat(incoming, sent).map(otherOf)).then(got => { if (got && seq === sheetSeq) fillPetLines(); });
+      }
     }
     function sendCloudBark(i) { const u = PEOPLE[i]; if (u) sendCloudBarkById(u.id); }
     function sendCloudBarkById(id) {
