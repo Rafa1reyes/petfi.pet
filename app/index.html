@@ -321,6 +321,19 @@
     .pet-page.memorial .pp-ava { border-color: #b9a7e0; filter: saturate(0.85); }
     .pp-owner .link { color: var(--brand-text); font-weight: 700; cursor: pointer; }
     .pp-post img { width: 100%; max-height: 220px; object-fit: cover; border-radius: 12px; display: block; margin-top: 0.4rem; }
+    /* Stage 5: a pet's own friends and messages */
+    .pp-as { text-align: center; font-size: 0.8rem; color: var(--muted); margin: 0.6rem 0 0.2rem; }
+    .pp-as b { color: var(--ink); }
+    .dm-as { font-size: 0.78rem; color: var(--muted); background: var(--brand-soft); border-radius: 10px; padding: 0.35rem 0.6rem; margin: 0 0 0.5rem; text-align: center; }
+    .dm-as b { color: var(--ink); }
+    .convo-as { display: inline-flex; align-items: center; gap: 0.25rem; font-size: 0.7rem; font-weight: 700; color: var(--brand-text); background: var(--brand-soft); border-radius: 999px; padding: 0.05rem 0.45rem 0.05rem 0.1rem; margin-left: 0.35rem; vertical-align: middle; white-space: nowrap; }
+    .convo-as .ca-ava { width: 16px; height: 16px; border-radius: 50%; overflow: hidden; display: inline-flex; background: var(--card); }
+    .convo-as .ca-ava svg, .convo-as .ca-ava img { width: 100%; height: 100%; object-fit: cover; }
+    .dm-filter { display: flex; gap: 0.4rem; overflow-x: auto; margin: 0 0 0.6rem; scrollbar-width: none; }
+    .dm-filter::-webkit-scrollbar { display: none; }
+    .dm-filter button { flex: 0 0 auto; border: 2px solid var(--line); background: var(--card); color: var(--ink); border-radius: 999px; padding: 0.25rem 0.7rem; font: inherit; font-size: 0.8rem; font-weight: 700; cursor: pointer; }
+    .dm-filter button.on { border-color: var(--brand); color: var(--brand-text); background: var(--brand-soft); }
+    .dm-filter .convo-unread { height: 17px; min-width: 17px; font-size: 0.62rem; }
     .post-as { border: 2px solid var(--line); border-radius: 14px; padding: 0.5rem 0.7rem 0.1rem; margin-bottom: 0.7rem; }
     .post-as .pa-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
     .post-as .pa-label b { color: var(--ink); }
@@ -3392,21 +3405,32 @@
     // The greeting a tap sends: an animal word, or a plain wave from a person.
     // Acting as a pet, the pet's name goes in front ("Echo: Woof! 🐶"), except to a
     // friends-only member who isn't a friend: the server only lets the bare greeting through
-    function greetText(toId) {
-      const v = myVoice(), base = v === 'like' ? '👋 Hi!' : voiceWord(v, myGreetSpecies());
-      const ap = actingPet();
+    // as (stage 5): undefined = whoever I'm acting as, on an account-level row
+    // (the old behaviour); null = me; a pet_profiles id of mine = that pet, which
+    // is also the row's sender_pet. tp = their pet the greeting goes to.
+    function greetText(toId, as, tp) {
+      const sp = greetSpeciesAs(as), v = speciesVoice(sp), base = v === 'like' ? '👋 Hi!' : voiceWord(v, sp);
+      const ap = as === undefined ? actingPet() : myPetByPpid(as);
       if (!ap) return base;
       const to = toId && PROFILE_BY_ID[toId];
-      if (to && to.friends_only && !areFriendsWith(toId)) return base;
+      if (to && to.friends_only && !dmFriendsOk(toId, as || null, tp)) return base;
       return petClean(ap.name, 40) + ': ' + base;
     }
-    function greetSound() {
+    function greetSpeciesAs(as) {
+      if (as === undefined) return myGreetSpecies();
+      const p = myPetByPpid(as); if (p) return String(p.species || '').toLowerCase();
+      if (iAmOrg()) return '';
+      return state.accountType === 'owner' ? ((state.pets && state.pets[0] && state.pets[0].species) || '') : (state.species || '');
+    }
+    function greetSound(as) {
       if (state.soundsSend === false) return;
-      const v = myVoice();
+      const v = speciesVoice(greetSpeciesAs(as));
       if (VOICE_PLAYERS[v]) playVoice(v); else uiSound('send');
     }
     // Buttons label themselves with the SENDER's voice — that's what lands.
     function sayHiLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Say hi (' + v + ')'; }
+    function sayHiLabelAs(as) { const v = speciesVoice(greetSpeciesAs(as)); return v === 'like' ? '👋 Say hi' : '🔊 Say hi (' + v + ')'; }
+    function sendVoiceLabelAs(as) { const v = speciesVoice(greetSpeciesAs(as)); return v === 'like' ? '👋 Say hi' : '🔊 Send a ' + v; }
     function sendVoiceLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Send a ' + v; }
     function reactSound(kind) {
       // Tapping "🐶 Bark", "🐍 Hiss" & co. on a post is audible — that's the fun
@@ -6196,7 +6220,10 @@
           (isPet ? 'Show the real thing — use a photo of your pet instead of the drawn icon.' : isOrg ? 'Show members who you are: use your logo or a photo instead of the icon.' : 'Show the real you — use a photo of you instead of the icon.') + '</p>' +
       '</div>');
 
-      const nFriends = FRIENDSHIPS.filter(f => f.status === 'accepted').length;
+      // Friends of whoever I am right now: my own (account-level side), or the pet's own
+      // when I'm acting as a pet that takes its own friends (stage 5)
+      const fAs = defaultSendAs();
+      const nFriends = FRIENDSHIPS.filter(f => f.status === 'accepted' && fsSide(f).mp === fAs).length;
       const nGroups = CLOUD_GROUPS.filter(g => g.joined).length;
       h += '<div class="stat-row">' +
         '<div class="stat" style="cursor:pointer;" title="See your friends and requests" onclick="openFriendsList()"><b>' + nFriends + '</b><span>Friends</span></div>' +
@@ -6327,7 +6354,7 @@
           (pt.ppid ? '<button class="pill-btn ghost" onclick="openPetSheetById(\'' + jsStr(pt.ppid) + '\')">👁 View ' + esc(name) + '\'s page</button>' : '') +
           '<input type="file" id="pet-photo-file" aria-label="📷 Use a photo" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this, uploadPetPhoto)">' +
         '</div>' +
-        '<div class="settings-card" style="margin:0.7rem 0 0;text-align:left;">' + petShownToggle(pt) + '</div>' +
+        '<div class="settings-card" style="margin:0.7rem 0 0;text-align:left;">' + petShownToggle(pt) + petSocialToggle(pt) + '</div>' +
         '<button class="pill-btn" style="margin-top:0.7rem;" onclick="setActingAs(null)">← Back to ' + esc(humanShortName()) + '</button>' +
       '</div>';
     }
@@ -7063,7 +7090,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.29.0';
+    const APP_VERSION = '1.30.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -9218,37 +9245,38 @@
       // Friend requests waiting on your answer
       const pending = incomingFriendRequests();
       pending.forEach(f => {
-        const name = authorName(f.requester_id, 'A Petfi member');
-        real += '<div class="notif"><span class="ne">🐾</span><div class="nt"><b>' + esc(name) + '</b> wants to be your friend<small>friend request</small></div>' +
+        const s = fsSide(f), name = s.tp ? theirPersonaName(s.other, s.tp) : authorName(f.requester_id, 'A Petfi member');
+        real += '<div class="notif"><span class="ne">🐾</span><div class="nt">' + friendAskHtml(f) + '<small>friend request</small></div>' +
           '<button class="pill-btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\')">Accept</button>' +
           '<button class="pill-btn ghost" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'notif\')">Decline</button></div>';
       });
-      // Barks at you — bark back and it's a match 💘
+      // Barks at you — bark back and it's a match 💘 (one line per conversation: a pet's hellos are its own)
       if (cloudUser) {
-        const seenSender = {};
+        const seenThread = {};
         MY_MESSAGES.filter(m => m.recipient_id === cloudUser.id && m.kind === 'bark' && !hiddenUser(m.sender_id))
           .slice(0, 12).forEach(m => {
-            if (seenSender[m.sender_id]) return;
-            seenSender[m.sender_id] = true;
-            const name = authorName(m.sender_id, 'A Petfi member');
-            const isMate = /💘/.test(m.text || '');
-            const iBarkedToo = !!((state.mateBarks || {})[m.sender_id]) ||
-              MY_MESSAGES.some(x => x.sender_id === cloudUser.id && x.recipient_id === m.sender_id && x.kind === 'bark');
-            const action = matchedWith(m.sender_id)
+            const s = msgSide(m), key = threadKey(s.other, s.mp, s.tp), pets = !!(s.mp || s.tp);
+            if (seenThread[key]) return;
+            seenThread[key] = true;
+            const name = s.tp ? theirPersonaName(s.other, s.tp) : authorName(m.sender_id, 'A Petfi member');
+            const isMate = !pets && /💘/.test(m.text || '');
+            const iBarkedToo = (!pets && !!((state.mateBarks || {})[m.sender_id])) ||
+              MY_MESSAGES.some(x => x.sender_id === cloudUser.id && x.recipient_id === m.sender_id && x.kind === 'bark' && samePair(msgSide(x), s.other, s.mp, s.tp));
+            const action = !pets && matchedWith(m.sender_id)
               ? '<button class="pill-btn" style="background:#e0527a;" onclick="closeSheet();openCloudDM(\'' + jsStr(m.sender_id) + '\')">💬 Match!</button>'
               : iBarkedToo
                 ? '<span class="fl">Sent ✓</span>'
-                : '<button class="pill-btn ghost" onclick="barkBack(\'' + jsStr(m.sender_id) + '\')">' + (neutralGreet(m.sender_id) ? '👋 Say hi back' : '🔊 Bark back') + '</button>';
+                : '<button class="pill-btn ghost" onclick="barkBack(\'' + jsStr(m.sender_id) + '\'' + (pets ? ',' + asJs(s.mp) + ',' + asJs(s.tp) : '') + ')">' + (barkBackQuiet(m.sender_id, s.mp, s.tp) ? '👋 Say hi back' : '🔊 Bark back') + '</button>';
             real += '<div class="notif"><span class="ne">' + (isMate ? '💘' : '🔊') + '</span>' +
-              '<div class="nt"><b>' + esc(name) + '</b> ' + (isMate ? 'said hi on Mate Match' : 'said hi: ' + esc(m.text || '')) +
+              '<div class="nt"><b>' + esc(name) + '</b> ' + (isMate ? 'said hi on Mate Match' : (s.mp ? 'said hi to ' + esc(myPersonaName(s.mp)) : 'said hi') + ': ' + esc(barkBody(m))) +
               '<small>' + timeAgo(m.created_at) + '</small></div>' + action + '</div>';
           });
         // Unread conversations
         unreadConvos().slice(0, 8).forEach(c => {
           if (c.last.kind === 'bark') return; // already listed above
-          const name = authorName(c.id, 'A Petfi member');
-          real += '<div class="notif"><span class="ne">💬</span><div class="nt"><b>' + esc(name) + '</b> sent you a message<small>' + timeAgo(c.last.created_at) + '</small></div>' +
-            '<button class="pill-btn ghost" onclick="closeSheet();openCloudDM(\'' + jsStr(c.id) + '\')">Open</button></div>';
+          const name = c.tp ? theirPersonaFull(c.id, c.tp) : authorName(c.id, 'A Petfi member');
+          real += '<div class="notif"><span class="ne">💬</span><div class="nt"><b>' + esc(name) + '</b> ' + (c.mp ? 'sent ' + esc(myPersonaName(c.mp)) + ' a message' : 'sent you a message') + '<small>' + timeAgo(c.last.created_at) + '</small></div>' +
+            '<button class="pill-btn ghost" onclick="closeSheet();' + dmOpenJs(c.id, c.mp, c.tp) + '">Open</button></div>';
         });
       }
       openSheet('🔔 Notifications',
@@ -9459,12 +9487,26 @@
       const s = listingIntent(m) === 'seeking';
       return '<span class="mm-badge ' + (s ? 'seek' : 'offer') + tail + (s ? '🔍 Looking for a mate' : '✅ Available to breed') + '</span>';
     }
+    // The listing's pet, when it names one of its owner's pets that I can see (content.petId)
+    function matePet(m) {
+      if (!personasOn() || !m || typeof m.petId !== 'string') return null;
+      const r = PET_BY_ID[m.petId.toLowerCase()];
+      return r && r.owner_id === m.ownerId && r.visible !== false ? r : null;
+    }
+    // On the listing: the pet (paw badge when its owner is verified), tap for its pet page
+    function mateDetailPetRow(m) {
+      const r = matePet(m); if (!r) return '';
+      return '<div class="row mm-pet" style="cursor:pointer;" onclick="' + petPageArg(r) + '"><div class="ricon" style="overflow:hidden;">' + personaAvatar(r, 46) + '</div>' +
+        '<div class="rmain"><div class="rtitle" style="font-size:0.98rem;">' + esc(r.name) + (isVerifiedUser(m.ownerId) ? ' ' + vbadge('pet') : '') + '</div>' +
+        '<div class="rmeta" style="font-size:0.88rem;">See ' + esc(r.name) + '\'s page · with ' + esc(ownerLabel(m.ownerId, 'their owner')) + '</div></div>' +
+        '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>';
+    }
     function mateCard(m, i) {
-      const ph = safePhotos(m.photos), d = mateDistance(m);
+      const ph = safePhotos(m.photos), d = mateDistance(m), mp = matePet(m);
       return '<div class="mm-card" onclick="openMateDetail(' + i + ')">' +
         '<div class="mm-media">' + (ph.length ? '<img src="' + esc(ph[0]) + '" loading="lazy" alt="">' : '<div class="mm-emo">' + speciesEmo(m.species) + '</div>') + mateBadge(m) + '</div>' +
         '<div class="mm-body">' +
-          '<div class="mm-title">' + esc(m.name) + (m.mine ? ' <small>(yours)</small>' : '') + '</div>' +
+          '<div class="mm-title">' + esc(m.name) + (mp && isVerifiedUser(m.ownerId) ? ' ' + vbadge('pet') : '') + (m.mine ? ' <small>(yours)</small>' : '') + '</div>' +
           '<div class="mm-meta">' + esc(mateSummary(m)) + '</div>' +
           '<div class="mm-where">📍 ' + esc(mateWhere(m, d)) + '</div>' +
           '<button class="btn mm-view" onclick="event.stopPropagation();openMateDetail(' + i + ')">View details ›</button>' +
@@ -9533,6 +9575,7 @@
           ? '<div class="mm-gallery">' + ph.map(u => '<img src="' + esc(u) + '" alt="">').join('') + '</div>'
           : '<div style="text-align:center;"><div style="width:110px;height:110px;border-radius:50%;overflow:hidden;margin:0.2rem auto 0.4rem;border:3px solid var(--brand);background:var(--card);display:flex;align-items:center;justify-content:center;">' + petAvatar(m.species, m.breed, 100) + '</div></div>') +
         '<div style="text-align:center;margin:0.3rem 0 0.9rem;">' + mateBadge(m, true) + '<div style="margin-top:0.45rem;font-size:1.05rem;font-weight:600;">' + esc(mateSummary(m)) + '</div></div>' +
+        mateDetailPetRow(m) +
         fact('📍', 'Where', mateWhere(m, d)) +
         fact('📄', 'Papers', m.purity || 'Not stated') +
         // No paid (affiliate) links ever appear in Mate Match
@@ -9667,6 +9710,7 @@
     let brPhotos = [];        // newly picked photos, as data URLs
     let brKeptPhotos = [];    // already-uploaded photos kept while editing
     let brEdit = null;        // the CLOUD_MATES entry being edited, or null when creating
+    let brPetId = null;       // the listed pet's pet_profiles id (content.petId), or null
     // Mate Match is for individual members, never organizations
     function orgNoMate() {
       if (!iAmOrg()) return false;
@@ -9678,19 +9722,27 @@
     function startMateListing() {
       if (orgNoMate()) return;
       if (!requireSeller('list an animal for breeding') || !sellGate('mate')) return;
-      const pets = state.pets || [];
+      // Your living pets (a pet that has passed is never listed)
+      const pets = (state.pets || []).filter(p => p && p.id && !p.passed);
       if (pets.length) {
         openSheet('Which animal?',
           '<p class="sub" style="font-size:0.95rem;">Pick one of yours and we\'ll fill in what we already know.</p>' +
-          pets.map((p, i) =>
-            '<div class="row" style="cursor:pointer;" onclick="closeSheet();openBreedingForm(state.pets[' + i + '])">' +
-              '<div class="ricon">' + petAvatar(p.species, p.breed, 46) + '</div>' +
+          pets.map(p =>
+            '<div class="row" style="cursor:pointer;" onclick="closeSheet();openBreedingFormFor(\'' + jsStr(p.id) + '\')">' +
+              '<div class="ricon" style="overflow:hidden;">' + myPetAvatar(p, 46) + '</div>' +
               '<div class="rmain"><div class="rtitle" style="font-size:1rem;">' + esc(p.name) + '</div><div class="rmeta" style="font-size:0.85rem;">' + esc(p.breed || speciesLabel(p.species)) + '</div></div>' +
               '<div class="raction" style="color:var(--muted);font-size:1.3rem;">›</div></div>').join('') +
           '<button class="btn secondary" style="font-size:1rem;" onclick="closeSheet();openBreedingForm()">➕ A different animal</button>');
         return;
       }
       openBreedingForm(null);
+    }
+    // The listing form for one of my pets: name, species, breed, age and photo
+    // filled in, and the listing linked to the pet (content.petId = its pet_profiles id)
+    function openBreedingFormFor(localId) {
+      const p = petById(localId);
+      if (!p || p.passed) { openBreedingForm(null); return; }
+      openBreedingForm(p);
     }
     function listMyPet() { startMateListing(); }          // older buttons still work
     function petMateFlow() { closeSheet(); openTab('mate'); }
@@ -9701,6 +9753,11 @@
       brPhotos = [];
       brEdit = listing || null;
       brKeptPhotos = listing ? safePhotos(listing.photos) : [];
+      // One of my pets: the listing points at its public pet page (kept on edit)
+      brPetId = listing ? (typeof listing.petId === 'string' && UUID_RE.test(listing.petId) ? listing.petId.toLowerCase() : null)
+        : (prefill && prefill.ppid && personasOn() ? prefill.ppid : null);
+      const pfLook = !listing && prefill && prefill.look && typeof prefill.look === 'object' ? prefill.look : {};
+      if (!listing && safeAvatarUrl(pfLook.p)) brKeptPhotos = safePhotos([pfLook.p]); // the pet's photo, removable like any other
       const src = listing || prefill;
       const sp0 = src && src.species ? String(src.species).toLowerCase() : 'dog';
       brForm = { species: SPECIES_EMO[sp0] ? sp0 : 'other', sex: listing ? String(listing.sex || '') : '', intent: listing ? listingIntent(listing) : 'offering' };
@@ -9754,6 +9811,9 @@
       } else if (prefill) {
         document.getElementById('br-name').value = prefill.name || '';
         document.getElementById('br-breed').value = prefill.breed || '';
+        const info = (state.petInfo && prefill.id && state.petInfo[prefill.id]) || {};
+        if (info.bday) document.getElementById('br-age').value = petAge(info.bday) || '';
+        if (brKeptPhotos.length) renderBrPreviews();
       }
     }
     function brPick(k, v, el) {
@@ -9811,6 +9871,7 @@
         updatedAt: new Date().toISOString(),
       };
       if (editing && editing.closedAt) listing.closedAt = editing.closedAt;
+      if (brPetId) listing.petId = brPetId; // which of my pets this is (its pet page)
       // An edit keeps its place unless a new ZIP actually resolves
       if (editing && editing.loc) listing.loc = editing.loc;
       if (zip) {
@@ -9837,8 +9898,8 @@
             if (up.error) throw up.error;
             urls.push(cloud.storage.from('photos').getPublicUrl(path).data.publicUrl);
           }
-          listing.photos = editing ? safePhotos(brKeptPhotos).concat(urls) : urls;
-        } else if (editing) {
+          listing.photos = safePhotos(brKeptPhotos).concat(urls); // new listing: only the pet's own photo can be "kept"
+        } else if (editing || brKeptPhotos.length) {
           listing.photos = safePhotos(brKeptPhotos);   // kept ones only — removals have to stick
         }
         if (editing) { await saveMateEdit(editing, listing, btn); return; }
@@ -10135,21 +10196,29 @@
       return gotBark && sentBark;
     }
     // Bark back from a notification — completing the pair = instant match
-    function barkBack(id) {
+    // Stage 5: mp/tp = the conversation's personas (mine, theirs); the answer
+    // goes back in the same conversation, as the same pet
+    function barkBack(id, mp, tp) {
       if (!cloudUser) return;
-      const quiet = neutralGreet(id); // person → person, or I have no pet voice
+      mp = lcId(mp); tp = lcId(tp);
+      const pets = !!(mp || tp), as = pets ? mp : undefined;
+      const quiet = barkBackQuiet(id, mp, tp); // person → person, or I have no pet voice
       // Answering a Mate Match hello is a Mate Match hello; answering a bark is a bark
-      const mateCtx = MY_MESSAGES.some(m => m.sender_id === id && m.recipient_id === cloudUser.id && isMateHi(m));
-      if (state.soundsSend !== false) { if (quiet || mateCtx) uiSound('send'); else playVoice(myVoice()); }
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: mateCtx ? MATE_HI : (quiet ? '👋 Hi!' : greetText(id)) })
+      const mateCtx = !pets && MY_MESSAGES.some(m => m.sender_id === id && m.recipient_id === cloudUser.id && isMateHi(m));
+      if (state.soundsSend !== false) { if (quiet || mateCtx) uiSound('send'); else playVoice(speciesVoice(greetSpeciesAs(as))); }
+      const row = { sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: mateCtx ? MATE_HI : (quiet ? '👋 Hi!' : greetText(id, as, tp)) };
+      if (mp) row.sender_pet = mp;
+      if (tp) row.recipient_pet = tp;
+      cloud.from('messages').insert(row)
         .then(({ error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); return; }
           if (mateCtx) { state.mateBarks = state.mateBarks || {}; state.mateBarks[id] = 1; saveState(); }
           // Answering from the bell counts as reading their hello: clear its unread badge
           let lastIn = '';
-          MY_MESSAGES.forEach(m => { if (m.sender_id === id && m.recipient_id === cloudUser.id && m.created_at > lastIn) lastIn = m.created_at; });
+          const key = threadKey(id, mp, tp);
+          MY_MESSAGES.forEach(m => { if (m.sender_id === id && m.recipient_id === cloudUser.id && samePair(msgSide(m), id, mp, tp) && m.created_at > lastIn) lastIn = m.created_at; });
           state.dmSeen = state.dmSeen || {};
-          if (lastIn && (!state.dmSeen[id] || state.dmSeen[id] < lastIn)) { state.dmSeen[id] = lastIn; saveState({ bg: true }); updateBadges(); }
+          if (lastIn && (!state.dmSeen[key] || state.dmSeen[key] < lastIn)) { state.dmSeen[key] = lastIn; saveState({ bg: true }); updateBadges(); }
           if (matchedWith(id)) {
             state.matchNotified = state.matchNotified || {};
             state.matchNotified[id] = 1; saveState();
@@ -14457,7 +14526,7 @@
     let personasProbing = null;
     const PET_BY_ID = {};            // pet_profiles rows by id (null = not visible to me)
     const LEGACY_PET_BY_OWNER = {};  // owner id -> their legacy pet row, or null
-    const PET_COLS = 'id, owner_id, local_id, name, species, breed, status, age, look, passed, visible, legacy, created_at';
+    const PET_COLS = 'id, owner_id, local_id, name, species, breed, status, age, look, passed, visible, legacy, social, created_at';
     function personasOn() { return PERSONAS_STATE === 1; }
     function personasProbe() {
       if (PERSONAS_STATE !== 0 || !cloud) return Promise.resolve(personasOn());
@@ -14622,6 +14691,7 @@
         await ensureProfiles([pet.owner_id]);
         owner = PROFILE_BY_ID[pet.owner_id];
         if (pet.visible === false || !owner || owner.banned || hiddenUser(pet.owner_id)) { gone(); return; }
+        await petSocialProbe(); // can this pet take its own friends and messages here (once a session)
       }
       showPetSheet(pet, owner);
     }
@@ -14633,7 +14703,7 @@
       if (pet.legacy && oid) LEGACY_PET_BY_OWNER[oid] = pet; // a converted pet account's pet (its older posts are its own)
       const ownerName = mine ? humanLabel() : ownerLabel(oid, owner.username || 'Petfi member');
       // legacyBefore: the owner's posts with no persona from before this row count as the pet's
-      PET_PAGE = { id: String(pet.id).toLowerCase(), owner: oid, name, rows: [], more: false, busy: false, legacyBefore: pet.legacy && pet.created_at ? pet.created_at : null };
+      PET_PAGE = { id: String(pet.id).toLowerCase(), owner: oid, name, rows: [], more: false, busy: false, legacyBefore: pet.legacy && pet.created_at ? pet.created_at : null, pet, ownerRow: owner };
       openSheet(esc(name) + (passed ? ' 🕊️' : '') + (isVerifiedUser(oid) ? ' ' + vbadge('pet') : ''),
         '<div class="pet-page' + (passed ? ' memorial' : '') + '" style="text-align:center;">' +
           '<div class="pp-ava">' + personaAvatar(pet, 96) + '</div>' +
@@ -14643,15 +14713,15 @@
             : '<span class="link" onclick="openPersonSheetById(\'' + jsStr(oid) + '\')">' + esc(ownerName) + (owner.verified ? ' ' + vbadge() : '') + '</span>' + orgMark(owner)) + '</div>' +
           (passed ? '<p class="sub" style="margin-top:0.4rem;">Forever part of the family. 💜</p>' : '') +
         '</div>' +
-        petPageActionsHtml(pet, owner) +
+        '<div id="pp-actions">' + petPageActionsHtml(pet, owner) + '</div>' +
         '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>📝 Recent posts</h3></div>' +
         '<div id="pet-posts"><p class="sub" style="font-size:0.85rem;">Loading…</p></div>');
       loadPetPagePosts(false);
     }
-    // STAGE 5 SEAM: the pet page's action buttons. When the owner switches on
-    // the pet's own friends and messages (pet.social, which PET_COLS does not
-    // read yet), pet-level buttons go here instead. Today every action goes to
-    // the owner's account and says so.
+    // The pet page's action buttons. A pet whose owner switched on its own
+    // friends and messages (pet.social, and the server supports it) gets
+    // pet-level buttons (petSocialActionsHtml); otherwise every action goes to
+    // the owner's account and says so. Report and block always act on the owner.
     function petPageActionsHtml(pet, owner) {
       const pid = jsStr(pet.id), name = esc(pet.name || 'this pet');
       if (!owner) {
@@ -14664,11 +14734,17 @@
           '<button class="pill-btn ghost" style="display:block;margin:0.6rem auto 0;" onclick="openShareSheet(\'pet\',\'' + pid + '\')">🔗 Share ' + name + '</button>';
       }
       const oid = jsStr(owner.id), on = esc(ownerLabel(owner.id, owner.username || 'their owner'));
+      if (petTakesOwn(pet)) return petSocialActionsHtml(pet, owner);
       return '<p class="sub" style="font-size:0.8rem;text-align:center;margin:0.6rem 0 0.4rem;">Friend requests and messages go to ' + name + '\'s owner, ' + on + '.</p>' +
         friendButtonsHtml(owner, true) +
         '<button class="btn secondary" onclick="openCloudDM(\'' + oid + '\')">💬 Message ' + on + '</button>' +
         '<button class="btn secondary" onclick="sendCloudBarkById(\'' + oid + '\')">' + sayHiLabel() + ' to ' + on + '</button>' +
-        '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;flex-wrap:wrap;">' +
+        petPageFooterHtml(pet, owner);
+    }
+    // Share, and Report / Block, which always act on the owner's account
+    function petPageFooterHtml(pet, owner) {
+      const pid = jsStr(pet.id), oid = jsStr(owner.id), on = esc(ownerLabel(owner.id, owner.username || 'their owner'));
+      return '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;flex-wrap:wrap;">' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="openShareSheet(\'pet\',\'' + pid + '\')">🔗 Share</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="reportPetOwner(\'' + pid + '\')">🚩 Report ' + on + '</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + oid + '\',\'' + jsStr(owner.username || 'this member') + '\')">🚫 Block ' + on + '</button>' +
@@ -14678,6 +14754,163 @@
       closeSheet(); openTab('profile');
       const i = (state.pets || []).findIndex(p => p && p.id === localId);
       if (i >= 0) openPetDetail(i);
+    }
+
+    // ---- Stage 5: a pet's own friends and messages (the owner's switch, pet.social) ----
+    // Identity is a PAIR of personas, (member, pet or null) on each side:
+    //   friendships  requester_id + requester_pet  ->  addressee_id + addressee_pet
+    //   messages     sender_id + sender_pet        ->  recipient_id + recipient_pet
+    // Both pets null = the account-level row every older version writes and reads.
+    // Friendships and threads are matched on the exact pair, so a pet's friend is
+    // never taken for the account's. Offered only when the server has the stage-5
+    // rules (petfi_pet_social_ready(), asked once a session, like personasProbe);
+    // without them every pet page, chat and friend list behaves as in 1.29.
+    // Blocks, reports and suspensions stay account-level. A pet follows its
+    // owner's friends-only setting, counting the pet's own friends (server rule
+    // petfi_dm_friend_ok, mirrored by dmFriendsOk).
+    var PETSOCIAL_STATE = 0, petSocialProbing = null; // 0 not known yet, 1 ready, -1 not on this server (var: read before this part runs)
+    function petSocialOn() { return personasOn() && PETSOCIAL_STATE === 1; }
+    function petSocialProbe() {
+      if (PETSOCIAL_STATE !== 0 || !cloud) return Promise.resolve(petSocialOn());
+      if (!petSocialProbing) {
+        petSocialProbing = (async () => {
+          if (!(await personasProbe())) {
+            if (PERSONAS_STATE === -1) PETSOCIAL_STATE = -1; else setTimeout(() => { petSocialProbing = null; }, 60000);
+            return false;
+          }
+          let res;
+          try { res = await cloud.rpc('petfi_pet_social_ready'); } catch (e) { res = { error: e }; }
+          const er = res && res.error;
+          if (!er && Number(res.data) === 5) PETSOCIAL_STATE = 1;
+          else if (!er || res.status === 404 || er.code === 'PGRST202' || er.code === '42883' || /schema cache|does not exist|could not find/i.test(String(er.message || ''))) PETSOCIAL_STATE = -1;
+          else setTimeout(() => { petSocialProbing = null; }, 60000); // network hiccup: ask again later
+          return petSocialOn();
+        })();
+      }
+      return petSocialProbing;
+    }
+    function lcId(x) { return typeof x === 'string' && x ? x.toLowerCase() : null; }
+    // My side and their side of a friendship row or a message
+    function fsSide(f) {
+      const mine = !!cloudUser && f.requester_id === cloudUser.id;
+      return { other: mine ? f.addressee_id : f.requester_id, mp: lcId(mine ? f.requester_pet : f.addressee_pet), tp: lcId(mine ? f.addressee_pet : f.requester_pet) };
+    }
+    function msgSide(m) {
+      const mine = !!cloudUser && m.sender_id === cloudUser.id;
+      return { other: mine ? m.recipient_id : m.sender_id, mp: lcId(mine ? m.sender_pet : m.recipient_pet), tp: lcId(mine ? m.recipient_pet : m.sender_pet) };
+    }
+    // A thread's key in state.dmSeen: the member's id for the account-level thread
+    // (the key every older version writes, so existing threads stay read and need
+    // no migration), "id|my pet|their pet" when a pet is on either side
+    function threadKey(other, mp, tp) { return mp || tp ? other + '|' + (mp || '') + '|' + (tp || '') : other; }
+    function samePair(s, other, mp, tp) { return s.other === other && s.mp === (mp || null) && s.tp === (tp || null); }
+    function myPetByPpid(ppid) { return ppid ? (state.pets || []).find(p => p && p.ppid && p.ppid === ppid) || null : null; }
+    function myPersonaName(mp) {
+      if (!mp) return humanShortName();
+      const p = myPetByPpid(mp), r = PET_BY_ID[mp];
+      return (p && p.name) || (r && r.name) || 'your pet';
+    }
+    function myPersonaAvatar(mp, px) { const p = myPetByPpid(mp); return p ? myPetAvatar(p, px) : PET_BY_ID[mp] ? personaAvatar(PET_BY_ID[mp], px) : myAvatar(px); }
+    // A pet of theirs as the server last showed it to me (null = not known, or hidden)
+    function theirPet(other, tp) { const r = tp ? PET_BY_ID[tp] : null; return r && r.owner_id === other ? r : null; }
+    function theirPetName(other, tp) { const r = theirPet(other, tp); return (r && r.name) || 'their pet'; }
+    // Their side, short ("Max") and in full ("Bella's Max")
+    function theirPersonaName(other, tp) { return tp ? theirPetName(other, tp) : authorName(other, 'Petfi member'); }
+    function theirPersonaFull(other, tp) { return tp ? ownerLabel(other, 'a member') + '\'s ' + theirPetName(other, tp) : authorName(other, 'Petfi member'); }
+    function theirPersonaAvatar(other, tp, px) {
+      const r = theirPet(other, tp); if (r) return personaAvatar(r, px);
+      const u = PROFILE_BY_ID[other]; return u ? personAvatar(u, px) : '🐾';
+    }
+    // My pets that take their own friends and messages: who else I can be when I reach out
+    function mySocialPets() {
+      if (!petSocialOn() || !iAmPerson()) return [];
+      return (state.pets || []).filter(p => p && p.social === true && p.ppid && !p.passed && p.hidden !== true);
+    }
+    // Who I am by default when I reach out: the pet I'm acting as, if it takes its own messages
+    function defaultSendAs() { const ap = actingPet(); return ap && ap.social === true && ap.ppid && petSocialOn() ? ap.ppid : null; }
+    // Does this pet (someone else's pet_profiles row) take its own friends and messages?
+    function petTakesOwn(pet) { return !!(petSocialOn() && pet && pet.social === true && pet.visible !== false && !pet.passed); }
+    function asJs(mp) { return mp ? '\'' + jsStr(mp) + '\'' : 'null'; }
+    // The pet page of a pet that takes its own friends and messages
+    function petSocialActionsHtml(pet, owner) {
+      const pid = lcId(String(pet.id)), pg = PET_PAGE && PET_PAGE.id === pid ? PET_PAGE : null;
+      const mine = mySocialPets();
+      let as = pg && pg.as !== undefined ? pg.as : defaultSendAs();
+      if (as && !mine.some(p => p.ppid === as)) as = null;
+      if (pg) pg.as = as;
+      const pidJ = '\'' + jsStr(pid) + '\'', name = esc(pet.name || 'this pet'), pn = jsStr(pet.name || 'this pet');
+      const oid = jsStr(owner.id), on = esc(ownerLabel(owner.id, owner.username || 'their owner')), a = asJs(as), me = esc(myPersonaName(as));
+      const f = friendshipWith(owner.id, as, pid);
+      const fb = !f ? '<button class="btn" onclick="sendFriendRequest(\'' + oid + '\',\'' + pn + '\',' + pidJ + ',' + a + ')">🐾 Add ' + name + ' as a friend</button>'
+        : f.status === 'accepted' ? '<button class="btn secondary" disabled style="opacity:0.8;">' + (as ? '✔︎ ' + me + ' and ' + name + ' are friends' : '✔︎ You\'re friends with ' + name) + '</button>' +
+            '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="removeFriend(' + Number(f.id) + ',\'' + pn + '\',\'pet\')">Remove friend</button>'
+        : f.addressee_id === cloudUser.id ? '<button class="btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + pn + '\')">✅ Accept ' + name + '\'s friend request</button>' +
+            '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + pn + '\',\'pet\')">✕ Decline</button>'
+        : '<button class="btn secondary" disabled style="opacity:0.8;">⏳ Request sent to ' + name + '</button>' +
+            '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + pn + '\',\'pet\')">Cancel request</button>';
+      return '<div class="pp-as">' + (mine.length ? 'You\'re here as <b>' + me + '</b>' + sendAsChipsHtml(as) : name + ' takes their own friend requests and messages.') + '</div>' +
+        fb +
+        '<button class="btn secondary" onclick="openCloudDM(\'' + oid + '\',' + pidJ + ',' + a + ')">💬 Message ' + name + '</button>' +
+        '<button class="btn secondary" onclick="sendCloudBarkById(\'' + oid + '\',' + pidJ + ',' + a + ')">' + sayHiLabelAs(as) + ' to ' + name + '</button>' +
+        '<button class="pill-btn ghost" style="display:block;margin:0.5rem auto 0;" onclick="openCloudDM(\'' + oid + '\')">💬 Message ' + on + ', ' + name + '\'s owner</button>' +
+        petPageFooterHtml(pet, owner);
+    }
+    // "You're here as": me, then each of my pets that take their own messages
+    function sendAsChipsHtml(as) {
+      const chip = (id, label, ava) => '<button type="button" class="ps-chip' + (id === as ? ' on' : '') + '" aria-pressed="' + (id === as) + '" onclick="petPageSetAs(' + asJs(id) + ')">' +
+        '<span class="ps-ava">' + ava + '</span><span class="ps-name">' + esc(label) + '</span></button>';
+      return '<div class="persona-strip sm center" role="group" aria-label="Who you are here" style="margin-top:0.35rem;">' + chip(null, humanShortName(), myAvatar(38)) +
+        mySocialPets().map(p => chip(p.ppid, p.name || 'My pet', myPetAvatar(p, 38))).join('') + '</div>';
+    }
+    function petPageSetAs(mp) {
+      const pg = PET_PAGE, el = document.getElementById('pp-actions');
+      if (!pg || !el || !pg.pet || !pg.ownerRow) return;
+      pg.as = mp || null;
+      el.innerHTML = petPageActionsHtml(pg.pet, pg.ownerRow);
+      haptic(8);
+    }
+    // The owner's switch, on the pet's own profile (Me page, acting as the pet)
+    function petSocialToggle(pt) {
+      const name = esc(pt.name || 'your pet'), ready = petSocialOn(), on = ready && pt.social === true;
+      if (PETSOCIAL_STATE === 0 && cloud && cloudUser) petSocialProbe().then(ok => { if (ok && appActive() && state.tab === 'profile') rerenderTab(renderProfile); });
+      return '<div class="toggle-row"><div class="t-label">' + name + ' can have their own friends and messages<small>' +
+        (ready ? 'On: other members can add ' + name + ' as a friend and message ' + name + ', and you read and answer as ' + name + '. Off: friend requests and messages go to you.'
+          : 'Not available yet. Friend requests and messages for ' + name + ' go to you.') + '</small></div>' +
+        '<label class="switch"><input type="checkbox" aria-label="' + name + ' can have their own friends and messages" ' + (on ? 'checked ' : '') + (ready ? '' : 'disabled ') +
+          'onchange="setPetSocial(\'' + jsStr(pt.id) + '\',this.checked)"><span class="slider"></span></label></div>';
+    }
+    function setPetSocial(id, on) {
+      const pt = petById(id); if (!pt) return;
+      const n = pt.name || 'Your pet';
+      const redraw = () => { if (appActive() && state.tab === 'profile') rerenderTab(renderProfile); };
+      if (!petSocialOn()) { toast('That isn\'t available yet'); redraw(); return; }
+      // Turning it off keeps every friendship and chat (still readable, and you can still answer); only new ones stop
+      if (!on && pt.social === true && pt.ppid) {
+        const pp = pt.ppid, used = FRIENDSHIPS.some(f => fsSide(f).mp === pp) || MY_MESSAGES.some(m => msgSide(m).mp === pp);
+        if (used && !confirm('Turn off ' + n + '\'s own friends and messages? ' + n + '\'s friends and chats stay, and you can still read and answer them, but nobody can send ' + n + ' a new friend request or message until you turn this back on.')) { redraw(); return; }
+      }
+      if (on) pt.social = true; else delete pt.social;
+      saveState(); // the pet's public row follows (cloudSavePets: social)
+      redraw();
+      toast(on ? n + ' can have their own friends and messages now 🐾' : 'Friend requests and messages for ' + n + ' go to you now');
+    }
+    // A request waiting on me: "<b>Max</b> wants to be friends with <b>Echo</b>"
+    function friendAskHtml(f) {
+      const s = fsSide(f), their = s.tp ? theirPersonaName(s.other, s.tp) : authorName(f.requester_id, 'A Petfi member');
+      return '<b>' + esc(their) + '</b> ' + (s.mp ? 'wants to be friends with <b>' + esc(myPersonaName(s.mp)) + '</b>' : 'wants to be your friend');
+    }
+    // The onclick code that opens a conversation (account-level calls stay exactly as before)
+    function dmOpenJs(id, mp, tp) { return 'openCloudDM(\'' + jsStr(id) + '\'' + (mp || tp ? ',' + asJs(tp) + ',' + asJs(mp) : '') + ')'; }
+    // A pet's hello carries its name ("Max: Woof! 🐶"); next to the name already shown, drop it
+    function barkBody(m) {
+      const t = String(m.text || ''), s = msgSide(m);
+      if (cloudUser && m.sender_id !== cloudUser.id && s.tp) { const n = theirPetName(s.other, s.tp) + ': '; if (t.indexOf(n) === 0) return t.slice(n.length); }
+      return t;
+    }
+    // Say hi back with a wave (not an animal word)? Between pets it is the pet's own voice
+    function barkBackQuiet(id, mp, tp) {
+      if (!(mp || tp)) return neutralGreet(id);
+      return speciesVoice(greetSpeciesAs(mp || null)) === 'like' || (!tp && isHumanProfile(id));
     }
     // A report from a pet page is about the owner's account, and says which pet's page it came from
     function reportPetOwner(petId) {
@@ -14743,7 +14976,7 @@
     var petSyncTimer = null, petSyncRun = null, petSyncAgain = false, petSyncFor = null;
     var PET_GONE_WAIT = 9000; // a removed pet's row waits until the Undo toast is over
     var PET_FILE_RE = /^pet-[A-Za-z0-9_-]{1,40}-\d{10,}\.jpg$/;
-    var MY_PET_COLS = PET_COLS + ', social';
+    var MY_PET_COLS = PET_COLS; // includes social since stage 5
     var PET_ROW_KEYS = ['name', 'species', 'breed', 'status', 'age', 'look', 'passed', 'visible', 'social'];
     function petClean(s, max) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, max).trim(); }
     // A photo the server will take on a pet row: a file in MY folder of the photos bucket
@@ -15142,6 +15375,9 @@
       const { data } = await cloud.from('friendships').select('*');
       if (data) FRIENDSHIPS = data;
       await ensureProfiles(FRIENDSHIPS.map(f => f.requester_id).concat(FRIENDSHIPS.map(f => f.addressee_id)));
+      // Pets on either side of a pet-level friendship (no query when there are none)
+      const pets = FRIENDSHIPS.map(f => f.requester_pet).concat(FRIENDSHIPS.map(f => f.addressee_pet)).filter(Boolean);
+      if (pets.length) await ensurePets(pets);
       updateBadges();
     }
     // Open a member's sheet by id (feed avatars, comments, matches…)
@@ -15156,13 +15392,26 @@
       // (with its visible / suspended / near-you filters)
       showPersonSheet(u);
     }
-    function friendshipWith(id) {
+    // The friendship between one of my personas and one of theirs (both
+    // null = the account-level friendship). A row for any other pair of
+    // personas between the same two members never counts here.
+    function friendshipWith(id, mp, tp) {
       if (!cloudUser) return null;
-      return FRIENDSHIPS.find(f =>
-        (f.requester_id === id && f.addressee_id === cloudUser.id) ||
-        (f.addressee_id === id && f.requester_id === cloudUser.id)) || null;
+      mp = lcId(mp); tp = lcId(tp);
+      return FRIENDSHIPS.find(f => {
+        if (!((f.requester_id === id && f.addressee_id === cloudUser.id) || (f.addressee_id === id && f.requester_id === cloudUser.id))) return false;
+        const s = fsSide(f);
+        return s.mp === mp && s.tp === tp;
+      }) || null;
     }
-    function areFriendsWith(id) { const f = friendshipWith(id); return !!(f && f.status === 'accepted'); }
+    function areFriendsWith(id, mp, tp) { const f = friendshipWith(id, mp, tp); return !!(f && f.status === 'accepted'); }
+    // The friends-only rule for a message from my persona mp to their persona tp
+    // (mirrors the server's petfi_dm_friend_ok): a member's own inbox takes their
+    // account-level friends or a friend of that persona; a pet's inbox takes the pet's friends
+    function dmFriendsOk(id, mp, tp) {
+      mp = lcId(mp); tp = lcId(tp);
+      return tp ? areFriendsWith(id, mp, tp) : (areFriendsWith(id) || (!!mp && areFriendsWith(id, mp, null)));
+    }
 
     function openPersonSheet(i) { const u = PEOPLE[i]; if (u) showPersonSheet(u); }
     // The friend buttons of a member's sheet. ofPet: shown on one of their
@@ -15236,10 +15485,20 @@
         });
       }
     }
-    async function sendFriendRequest(id, name) {
+    // tp: their pet the request is for; as: my pet it comes from (stage 5; both
+    // left out = the account-level request of every older version)
+    async function sendFriendRequest(id, name, tp, as) {
       if (!cloudUser) { toast('Log in first'); return; }
-      const { error } = await cloud.from('friendships').insert({ requester_id: cloudUser.id, addressee_id: id });
-      if (error) { toast(/duplicate/i.test(error.message) ? 'Request already sent ⏳' : '⚠️ Could not send the request'); uiSound('error'); return; }
+      const row = { requester_id: cloudUser.id, addressee_id: id };
+      tp = lcId(tp); as = lcId(as);
+      if (as) row.requester_pet = as;
+      if (tp) row.addressee_pet = tp;
+      const { error } = await cloud.from('friendships').insert(row);
+      if (error) {
+        toast(/duplicate/i.test(error.message) ? 'Request already sent ⏳'
+          : tp && /row-level security|policy|permission/i.test(error.message || '') ? name + ' isn\'t taking friend requests right now' : '⚠️ Could not send the request');
+        uiSound('error'); return;
+      }
       await loadFriendships();
       uiSound('send'); haptic(8);
       livePing(id, { type: 'friend' });
@@ -15252,7 +15511,8 @@
       await loadFriendships();
       uiSound('friend'); haptic([10, 20, 10]); confetti();
       if (f) livePing(f.requester_id, { type: 'friend', accepted: true });
-      closeSheet(); toast('You and ' + name + ' are now friends 🎉');
+      const mp = f ? fsSide(f).mp : null;
+      closeSheet(); toast(mp ? myPersonaName(mp) + ' and ' + name + ' are now friends 🎉' : 'You and ' + name + ' are now friends 🎉');
       if (state.tab === 'profile') openTab('profile');
     }
     // Decline, cancel and unfriend all delete the friendships row. .select()
@@ -15271,6 +15531,7 @@
       if (from === 'notif') openNotifications();
       else if (from === 'friends') openFriendsList();
       else if (from === 'person' && other) openPersonSheetById(other);
+      else if (from === 'pet' && PET_PAGE && PET_PAGE.id) openPetSheetById(PET_PAGE.id);
       else closeSheet();
       if (state.tab === 'profile' && appActive()) openTab('profile');
     }
@@ -15285,24 +15546,38 @@
       if (!cloudUser) { toast('Log in to see your friends'); return; }
       const me = cloudUser.id;
       const otherOf = f => f.requester_id === me ? f.addressee_id : f.requester_id;
-      const row = (f, actions) => {
-        const id = otherOf(f), who = PROFILE_BY_ID[id], name = authorName(id, 'Petfi member');
-        return '<div class="row"><div class="ricon" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')">' + (who ? personAvatar(who, 46) : '🐾') + '</div>' +
-          '<div class="rmain" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(id) + '\')"><div class="rtitle">' + esc(name) + orgMark(who) + '</div>' +
-            (personasOn() ? '<div class="rmeta" data-pets-of="' + esc(id) + '">' + petNamesHtml(id) + '</div>' : '') + '</div>' +
+      // Stage 5: a row is one pair of personas. Their pet opens the pet page; a
+      // line under a pet-level request says which of my pets it is for.
+      const row = (f, actions, line) => {
+        const s = fsSide(f), id = s.other, who = PROFILE_BY_ID[id], pet = theirPet(id, s.tp);
+        const name = s.tp ? theirPersonaName(id, s.tp) : authorName(id, 'Petfi member');
+        const open = pet ? petPageArg(pet) : 'openPersonSheetById(\'' + jsStr(id) + '\')';
+        const meta = line ? '<div class="rmeta">' + esc(line) + '</div>'
+          : s.tp ? '<div class="rmeta">' + esc((pet ? (pet.breed || speciesLabel(pet.species)) + ' · ' : '') + 'with ' + ownerLabel(id, 'their owner')) + '</div>'
+          : personasOn() ? '<div class="rmeta" data-pets-of="' + esc(id) + '">' + petNamesHtml(id) + '</div>' : '';
+        return '<div class="row"><div class="ricon" style="cursor:pointer;" onclick="' + open + '">' + (pet ? personaAvatar(pet, 46) : who ? personAvatar(who, 46) : '🐾') + '</div>' +
+          '<div class="rmain" style="cursor:pointer;" onclick="' + open + '"><div class="rtitle">' + esc(name) + (s.tp ? '' : orgMark(who)) + '</div>' + meta + '</div>' +
           (actions ? '<div class="raction" style="display:flex;gap:0.3rem;">' + actions(f, name) + '</div>' : '') + '</div>';
       };
       const friends = FRIENDSHIPS.filter(f => f.status === 'accepted' && !hiddenUser(otherOf(f)));
       const incoming = incomingFriendRequests();
       const sent = FRIENDSHIPS.filter(f => f.status === 'pending' && f.requester_id === me);
       let h = '';
-      if (incoming.length) h += '<div class="sec"><h3>🐾 Requests for you</h3></div>' + incoming.map(f => row(f, (f, name) =>
+      if (incoming.length) h += '<div class="sec"><h3>🐾 Requests for you</h3></div>' + incoming.map(f => { const mp = fsSide(f).mp; return row(f, (f, name) =>
         '<button class="pill-btn" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\')">Accept</button>' +
-        '<button class="pill-btn ghost" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Decline</button>')).join('');
-      if (sent.length) h += '<div class="sec"><h3>⏳ Requests you sent</h3></div>' + sent.map(f => row(f, (f, name) =>
-        '<button class="pill-btn ghost" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Cancel</button>')).join('');
-      h += '<div class="sec"><h3>🤝 Friends</h3></div>' + (friends.length ? friends.map(f => row(f, null)).join('')
-        : '<p class="sub" style="font-size:0.85rem;">No friends yet. Find members on the <b>Nearby</b> tab and tap Add friend.</p>');
+        '<button class="pill-btn ghost" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Decline</button>', mp ? 'Wants to be friends with ' + myPersonaName(mp) : ''); }).join('');
+      if (sent.length) h += '<div class="sec"><h3>⏳ Requests you sent</h3></div>' + sent.map(f => { const mp = fsSide(f).mp; return row(f, (f, name) =>
+        '<button class="pill-btn ghost" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(name) + '\',\'friends\')">Cancel</button>', mp ? 'Sent as ' + myPersonaName(mp) : ''); }).join('');
+      // Friends grouped by which of me they are friends with: me first, then each pet
+      const groups = [null];
+      friends.forEach(f => { const mp = fsSide(f).mp; if (mp && groups.indexOf(mp) < 0) groups.push(mp); });
+      groups.forEach(mp => {
+        const list = friends.filter(f => fsSide(f).mp === mp);
+        if (mp && !list.length) return;
+        h += '<div class="sec"><h3>' + (groups.length < 2 ? '🤝 Friends' : mp ? '🐾 ' + esc(myPersonaName(mp)) + '\'s friends' : '🤝 Your friends') + '</h3></div>' +
+          (list.length ? list.map(f => row(f, null)).join('')
+            : '<p class="sub" style="font-size:0.85rem;">No friends yet. Find members on the <b>Nearby</b> tab and tap Add friend.</p>');
+      });
       openSheet('🤝 Friends', h);
       // Each friend's pets: one query for the whole list (cached), filled in place
       if (personasOn()) {
@@ -15311,19 +15586,26 @@
       }
     }
     function sendCloudBark(i) { const u = PEOPLE[i]; if (u) sendCloudBarkById(u.id); }
-    function sendCloudBarkById(id) {
+    // Stage 5: tp = their pet the hello is for, as = my pet it comes from (null =
+    // me); both left out = the account-level hello, in the voice I'm acting as
+    function sendCloudBarkById(id, tp, as) {
       const u = PROFILE_BY_ID[id]; if (!u || !cloudUser) return;
+      tp = lcId(tp);
+      const mp = lcId(as), sayAs = mp || tp ? mp : undefined;
       // You speak in YOUR voice: dogs woof, cats meow, people just wave
-      const voice = myVoice();
-      greetSound();
+      const sp = greetSpeciesAs(sayAs), voice = speciesVoice(sp);
+      greetSound(sayAs);
       haptic(8);
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: greetText(id) }).select('*').single()
+      const row = { sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: greetText(id, sayAs, tp) };
+      if (mp) row.sender_pet = mp;
+      if (tp) row.recipient_pet = tp;
+      cloud.from('messages').insert(row).select('*').single()
         .then(({ data, error }) => {
-          if (error) { toast('⚠️ It didn\'t go through'); uiSound('error'); return; }
+          if (error) { toast(tp && /row-level security|policy|permission/i.test(error.message || '') ? theirPetName(id, tp) + ' isn\'t taking messages right now' : '⚠️ It didn\'t go through'); uiSound('error'); return; }
           if (data) MY_MESSAGES.unshift(data);
           livePing(id, { type: 'bark' });
-          if (dmOpenWith === id) renderDMThread(threadWith(id));
-          toast(u.username + ' got ' + voiceNoun(voice, myGreetSpecies()));
+          if (dmIsOpen(id, mp, tp)) renderDMThread(curThread());
+          toast((tp ? theirPetName(id, tp) : u.username) + ' got ' + voiceNoun(voice, sp));
         });
     }
 
@@ -15332,6 +15614,7 @@
     // messages every few seconds (true push comes with hosting later).
     let MY_MESSAGES = [];
     let dmOpenWith = null, dmPollTimer = null, lastSeenMsgId = 0, firstMsgLoad = true;
+    let dmMyPet = null, dmTheirPet = null; // the open conversation's personas (stage 5; null = the account)
 
     async function loadMessages() {
       if (!cloud || !cloudUser) return;
@@ -15354,18 +15637,22 @@
         MY_MESSAGES = data;
       }
       await ensureProfiles(data.map(m => m.sender_id).concat(data.map(m => m.recipient_id)));
+      // Pets on either side of a pet's conversation (no query when there are none)
+      const pets = data.map(m => m.sender_pet).concat(data.map(m => m.recipient_pet)).filter(Boolean);
+      if (pets.length) await ensurePets(pets);
       // Gentle in-app ping for brand-new incoming messages (if wanted)
       const newest = data.find(m => m.recipient_id === cloudUser.id && !hiddenUser(m.sender_id));
       if (newest && newest.id > lastSeenMsgId) {
         const wanted = newest.kind === 'bark' ? notifPref('barks') : notifPref('messages');
-        if (!firstMsgLoad && dmOpenWith !== newest.sender_id && wanted) {
-          const name = authorName(newest.sender_id, 'a Petfi member');
+        const ns = msgSide(newest);
+        if (!firstMsgLoad && !dmIsOpen(ns.other, ns.mp, ns.tp) && wanted) {
+          const name = ns.tp ? theirPersonaName(ns.other, ns.tp) : authorName(newest.sender_id, 'a Petfi member');
           // Which animal said it? Read it off the word itself, via VOICE_WORD —
           // a goat's "Baa! 🐐" must never come out of the speaker as a bark.
           const heard = newest.kind === 'bark' ? sniffVoice(newest.text) : '';
           toast(newest.kind === 'bark'
-            ? (VOICE_PLAYERS[heard] ? '🔊 ' : '👋 ') + name + ' says ' + (newest.text || 'hi')
-            : '💬 New message from ' + name);
+            ? (VOICE_PLAYERS[heard] ? '🔊 ' : '👋 ') + name + ' says ' + (barkBody(newest) || 'hi') + (ns.mp ? ' to ' + myPersonaName(ns.mp) : '')
+            : ns.mp ? '💬 New message for ' + myPersonaName(ns.mp) + ' from ' + name : '💬 New message from ' + name);
           ringBell();
           // …and you actually HEAR the bark, meow or baa (unless turned off)
           if (newest.kind === 'bark' && state.soundsReceive !== false) {
@@ -15386,16 +15673,20 @@
       });
       updateBadges();
     }
+    // One conversation per pair of personas (stage 5): { id: the member, mp: my
+    // pet or null, tp: their pet or null, key: its dmSeen key, last, unread }.
+    // A message from an older version (no pets on it) lands in the account-level one.
     function conversationList() {
-      const map = {}, order = [], unread = {};
+      const map = {}, order = [];
       const seen = state.dmSeen || {};
       MY_MESSAGES.forEach(m => {
-        const other = m.sender_id === cloudUser.id ? m.recipient_id : m.sender_id;
+        const s = msgSide(m), other = s.other;
         if (hiddenUser(other)) return; // no threads with blocked/suspended users (or owners, for pets-only)
-        if (!map[other]) { map[other] = m; order.push(other); unread[other] = 0; }
-        if (m.recipient_id === cloudUser.id && (!seen[other] || seen[other] < m.created_at)) unread[other]++;
+        const key = threadKey(other, s.mp, s.tp);
+        if (!map[key]) { map[key] = { id: other, mp: s.mp, tp: s.tp, key, last: m, unread: 0 }; order.push(key); }
+        if (m.recipient_id === cloudUser.id && (!seen[key] || seen[key] < m.created_at)) map[key].unread++;
       });
-      return order.map(id => ({ id, last: map[id], unread: unread[id] }));
+      return order.map(k => map[k]);
     }
     function unreadConvos() { return conversationList().filter(c => c.unread > 0); }
     function setBadge(id, n) {
@@ -15414,37 +15705,62 @@
       if (!cloudUser) return [];
       return FRIENDSHIPS.filter(f => f.status === 'pending' && f.addressee_id === cloudUser.id && !isBlocked(f.requester_id));
     }
-    function openChats() {
+    // filter (stage 5): 'all', 'me' or one of my pets' ids. Shown only once one
+    // of my pets has a conversation of its own; it starts on whoever I'm acting
+    // as (when they have conversations), and every button shows its unread count
+    // so nothing waits unseen behind it.
+    function openChats(filter) {
       if (!cloudUser) { toast('Log in to send messages'); return; }
-      const convos = conversationList();
-      let body;
-      if (!convos.length) {
+      const all = conversationList();
+      const personas = [];
+      all.forEach(c => { if (personas.indexOf(c.mp) < 0) personas.push(c.mp); });
+      personas.sort((a, b) => (a ? 1 : 0) - (b ? 1 : 0)); // me first, then my pets (most recent first)
+      const multi = personas.some(Boolean);
+      let f = 'all';
+      if (multi) {
+        const cur = actingPet(), curMp = cur && cur.ppid ? cur.ppid : null;
+        f = typeof filter === 'string' ? filter : personas.indexOf(curMp) >= 0 ? (curMp || 'me') : 'all';
+      }
+      const convos = f === 'all' ? all : all.filter(c => (c.mp || 'me') === f);
+      let body = '';
+      if (multi) {
+        const unreadOf = l => l.reduce((n, c) => n + c.unread, 0);
+        const btn = (k, label, n) => '<button type="button" class="' + (f === k ? 'on' : '') + '" aria-pressed="' + (f === k) + '" onclick="openChats(\'' + jsStr(k) + '\')">' + esc(label) +
+          (n ? '<span class="convo-unread">' + n + '</span>' : '') + '</button>';
+        body += '<div class="dm-filter" role="group" aria-label="Whose messages">' + btn('all', 'All', unreadOf(all)) +
+          personas.map(mp => btn(mp || 'me', myPersonaName(mp), unreadOf(all.filter(c => c.mp === mp)))).join('') + '</div>';
+      }
+      if (!all.length) {
         body = '<div class="empty-state"><div class="es-emo">💬</div><h3>No conversations yet</h3><p>Find members on the <b>Nearby</b> tab and say hi — a bark, a meow, or a message.</p>' +
           '<button class="pill-btn" onclick="closeSheet();openTab(\'nearby\')">📍 Meet members</button></div>';
       } else {
-        body = convos.map(c => {
+        body += convos.map(c => {
           const who = PROFILE_BY_ID[c.id];
-          const name = authorName(c.id, 'Petfi member');
+          const name = c.tp ? theirPersonaFull(c.id, c.tp) : authorName(c.id, 'Petfi member');
           const mineLast = c.last.sender_id === cloudUser.id;
-          const prev = (mineLast ? 'You: ' : '') + (c.last.kind === 'bark' ? '🔊 ' : '') + (c.last.text || '');
-          return '<div class="row' + (c.unread ? ' unread' : '') + '" style="cursor:pointer;" onclick="openCloudDM(\'' + jsStr(c.id) + '\')">' +
-            '<div class="ricon">' + (who ? personAvatar(who, 46) : '💬') + '</div>' +
-            '<div class="rmain"><div class="rtitle">' + esc(name) + (c.unread ? '<span class="convo-unread">' + c.unread + '</span>' : '') + '</div>' +
+          const prev = (mineLast ? 'You: ' : '') + (c.last.kind === 'bark' ? '🔊 ' : '') + (mineLast ? (c.last.text || '') : barkBody(c.last));
+          const asTag = c.mp ? '<span class="convo-as"><span class="ca-ava">' + myPersonaAvatar(c.mp, 16) + '</span>as ' + esc(myPersonaName(c.mp)) + '</span>' : '';
+          return '<div class="row' + (c.unread ? ' unread' : '') + '" style="cursor:pointer;" onclick="' + dmOpenJs(c.id, c.mp, c.tp) + '">' +
+            '<div class="ricon">' + (c.tp ? theirPersonaAvatar(c.id, c.tp, 46) : who ? personAvatar(who, 46) : '💬') + '</div>' +
+            '<div class="rmain"><div class="rtitle">' + esc(name) + asTag + (c.unread ? '<span class="convo-unread">' + c.unread + '</span>' : '') + '</div>' +
             '<div class="rmeta">' + esc(prev.slice(0, 42)) + (prev.length > 42 ? '…' : '') + ' · ' + timeAgo(c.last.created_at) + '</div></div>' +
             '<div class="raction"><span class="fl">›</span></div></div>';
         }).join('');
       }
       openSheet('💬 Messages' + (liveOK ? '<span class="live-dot" title="Live"></span>' : ''), body);
     }
-    function openCloudDM(userId) {
+    // Stage 5: tp = their pet, as = my pet (null/left out = the account-level
+    // conversation). The conversation decides who I send as, whatever I'm acting as elsewhere.
+    function openCloudDM(userId, tp, as) {
       if (!cloudUser) { toast('Log in to send messages'); return; }
+      tp = lcId(tp); as = lcId(as);
       const u = PROFILE_BY_ID[userId];
       if (!u) {
         // Profile not loaded yet (e.g. an ad or mate owner we haven't fetched) —
         // pull it, then reopen. Don't dead-end with a misleading "Log in" toast.
         profSelect(() => cloud.from('profiles').select(PROFILE_COLS).eq('id', userId).maybeSingle())
           .then(({ data }) => {
-            if (data) { PROFILE_BY_ID[userId] = data; openCloudDM(userId); }
+            if (data) { PROFILE_BY_ID[userId] = data; openCloudDM(userId, tp, as); }
             else toast('Could not open that conversation');
           });
         return;
@@ -15455,32 +15771,46 @@
           '<button class="btn secondary" onclick="closeSheet();openBlockedList()">Manage blocked users</button>');
         return;
       }
-      // Friends-only door (the database enforces this too)
-      if (u.friends_only && !areFriendsWith(userId)) {
-        const f = friendshipWith(userId);
-        openSheet('🔒 ' + esc(u.username),
-          '<div class="note">' + esc(u.username) + ' only accepts messages from friends.' + (isPersonKind(u.kind) ? '' : ' You can still say hi!') + '</div>' +
-          (isPersonKind(u.kind) ? '' : '<button class="btn" onclick="sendCloudBarkById(\'' + jsStr(userId) + '\')">' + sendVoiceLabel() + '</button>') +
-          (!f ? '<button class="btn secondary" onclick="sendFriendRequest(\'' + jsStr(userId) + '\',\'' + jsStr(u.username) + '\')">🐾 Add friend</button>'
+      const pets = !!(as || tp), sayAs = pets ? as : undefined;
+      const barkArgs = pets ? ',' + asJs(tp) + ',' + asJs(as) : '';
+      const tName = tp ? theirPetName(userId, tp) : u.username, tPet = theirPet(userId, tp);
+      const canHi = !!tp || !isPersonKind(u.kind);
+      // Friends-only door (the database enforces this too). A pet follows its
+      // owner's setting, counting the pet's own friends.
+      if (u.friends_only && !dmFriendsOk(userId, as, tp)) {
+        const f = friendshipWith(userId, as, tp), fa = pets ? ',' + asJs(tp) + ',' + asJs(as) : '';
+        openSheet('🔒 ' + esc(tName),
+          '<div class="note">' + esc(tName) + ' only accepts messages from friends.' + (canHi ? ' You can still say hi!' : '') + '</div>' +
+          (canHi ? '<button class="btn" onclick="sendCloudBarkById(\'' + jsStr(userId) + '\'' + barkArgs + ')">' + sendVoiceLabelAs(sayAs) + '</button>' : '') +
+          (!f ? '<button class="btn secondary" onclick="sendFriendRequest(\'' + jsStr(userId) + '\',\'' + jsStr(tName) + '\'' + fa + ')">🐾 Add friend</button>'
               : f.status === 'pending' && f.addressee_id === cloudUser.id
-                ? '<button class="btn secondary" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✅ Accept their request</button>' +
-                  '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">✕ Decline</button>'
+                ? '<button class="btn secondary" onclick="acceptFriend(' + Number(f.id) + ',\'' + jsStr(tName) + '\')">✅ Accept their request</button>' +
+                  '<button class="btn secondary" onclick="declineFriend(' + Number(f.id) + ',\'' + jsStr(tName) + '\')">✕ Decline</button>'
                 : '<p class="sub" style="text-align:center;">⏳ Friend request pending</p>' +
-                  '<button class="btn secondary" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\')">Cancel request</button>'));
+                  '<button class="btn secondary" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(tName) + '\')">Cancel request</button>'));
         return;
       }
-      dmOpenWith = userId; dmPickedId = null;
+      dmOpenWith = userId; dmMyPet = as; dmTheirPet = tp; dmPickedId = null;
       const draft = pendingDMDraft; pendingDMDraft = '';
-      const meta = personMeta(u);
-      openSheet('<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--card);border:2px solid var(--brand);display:inline-block;">' + personAvatar(u, 34) + '</span><span>' + esc(u.username) + '<small style="display:block;font-size:0.7rem;color:var(--muted);font-weight:600;">' + esc(meta) + (liveOK ? ' · live<span class="live-dot"></span>' : '') + '</small></span>' +
-          '<span title="More" aria-label="More options" style="cursor:pointer;color:var(--muted);font-size:1.1rem;padding:0.2rem 0.5rem;" onclick="dmMoreMenu(\'' + jsStr(u.id) + '\')">⋯</span></span>',
+      const meta = tp ? (tPet ? (tPet.breed || speciesLabel(tPet.species)) + ' · ' : '') + 'with ' + ownerLabel(userId, 'their owner') : personMeta(u);
+      // Who I am in this conversation, said once at the top (only when a pet is in it, or I'm acting as one)
+      const showAs = pets || !!defaultSendAs();
+      // Their pet switched its own messages off: the conversation stays readable, nothing new goes in
+      const closed = !!(tp && tPet && tPet.social !== true);
+      openSheet('<span style="display:inline-flex;align-items:center;gap:0.5rem;"><span style="width:34px;height:34px;border-radius:50%;overflow:hidden;background:var(--card);border:2px solid var(--brand);display:inline-block;">' + (tp ? theirPersonaAvatar(userId, tp, 34) : personAvatar(u, 34)) + '</span><span>' + esc(tName) + '<small style="display:block;font-size:0.7rem;color:var(--muted);font-weight:600;">' + esc(meta) + (liveOK ? ' · live<span class="live-dot"></span>' : '') + '</small></span>' +
+          '<span title="More" aria-label="More options" style="cursor:pointer;color:var(--muted);font-size:1.1rem;padding:0.2rem 0.5rem;" onclick="dmMoreMenu(\'' + jsStr(u.id) + '\'' + barkArgs + ')">⋯</span></span>',
+        (showAs ? '<div class="dm-as" id="dm-as">You are chatting as <b>' + esc(myPersonaName(as)) + '</b> with <b>' + esc(theirPersonaFull(userId, tp)) + '</b></div>' : '') +
         '<div class="dm-thread" id="dm-thread" style="max-height:46vh;overflow-y:auto;"><p class="sub">Loading…</p></div>' +
-        '<div class="cmt-input-row" style="align-items:center;">' +
-          (isPersonKind(u.kind) ? '' : '<button class="pill-btn ghost" style="padding:0.45rem 0.6rem;" title="Say hi" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">🔊</button>') +
-          '<input id="dm-cloud-in" type="text" aria-label="Message ' + esc((u.username || '').split(' ')[0]) + '…" placeholder="Message ' + esc((u.username || '').split(' ')[0]) + '…" autocomplete="off" value="' + esc(draft) + '" onkeydown="if(event.key===\'Enter\')sendCloudDM()">' +
-          '<button class="pill-btn" onclick="sendCloudDM()">Send</button></div>');
+        (closed
+          ? '<div class="note" id="dm-closed" style="text-align:center;">' + esc(tName) + ' isn\'t taking new messages right now.</div>' +
+            '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(userId) + '\')">💬 Message ' + esc(ownerLabel(userId, u.username || 'their owner')) + '</button>'
+          : '<div class="cmt-input-row" style="align-items:center;">' +
+            (canHi ? '<button class="pill-btn ghost" style="padding:0.45rem 0.6rem;" title="Say hi" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\'' + barkArgs + ')">🔊</button>' : '') +
+            '<input id="dm-cloud-in" type="text" aria-label="Message ' + esc((tName || '').split(' ')[0]) + '…" placeholder="Message ' + esc((tName || '').split(' ')[0]) + '…" autocomplete="off" value="' + esc(draft) + '" onkeydown="if(event.key===\'Enter\')sendCloudDM()">' +
+            '<button class="pill-btn" onclick="sendCloudDM()">Send</button></div>'));
       if (draft) setTimeout(() => { const e = document.getElementById('dm-cloud-in'); if (e) e.focus(); }, 200);
-      renderDMThread(threadWith(userId)); // instant, from what we already have
+      if (tp) dmCheckTheirPet(userId, tp); // their pet's switch, read fresh
+      renderDMThread(curThread()); // instant, from what we already have
       refreshDMThread();
       clearInterval(dmPollTimer);
       dmPollTimer = setInterval(() => {
@@ -15488,12 +15818,27 @@
         if (!(liveOK && liveLastPing)) refreshDMThread(); // polling only while live isn't proven
       }, 4000);
     }
-    // Messages between me and one member, oldest first, plus anything still in the outbox
-    function threadWith(other) {
-      const rows = MY_MESSAGES.filter(m => (m.sender_id === cloudUser.id && m.recipient_id === other) || (m.sender_id === other && m.recipient_id === cloudUser.id))
+    // Messages between me and one member in ONE pair of personas (mp mine, tp
+    // theirs; both null = the account-level conversation), oldest first, plus
+    // anything still in the outbox for that conversation
+    function threadWith(other, mp, tp) {
+      mp = lcId(mp); tp = lcId(tp);
+      const rows = MY_MESSAGES.filter(m => ((m.sender_id === cloudUser.id && m.recipient_id === other) || (m.sender_id === other && m.recipient_id === cloudUser.id)) && samePair(msgSide(m), other, mp, tp))
         .slice().sort((a, b) => a.created_at < b.created_at ? -1 : 1);
-      (state.outbox || []).filter(o => o.kind === 'dm' && o.to === other).forEach(o => rows.push({ id: 'ob' + o.at, sender_id: cloudUser.id, recipient_id: other, text: o.text, created_at: new Date(o.at).toISOString(), pending: !o.failed, failed: !!o.failed, outboxAt: o.at }));
+      (state.outbox || []).filter(o => o.kind === 'dm' && o.to === other && lcId(o.mp) === mp && lcId(o.tp) === tp).forEach(o => rows.push({ id: 'ob' + o.at, sender_id: cloudUser.id, recipient_id: other, sender_pet: mp, recipient_pet: tp, text: o.text, created_at: new Date(o.at).toISOString(), pending: !o.failed, failed: !!o.failed, outboxAt: o.at }));
       return rows;
+    }
+    // The conversation on screen
+    function curThread() { return threadWith(dmOpenWith, dmMyPet, dmTheirPet); }
+    function dmIsOpen(other, mp, tp) { return !!dmOpenWith && dmOpenWith === other && dmMyPet === (mp || null) && dmTheirPet === (tp || null); }
+    // Their pet as it is now: switched off since I last looked, the input gives way to a note
+    async function dmCheckTheirPet(other, tp) {
+      let res;
+      try { res = await cloud.from('pet_profiles').select(PET_COLS).eq('id', tp).maybeSingle(); } catch (e) { return; }
+      if (!res || res.error || !res.data) return; // hidden from me now: keep the name I had
+      PET_BY_ID[tp] = res.data;
+      const r = theirPet(other, tp);
+      if (r && r.social !== true && dmIsOpen(other, dmMyPet, tp) && !document.getElementById('dm-closed')) openCloudDM(other, tp, dmMyPet);
     }
     function dayLabel(iso) {
       const d = new Date(iso), now = new Date();
@@ -15527,11 +15872,11 @@
     let dmPickedId = null;
     function dmPick(id) {
       dmPickedId = dmPickedId === String(id) ? null : String(id);
-      if (dmOpenWith) renderDMThread(threadWith(dmOpenWith));
+      if (dmOpenWith) renderDMThread(curThread());
     }
     async function unsendDM(id) {
       if (!cloud || !cloudUser || !dmOpenWith) return;
-      const other = dmOpenWith;
+      const other = dmOpenWith, mp = dmMyPet, tp = dmTheirPet;
       const m = MY_MESSAGES.find(x => String(x.id) === String(id));
       if (!m || m.sender_id !== cloudUser.id) return;
       if (!confirm('Unsend this message? It disappears for both of you.')) return;
@@ -15540,26 +15885,26 @@
       if (res.error || !res.data || !res.data.length) { toast('⚠️ Couldn\'t unsend that message. Please try again.'); uiSound('error'); return; }
       MY_MESSAGES = MY_MESSAGES.filter(x => String(x.id) !== String(id));
       dmPickedId = null;
-      if (dmOpenWith === other) renderDMThread(threadWith(other));
+      if (dmIsOpen(other, mp, tp)) renderDMThread(curThread());
       updateBadges();
       toast('Message unsent ↩️');
     }
-    // "⋯" at the top of a chat: report or block the other member, using the
-    // same sheets as their profile
-    function dmMoreMenu(id) {
+    // "⋯" at the top of a chat: report or block the other member (always the
+    // account, also in a pet's conversation), using the same sheets as their profile
+    function dmMoreMenu(id, tp, as) {
       const u = PROFILE_BY_ID[id]; if (!u) return;
       openSheet(esc(u.username),
         '<button class="btn secondary" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report ' + esc(u.username) + '</button>' +
         '<button class="btn secondary" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block ' + esc(u.username) + '</button>' +
-        '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(u.id) + '\')">← Back to the chat</button>');
+        '<button class="btn secondary" onclick="' + dmOpenJs(u.id, lcId(as), lcId(tp)) + '">← Back to the chat</button>');
     }
     async function refreshDMThread() {
       if (!dmOpenWith || !cloudUser) return;
-      const other = dmOpenWith;
+      const other = dmOpenWith, mp = dmMyPet, tp = dmTheirPet;
       const { data } = await cloud.from('messages').select('*')
         .or('and(sender_id.eq.' + cloudUser.id + ',recipient_id.eq.' + other + '),and(sender_id.eq.' + other + ',recipient_id.eq.' + cloudUser.id + ')')
         .order('created_at', { ascending: false }).limit(100);
-      if (!data || dmOpenWith !== other) return;
+      if (!data || !dmIsOpen(other, mp, tp)) return;
       data.reverse(); // the newest 100, oldest first on screen — so "seen" always lands on the latest one
       // Fold the fresh rows into MY_MESSAGES so every view agrees
       const known = {}; MY_MESSAGES.forEach(m => { known[m.id] = true; });
@@ -15571,12 +15916,14 @@
       const newest = data.length ? data[data.length - 1].created_at : '';
       MY_MESSAGES = MY_MESSAGES.filter(m => have[m.id] || m.created_at < from || (newest && m.created_at > newest) ||
         !((m.sender_id === cloudUser.id && m.recipient_id === other) || (m.sender_id === other && m.recipient_id === cloudUser.id)));
-      renderDMThread(threadWith(other));
-      // Remember what we've read so the badge can clear (only write when it changed)
-      if (data.length) {
+      renderDMThread(curThread());
+      // Remember what we've read so the badge can clear (only write when it changed).
+      // Keyed per conversation: the member's id for the account-level one (as before)
+      const mine = data.filter(m => samePair(msgSide(m), other, mp, tp));
+      if (mine.length) {
         state.dmSeen = state.dmSeen || {};
-        const last = data[data.length - 1].created_at;
-        if (state.dmSeen[other] !== last) { state.dmSeen[other] = last; saveState({ bg: true }); updateBadges(); }
+        const last = mine[mine.length - 1].created_at, key = threadKey(other, mp, tp);
+        if (state.dmSeen[key] !== last) { state.dmSeen[key] = last; saveState({ bg: true }); updateBadges(); }
       }
     }
     async function sendCloudDM() {
@@ -15588,35 +15935,42 @@
       // Optimistic: it's on screen before the network answers
       state.outbox = state.outbox || [];
       const entry = { kind: 'dm', to, text: t, at: Date.now() };
+      if (dmMyPet) entry.mp = dmMyPet;     // sent as my pet (stage 5)
+      if (dmTheirPet) entry.tp = dmTheirPet; // to their pet
       state.outbox.push(entry);
-      renderDMThread(threadWith(to));
+      renderDMThread(curThread());
       await deliverOutboxEntry(entry);
     }
     async function deliverOutboxEntry(entry) {
-      const { data, error } = await cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: entry.to, text: entry.text }).select('*').single();
+      const row = { sender_id: cloudUser.id, recipient_id: entry.to, text: entry.text };
+      if (entry.mp) row.sender_pet = entry.mp;
+      if (entry.tp) row.recipient_pet = entry.tp;
+      const { data, error } = await cloud.from('messages').insert(row).select('*').single();
+      const open = () => dmIsOpen(entry.to, lcId(entry.mp), lcId(entry.tp));
       const i = (state.outbox || []).indexOf(entry);
       if (error) {
         const blocked = /row-level security|policy|permission/i.test(error.message || '');
         if (blocked) {
           if (i >= 0) state.outbox.splice(i, 1);
-          toast('🔒 Message blocked — you may need to be friends first'); uiSound('error');
+          toast(entry.tp ? '🔒 Message blocked. ' + theirPetName(entry.to, lcId(entry.tp)) + ' may not be taking messages right now, or you may need to be friends first'
+            : '🔒 Message blocked — you may need to be friends first'); uiSound('error');
         } else {
           entry.failed = true; toast('📡 No connection — will retry'); uiSound('error');
         }
         saveState({ bg: true }); // the outbox stays on this device; also runs from the heartbeat
-        if (dmOpenWith === entry.to) renderDMThread(threadWith(entry.to));
+        if (open()) renderDMThread(curThread());
         return false;
       }
       if (i >= 0) state.outbox.splice(i, 1);
       if (data) MY_MESSAGES.unshift(data);
       saveState({ bg: true });
-      if (dmOpenWith === entry.to) renderDMThread(threadWith(entry.to));
+      if (open()) renderDMThread(curThread());
       livePing(entry.to, { type: 'dm' });
       return true;
     }
     function retryOutbox(at) {
       const e = (state.outbox || []).find(o => o.at === at); if (!e) return;
-      e.failed = false; renderDMThread(threadWith(e.to)); deliverOutboxEntry(e);
+      e.failed = false; if (dmOpenWith) renderDMThread(curThread()); deliverOutboxEntry(e);
     }
     // Anything that couldn't be sent goes out the moment we're back online
     let outboxBusy = false;
@@ -15659,6 +16013,9 @@
       // The paid reach column wins over the client-written content.reach
       if (a.data) CLOUD_ADS = a.data.map(r => Object.assign({}, r.content, { cloudId: r.id, ownerId: r.owner_id, expiresAt: r.expires_at, mine: !!(cloudUser && r.owner_id === cloudUser.id) }, AD_REACHES.indexOf(r.reach) >= 0 ? { reach: r.reach } : {}));
       await ensureProfiles(CLOUD_MATES.map(x => x.ownerId).concat(CLOUD_ADS.map(x => x.ownerId)));
+      // Listed pets with a pet page (no query when no listing names one)
+      const petIds = CLOUD_MATES.map(x => x.petId).filter(x => typeof x === 'string' && UUID_RE.test(x));
+      if (petIds.length) await ensurePets(petIds);
       ensureMyGeo();
       noteNewMatches();
       if (appActive() && state.tab === 'mate') rerenderTab(renderMate);
@@ -15810,11 +16167,18 @@
           // database actually holds, so nobody can fake a request or an accept.
           const me = cloudUser.id;
           ps.forEach(p => {
-            const f = FRIENDSHIPS.find(x => (x.requester_id === p.from && x.addressee_id === me) || (x.requester_id === me && x.addressee_id === p.from));
-            const accepted = f && f.status === 'accepted' && f.requester_id === me;
-            const asked = f && f.status === 'pending' && f.addressee_id === me;
-            if (accepted) { toast('🎉 ' + authorName(p.from, 'Someone') + ' accepted your friend request'); uiSound('friend'); }
-            else if (asked && notifPref('friends')) { toast('🐾 ' + authorName(p.from, 'Someone') + ' wants to be your friend'); uiSound('receive'); ringBell(); }
+            // Two members can have several rows (one per pair of personas): a request
+            // waiting on me wins, then one of mine they accepted; newest first
+            const rows = FRIENDSHIPS.filter(x => (x.requester_id === p.from && x.addressee_id === me) || (x.requester_id === me && x.addressee_id === p.from)).sort((a, b) => Number(b.id) - Number(a.id));
+            const asked = rows.find(x => x.status === 'pending' && x.addressee_id === me);
+            const accepted = !asked && rows.find(x => x.status === 'accepted' && x.requester_id === me);
+            if (accepted) {
+              const s = fsSide(accepted), who = s.tp ? theirPersonaName(p.from, s.tp) : authorName(p.from, 'Someone');
+              toast(s.mp ? '🎉 ' + who + ' and ' + myPersonaName(s.mp) + ' are friends now' : '🎉 ' + who + ' accepted your friend request'); uiSound('friend');
+            } else if (asked && notifPref('friends')) {
+              const s = fsSide(asked), who = s.tp ? theirPersonaName(p.from, s.tp) : authorName(p.from, 'Someone');
+              toast('🐾 ' + who + (s.mp ? ' wants to be friends with ' + myPersonaName(s.mp) : ' wants to be your friend')); uiSound('receive'); ringBell();
+            }
           });
           if (state.tab === 'profile' || state.tab === 'nearby') openTab(state.tab);
         });
