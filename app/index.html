@@ -222,6 +222,8 @@
 
     /* ---- Verified badge ---- */
     .verified { color: var(--blue); font-size: 0.9em; }
+    .verified.vpaw { display: inline-block; font-size: 0.95em; line-height: 1; vertical-align: -0.1em; }
+    .verified.vpaw svg { display: block; }
 
     /* ---- Home feed ---- */
     .profile-head { text-align: center; padding: 1rem 0 1.5rem; }
@@ -288,6 +290,32 @@
     }
     .top-avatar svg { width: 100%; height: 100%; filter: none; margin: 0; }
     .top-avatar .emo { display: flex; align-items: center; justify-content: center; height: 100%; }
+    /* Acting as a pet: blue ring and a small paw on the top-bar avatar */
+    .top-avatar { position: relative; }
+    .top-avatar.as-pet { border-color: var(--blue); }
+    .top-avatar .ta-paw { position: absolute; left: 50%; bottom: 0; transform: translateX(-50%); width: 18px; height: 13px; border-radius: 9px 9px 0 0; background: var(--blue); color: #fff; font-size: 8px; line-height: 14px; text-align: center; pointer-events: none; }
+    /* Pet personas: who you are right now (Me page, composer) */
+    .persona-strip { display: flex; gap: 0.55rem; overflow-x: auto; padding: 0.15rem 0.15rem 0.5rem; margin: 0 -0.15rem 0.5rem; scrollbar-width: none; }
+    .persona-strip::-webkit-scrollbar { display: none; }
+    .ps-chip { flex: 0 0 auto; width: 62px; display: flex; flex-direction: column; align-items: center; gap: 0.25rem; background: none; border: 0; padding: 0; font: inherit; color: var(--ink); cursor: pointer; }
+    .ps-ava { width: 48px; height: 48px; border-radius: 50%; overflow: hidden; border: 2px solid var(--line); background: var(--card); display: flex; align-items: center; justify-content: center; }
+    .ps-ava svg { width: 100%; height: 100%; }
+    .ps-ava .emo { display: flex; align-items: center; justify-content: center; height: 100%; }
+    .ps-chip.on .ps-ava { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brand-soft); }
+    .ps-name { font-size: 0.7rem; font-weight: 700; max-width: 62px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .ps-chip.on .ps-name { color: var(--brand-text); }
+    .ps-add .ps-ava { border-style: dashed; font-size: 1.3rem; color: var(--muted); }
+    .persona-strip.sm { margin-bottom: 0.2rem; }
+    .persona-strip.sm .ps-chip { width: 52px; }
+    .persona-strip.sm .ps-ava { width: 38px; height: 38px; }
+    .persona-strip.sm .ps-name { max-width: 52px; font-size: 0.66rem; }
+    .post-as { border: 2px solid var(--line); border-radius: 14px; padding: 0.5rem 0.7rem 0.1rem; margin-bottom: 0.7rem; }
+    .post-as .pa-label { font-size: 0.8rem; color: var(--muted); margin-bottom: 0.35rem; }
+    .post-as .pa-label b { color: var(--ink); }
+    .post-as .pa-warn { color: #c0392b; font-weight: 700; }
+    .cmt-as { align-self: center; width: 30px; height: 30px; flex: 0 0 30px; border-radius: 50%; overflow: hidden; border: 2px solid var(--line); background: var(--card); display: flex; align-items: center; justify-content: center; }
+    .cmt-as svg { width: 100%; height: 100%; }
+    .cmt-as .emo { display: flex; align-items: center; justify-content: center; height: 100%; }
     #tab-content { padding: 1rem 1.1rem 6.5rem; }
 
     .bottom-nav {
@@ -2411,7 +2439,19 @@
       state.emoji = el.dataset.emoji;
     }
 
+    // The studio open on one of your pets changes that pet's look instead
+    function studioPetLook(v) {
+      const pt = document.getElementById('studio-preview') ? studioTarget() : null;
+      if (!pt) return false;
+      const lk = pt.look = Object.assign({}, pt.look && typeof pt.look === 'object' ? pt.look : {});
+      if (v) lk.v = v; else delete lk.v;
+      if (!Object.keys(lk).length) delete pt.look;
+      saveState(); setTopAvatar();
+      document.getElementById('studio-preview').innerHTML = studioPreview(110);
+      return true;
+    }
     function remixAvatar() {
+      if (studioPetLook({ fur: 1 + Math.floor(Math.random() * 4), eyes: Math.floor(Math.random() * 5), ears: Math.floor(Math.random() * 2) })) return;
       // Same breed, new twist: fur shade, ear shape, eye color
       state.avatarVariant = {
         fur: 1 + Math.floor(Math.random() * 4),
@@ -2429,6 +2469,7 @@
       cloudSaveProfile(); // everyone else draws your icon from the profile row
     }
     function resetAvatarLook() {
+      if (studioPetLook(null)) return;
       state.avatarVariant = null;
       const el = document.getElementById('the-avatar');
       if (el) el.innerHTML = petAvatar(state.species, state.breed, 128, myLook());
@@ -2443,7 +2484,15 @@
     // Keep the top-bar avatar in step with look changes (only once in-app)
     function refreshTopAvatar() {
       const ta = document.getElementById('top-avatar');
-      if (ta && state.accountType) ta.innerHTML = myAvatar(40);
+      if (ta && state.accountType) setTopAvatar(ta);
+    }
+    // The top-bar avatar is whoever you are right now: you, or the pet you're acting as
+    function setTopAvatar(ta) {
+      ta = ta || document.getElementById('top-avatar'); if (!ta) return;
+      const pet = actingPet();
+      ta.innerHTML = pet ? myPetAvatar(pet, 40) + '<span class="ta-paw" aria-hidden="true">🐾</span>' : myAvatar(40);
+      ta.classList.toggle('as-pet', !!pet);
+      ta.setAttribute('aria-label', pet ? 'My profile, acting as ' + (pet.name || 'my pet') : 'My profile');
     }
     function revealAvatar() {
       if (!state.species) { toast('Pick a species first!'); return; }
@@ -2734,7 +2783,15 @@
     }
     function listChanged() { toast('That list just changed. Please try again.'); }
     function val(id) { const e = document.getElementById(id); return e ? e.value.trim() : ''; }
-    function vbadge() { return '<span class="verified" title="Verified by Petfi">✔︎</span>'; }
+    // Blue check = verified member. Blue paw = a pet whose OWNER is verified (pet personas).
+    const PAW_SVG = '<svg viewBox="0 0 24 24" width="1em" height="1em" fill="currentColor" aria-hidden="true" focusable="false">' +
+      '<ellipse cx="5.2" cy="10" rx="2.3" ry="2.9" transform="rotate(-18 5.2 10)"/><ellipse cx="9.6" cy="5.3" rx="2.3" ry="3"/>' +
+      '<ellipse cx="14.4" cy="5.3" rx="2.3" ry="3"/><ellipse cx="18.8" cy="10" rx="2.3" ry="2.9" transform="rotate(18 18.8 10)"/>' +
+      '<path d="M12 11.2c-3 0-6.6 3.7-6.6 6.7 0 1.9 1.4 2.9 3.1 2.9 1.5 0 2.3-.8 3.5-.8s2 .8 3.5.8c1.7 0 3.1-1 3.1-2.9 0-3-3.6-6.7-6.6-6.7z"/></svg>';
+    function vbadge(variant) {
+      if (variant === 'pet') return '<span class="verified vpaw" role="img" title="Owner is a verified member" aria-label="Owner is a verified member">' + PAW_SVG + '</span>';
+      return '<span class="verified" title="Verified by Petfi">✔︎</span>';
+    }
     // The badge is granted by Petfi on the server (profiles.verified); the app only displays it
     function isVerifiedUser(id) { if (cloudUser && id === cloudUser.id) return !!state.verified; const p = id && PROFILE_BY_ID[id]; return !!(p && p.verified); }
 
@@ -2765,6 +2822,8 @@
       return petAvatar(state.species, state.breed, px, myLook());
     }
     function entityAvatar(e, px) {
+      // Made as a pet (checked against its owner when the row was mapped): the pet's face
+      if (e && e.persona) return personaAvatar(e.persona, px);
       // Your own posts always wear the avatar you have NOW, not the one saved with the post
       if (e && (e.mine || (cloudUser && e.authorId && e.authorId === cloudUser.id))) return myAvatar(px);
       const photo = safeAvatarUrl(e.photo);
@@ -2803,6 +2862,7 @@
       if (!state.reminders) state.reminders = [];
       if (!state.calendar) state.calendar = [];
       hxInit(); // pet health: meds, vaccines, visits, supplies; stable pet ids
+      cloudSavePets(); // mirror the pets to their public pet profiles (no-op until that table exists)
       if (state.visible === undefined) state.visible = true;
       // A ZIP lookup interrupted by a reload/logout can persist this flag and
       // wedge the Nearby tab on "Looking up…" — always start cleared.
@@ -2820,7 +2880,7 @@
       delete state.cart; delete state.orders; delete state.sampleMates; delete state.groupAdmins; delete state.verifiedOnly; delete state.vStep;
       if (!state.homeTab) state.homeTab = 'feed';
       applyTheme();
-      document.getElementById('top-avatar').innerHTML = myAvatar(40);
+      setTopAvatar();
       updateStreak();
       show('s-app');
       openTab('home');
@@ -3278,6 +3338,7 @@
     // Whose voice is it? Pets speak for themselves; owners borrow their first
     // pet's. An owner with NO pets is just a person — no animal voice at all.
     function myGreetSpecies() {
+      const ap = actingPet(); if (ap) return String(ap.species || '').toLowerCase(); // acting as a pet: its voice
       if (iAmOrg()) return ''; // an organization waves, it doesn't bark
       return state.accountType === 'owner'
         ? ((state.pets && state.pets[0] && state.pets[0].species) || '')
@@ -3289,7 +3350,16 @@
     function isHumanProfile(id) { const p = PROFILE_BY_ID[id]; return !p || isPersonKind(p.kind); }
     function neutralGreet(id) { return myVoice() === 'like' || isHumanProfile(id); }
     // The greeting a tap sends: an animal word, or a plain wave from a person.
-    function greetText() { const v = myVoice(); return v === 'like' ? '👋 Hi!' : voiceWord(v, myGreetSpecies()); }
+    // Acting as a pet, the pet's name goes in front ("Echo: Woof! 🐶"), except to a
+    // friends-only member who isn't a friend: the server only lets the bare greeting through
+    function greetText(toId) {
+      const v = myVoice(), base = v === 'like' ? '👋 Hi!' : voiceWord(v, myGreetSpecies());
+      const ap = actingPet();
+      if (!ap) return base;
+      const to = toId && PROFILE_BY_ID[toId];
+      if (to && to.friends_only && !areFriendsWith(toId)) return base;
+      return petClean(ap.name, 40) + ': ' + base;
+    }
     function greetSound() {
       if (state.soundsSend === false) return;
       const v = myVoice();
@@ -3540,7 +3610,7 @@
       const REACT_LABEL = { meow: '😺 Meow', bark: '🐶 Bark', hiss: '🐍 Hiss', tweet: '🐦 Tweet', blub: '🐟 Blub', squeak: '🐹 Squeak', moo: '🐄 Moo', baa: '🐐 Baa', cluck: '🐔 Cluck', neigh: '🐴 Neigh', oink: '🐖 Oink', like: '❤️ Like' };
       const react = REACT_LABEL[p.kind] || '❤️ Like';
       const cmts = (p.comments || []).map(c =>
-        '<div class="cmt"><span class="cwho">' + esc(c.who) + '</span><span>' + esc(c.text) + '</span>' + (c.edited ? '<small style="color:var(--muted);white-space:nowrap;">(edited)</small>' : '') +
+        '<div class="cmt"><span class="cwho"' + (c.persona ? ' title="' + esc(personaWith(c.authorId)) + '"' : '') + '>' + esc(c.who) + (c.persona && isVerifiedUser(c.authorId) ? ' ' + vbadge('pet') : '') + '</span><span>' + esc(c.text) + '</span>' + (c.edited ? '<small style="color:var(--muted);white-space:nowrap;">(edited)</small>' : '') +
           (c.cid && cloudUser && c.authorId === cloudUser.id ? '<span class="cmt-act" role="button" tabindex="0" title="Edit comment" aria-label="Edit comment" onclick="editComment(' + Number(c.cid) + ')">✏️</span>' : '') +
           (c.cid && c.authorId && !(cloudUser && c.authorId === cloudUser.id) && !isAdmin() ?'<span class="cmt-act rep" role="button" tabindex="0" title="Report comment" aria-label="Report comment" onclick="reportComment(' + Number(c.cid) + ')">🚩</span>' : '') +
           (c.cid && ((cloudUser && c.authorId === cloudUser.id) || isAdmin()) ? '<span class="cmt-act" role="button" tabindex="0" title="Delete comment" aria-label="Delete comment" onclick="deleteComment(' + Number(c.cid) + ')">' + (cloudUser && c.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') +
@@ -3565,7 +3635,7 @@
         (pinned ? '<div class="post-pin">📌 Pinned</div>' : '') +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
-          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + orgMarkId(p.authorId) + '</div><div class="post-sub">' + esc(p.sub) + (p.edited ? '<span> · edited</span>' : '') + '</div></div>' +
+          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') : (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + orgMarkId(p.authorId)) + '</div><div class="post-sub">' + esc(p.sub) + (p.edited ? '<span> · edited</span>' : '') + '</div></div>' +
           (pinTool || (p.mine && p.cloudId) ? '<span style="margin-left:auto;display:flex;">' + pinTool + del + '</span>' : del) +
         '</div>' +
         (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + vidHtml + photo +
@@ -3575,7 +3645,7 @@
           '<button onclick="sharePost(' + i + ')">↗️ Share</button>' +
         '</div>' +
         '<div class="cmts" id="cmts-' + i + '">' + cmts +
-          '<div class="cmt-input-row"><input id="cmt-in-' + i + '" type="text" aria-label="Add a comment..." placeholder="Add a comment..." onkeydown="if(event.key===\'Enter\')addComment(' + i + ')">' +
+          '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="cmt-in-' + i + '" type="text" aria-label="' + esc(cmtPlaceholder()) + '" placeholder="' + esc(cmtPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')addComment(' + i + ')">' +
           '<button class="pill-btn" onclick="addComment(' + i + ')">Send</button></div>' +
         '</div></div>';
     }
@@ -3881,22 +3951,29 @@
       const p = FEED[i]; if (!p) return;
       if (postScope(p) === 'national') { const bad = pgOffender(t); if (bad) { toast('🌎 “' + bad + '” can\'t go in the Everyone feed — reword it'); uiSound('error'); return; } }
       if (!p.comments) p.comments = [];
-      const who = state.displayName || 'You';
+      // Acting as a pet: the comment is the pet's (content.as), and says so right away
+      const as = actor();
+      if (as.pet && p.cloudId && cloud && cloudUser && !personaReady(as)) return;
+      const persona = as.pet && as.ppid ? personaRowFor(as) : null;
+      const who = persona ? as.name : (state.displayName || 'You');
       const d = document.getElementById('cmts-' + i);
       const row = d.querySelector('.cmt-input-row');
       const div = document.createElement('div');
       div.className = 'cmt';
-      div.innerHTML = '<span class="cwho">' + esc(who) + '</span><span>' + esc(t) + '</span>';
+      div.innerHTML = '<span class="cwho">' + esc(who) + (persona && state.verified ? ' ' + vbadge('pet') : '') + '</span><span>' + esc(t) + '</span>';
       d.insertBefore(div, row);
       inp.value = '';
       if (!(p.cloudId && cloud && cloudUser)) { p.comments.push({ who, text: t }); toast('Comment added 💬'); return; }
       // Cloud posts keep their comments for everyone. The name shown to
       // others comes from the author's profile, not from this row.
       uiSound('send'); haptic(8);
-      const { data: cRow, error } = await cloud.from('post_comments').insert({ post_id: p.cloudId, author_id: cloudUser.id, content: { who, text: t } }).select('id').maybeSingle();
+      const content = persona ? { who, text: t, as: as.ppid } : { who, text: t };
+      const { data: cRow, error } = await cloud.from('post_comments').insert({ post_id: p.cloudId, author_id: cloudUser.id, content }).select('id').maybeSingle();
       if (error) { div.remove(); inp.value = t; toast('⚠️ Comment didn\'t send — try again'); uiSound('error'); return; }
       // Keep its id, so it can be edited or deleted before the next feed load
-      p.comments.push(cRow && cRow.id ? { who, text: t, authorId: cloudUser.id, cid: cRow.id } : { who, text: t });
+      const mine = cRow && cRow.id ? { who, text: t, authorId: cloudUser.id, cid: cRow.id } : { who, text: t };
+      if (persona) { mine.persona = persona; mine.authorId = cloudUser.id; }
+      p.comments.push(mine);
       const btn = document.querySelector('#cmts-' + i) && document.querySelector('#cmts-' + i).previousElementSibling && document.querySelector('#cmts-' + i).previousElementSibling.children[1];
       if (btn) btn.textContent = '💬 ' + p.comments.length;
       if (p.authorId) livePing(p.authorId, { type: 'comment', post: p.cloudId });
@@ -4088,6 +4165,10 @@
     function claimIdentity() {
       const first = (state.displayName || 'Someone').split(' ')[0];
       if (iAmPerson()) {
+        // Acting as a pet: that pet marks it; otherwise the first pet, as before
+        const ap = actingPet();
+        if (ap) { const lk = ap.look && typeof ap.look === 'object' ? ap.look : {};
+          return { pet: ap.name || 'My pet', owner: first, species: ap.species || 'other', breed: ap.breed || '', look: (lk.v || lk.a) ? { v: lk.v || null, a: lk.a || null } : null }; }
         const pet = (state.pets && state.pets[0]) ? state.pets[0] : null;
         return { pet: pet ? pet.name : first, owner: first,
           species: pet ? pet.species : 'other', breed: pet ? (pet.breed || '') : '', look: null };
@@ -4281,6 +4362,7 @@
       const claim = { petfiType: 'territory_claim', parkId: pid, parkName: park.name,
         lat: park.lat, lon: park.lon, pet: id.pet, owner: id.owner,
         species: id.species, breed: id.breed, look: id.look, at: new Date().toISOString() };
+      const ca = actor(); if (ca.pet && ca.ppid) claim.as = ca.ppid; // marked as that pet
       const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content: claim }).select('id, created_at').single();
       if (error) { toast('⚠️ Could not mark it — try again'); return; }
       const prev = territoryHolders()[pid];
@@ -6042,7 +6124,10 @@
       const meta = isPet ? esc(state.breed || state.species || 'Pet') + (age ? ' · ' + age : '') + ' · Pet account'
                          : isOrg ? 'Organization · ' + esc(orgTypeLabel(oi.type))
                          : 'Owner account' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
-      let h = '<div class="prof-hero">' +
+      // Owners and organizations with pet profiles: who you are right now, then that one's hero
+      const actingNow = actingPet();
+      let h = (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) : '') +
+        (actingNow ? petHeroHtml(actingNow) : '<div class="prof-hero">' +
         // One quiet way in for anyone who isn't verified yet, pet or owner account
         (state.verified ? '' : '<button class="prof-verify" onclick="startVerify()">🪪 Become a verified member</button>') +
         '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myAvatar(108) + '</div>' +
@@ -6063,7 +6148,7 @@
         '</div>' +
         '<p class="sub" style="font-size:0.75rem;margin:0.45rem 0 0;">' +
           (isPet ? 'Show the real thing — use a photo of your pet instead of the drawn icon.' : isOrg ? 'Show members who you are: use your logo or a photo instead of the icon.' : 'Show the real you — use a photo of you instead of the icon.') + '</p>' +
-      '</div>';
+      '</div>');
 
       const nFriends = FRIENDSHIPS.filter(f => f.status === 'accepted').length;
       const nGroups = CLOUD_GROUPS.filter(g => g.joined).length;
@@ -6081,8 +6166,8 @@
         h += '<div class="sec"><h3>🐾 ' + (isOrg ? 'Animals in our care' : 'My pets') + '</h3><span class="link" onclick="openAddPet()">+ Add</span></div>';
         if (state.pets.length === 0) h += '<div class="note">No pets added yet. Tap “+ Add” to show off your crew.</div>';
         else h += state.pets.map((pt, i) =>
-          '<div class="row" style="cursor:pointer;" onclick="openPetDetail(' + i + ')"><div class="ricon">' + petAvatar(pt.species, pt.breed, 46) + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(pt.name) + (pt.passed ? ' 🕊️' : '') + '</div><div class="rmeta">' + (pt.passed ? 'In loving memory' : esc(pt.breed || pt.species)) + '</div></div>' +
+          '<div class="row" style="cursor:pointer;" onclick="openPetDetail(' + i + ')"><div class="ricon">' + myPetAvatar(pt, 46) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(pt.name) + (pt.passed ? ' 🕊️' : '') + '</div><div class="rmeta">' + (pt.passed ? 'In loving memory' : esc(pt.breed || pt.species) + (pt.hidden === true ? ' · Hidden from Petfi' : '')) + '</div></div>' +
           '<div class="raction"><span class="fl" style="color:var(--brand-text);font-size:0.75rem;font-weight:700;">View ›</span></div></div>').join('');
         }
 
@@ -6175,6 +6260,90 @@
       '</div>';
       return h;
     }
+    // ---- The Me page while you're acting as a pet: the pet's own hero ----
+    function petHeroHtml(pt) {
+      const id = jsStr(pt.id), sp = String(pt.species || '').toLowerCase(), name = pt.name || 'My pet';
+      const info = (state.petInfo || {})[pt.id] || {};
+      const age = info.bday ? petAge(info.bday) : '';
+      const lk = pt.look && typeof pt.look === 'object' ? pt.look : {};
+      return '<div class="prof-hero">' +
+        '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myPetAvatar(pt, 108) + '</div>' +
+        '<div class="prof-name">' + esc(name) + (state.verified ? ' ' + vbadge('pet') : '') + '</div>' +
+        '<div class="prof-meta">' + esc(pt.breed || speciesLabel(sp)) + (age ? ' · ' + esc(age) : '') + ' · with ' + esc(humanShortName()) + '</div>' +
+        (pt.status
+          ? '<div class="prof-status" style="cursor:pointer;" onclick="openPetStatus(\'' + id + '\')">' + esc(pt.status) + ' ✏️</div>'
+          : '<div class="prof-status" style="cursor:pointer;background:transparent;color:var(--muted);border:2px dashed var(--line);" onclick="openPetStatus(\'' + id + '\')">＋ Add a status message</div>') +
+        (pt.ppid ? '' : '<p class="sub" style="font-size:0.78rem;margin:0.45rem 0 0;">⏳ ' + esc(name) + ' isn\'t on Petfi yet. This finishes by itself once you\'re online.</p>') +
+        '<div style="margin-top:0.6rem;display:flex;gap:0.4rem;justify-content:center;flex-wrap:wrap;">' +
+          (SPECIES_ART[sp] ? '<button class="pill-btn ghost" onclick="openAvatarStudio(\'' + id + '\')">🎨 Customize</button>' : '') +
+          '<button class="pill-btn ghost" title="Use a photo of ' + esc(name) + '" onclick="pickPetPhoto(\'' + id + '\')">📷 Use a photo</button>' +
+          (safeAvatarUrl(lk.p) ? '<button class="pill-btn ghost" onclick="clearPetPhoto(\'' + id + '\')">↺ Back to the drawn icon</button>' : '') +
+          '<input type="file" id="pet-photo-file" aria-label="📷 Use a photo" accept="image/*" style="display:none;" onchange="avatarPhotoPicked(this, uploadPetPhoto)">' +
+        '</div>' +
+        '<div class="settings-card" style="margin:0.7rem 0 0;text-align:left;">' + petShownToggle(pt) + '</div>' +
+        '<button class="pill-btn" style="margin-top:0.7rem;" onclick="setActingAs(null)">← Back to ' + esc(humanShortName()) + '</button>' +
+      '</div>';
+    }
+    function petShownToggle(pt) {
+      const name = esc(pt.name || 'your pet');
+      return '<div class="toggle-row"><div class="t-label">Show on Petfi<small>Off = ' + name + '\'s profile is hidden and ' + name + '\'s posts show under your name</small></div>' +
+        '<label class="switch"><input type="checkbox" aria-label="Show ' + name + ' on Petfi" ' + (pt.hidden === true ? '' : 'checked') + ' onchange="setPetShown(\'' + jsStr(pt.id) + '\',this.checked)"><span class="slider"></span></label></div>';
+    }
+    function petById(id) { return id ? (state.pets || []).find(p => p && p.id === id) || null : null; }
+    function setPetShown(id, on) {
+      const pt = petById(id); if (!pt) return;
+      if (on) delete pt.hidden; else pt.hidden = true;
+      if (!on && state.actingAs === id) state.actingAs = null; // a hidden pet can't be who you are
+      saveState(); setTopAvatar();
+      if (appActive() && state.tab === 'profile') rerenderTab(renderProfile);
+      toast(on ? (pt.name || 'Your pet') + ' shows on Petfi again 🐾' : (pt.name || 'Your pet') + ' is hidden from Petfi');
+    }
+    function openPetStatus(id) {
+      const pt = petById(id); if (!pt) return;
+      openSheet('Status message',
+        '<p class="sub">Shows on ' + esc(pt.name || 'your pet') + '\'s profile · 60 characters max</p>' +
+        '<input id="pst-msg" aria-labelledby="sheet-h" maxlength="60" value="' + esc(pt.status || '') + '" placeholder="Wanna play?">' +
+        '<button class="btn" onclick="savePetStatus(\'' + jsStr(id) + '\')">Save</button>');
+    }
+    function savePetStatus(id) {
+      const pt = petById(id); if (!pt) { closeSheet(); return; }
+      const s = petClean(val('pst-msg'), 60);
+      if (s) pt.status = s; else delete pt.status;
+      saveState(); closeSheet(); openTab('profile'); toast('Status updated');
+    }
+    // A pet's photo: uid/pet-<local id>-<ms>.jpg in your own folder; the one it replaces is removed
+    var petPhotoFor = null;
+    function pickPetPhoto(id) { petPhotoFor = id; const f = document.getElementById('pet-photo-file'); if (f) f.click(); }
+    async function uploadPetPhoto(blob) {
+      const pt = petById(petPhotoFor);
+      if (!pt || !cloud || !cloudUser) return;
+      const old = pt.look && pt.look.p;
+      toast('📷 Uploading ' + (pt.name || 'your pet') + '\'s photo…');
+      try {
+        const path = cloudUser.id + '/pet-' + (String(pt.id).replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) || 'pet') + '-' + Date.now() + '.jpg';
+        const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (up.error) throw up.error;
+        const url = cloud.storage.from('photos').getPublicUrl(path).data.publicUrl;
+        pt.look = Object.assign({}, pt.look && typeof pt.look === 'object' ? pt.look : {}, { p: url });
+        saveState(); setTopAvatar();
+        if (state.tab === 'profile') rerenderTab(renderProfile);
+        if (old && old !== url) removeMyPhotos([myPhotoPath(old, PET_FILE_RE)], 'pet photo');
+        toast('Looking good 📸');
+      } catch (e) {
+        console.warn('pet photo upload:', e && e.message);
+        toast('⚠️ Couldn\'t upload that photo');
+      }
+    }
+    function clearPetPhoto(id) {
+      const pt = petById(id); if (!pt || !pt.look) return;
+      const old = pt.look.p;
+      pt.look = Object.assign({}, pt.look); delete pt.look.p;
+      if (!Object.keys(pt.look).length) delete pt.look;
+      saveState(); setTopAvatar();
+      if (state.tab === 'profile') rerenderTab(renderProfile);
+      if (old) removeMyPhotos([myPhotoPath(old, PET_FILE_RE)], 'pet photo');
+      toast('Back to the drawn icon 🎨');
+    }
     function settingToggle(key, label, sub, on) {
       return '<div class="toggle-row"><div class="t-label">' + label + '<small>' + sub + '</small></div>' +
         '<label class="switch"><input type="checkbox" aria-label="' + esc(String(label).replace(/<[^>]*>/g, '')) + '" ' + (on ? 'checked' : '') + ' onchange="setSetting(\'' + key + '\',this.checked)"><span class="slider"></span></label></div>';
@@ -6192,13 +6361,20 @@
 
     // ---- Avatar studio: remix the look, add accessories ----
     const COLLAR_COLORS = [['none', 'None'], ['#d63a3a', 'Red'], ['#3a6ad0', 'Blue'], ['#3f9a4a', 'Green'], ['#e06aa8', 'Pink'], ['gold', '🥇 Gold']];
-    function openAvatarStudio() {
-      const a = state.accessories = state.accessories || {};
+    // petId: customize one of your pets' looks (the Me page while acting as it); none = your own icon
+    var studioPet = null;
+    function studioTarget() { return studioPet ? petById(studioPet) : null; }
+    function studioLook() { const pt = studioTarget(); if (!pt) return myLook(); const lk = pt.look && typeof pt.look === 'object' ? pt.look : {}; return { v: lk.v || null, a: lk.a || null }; }
+    function studioPreview(px) { const pt = studioTarget(); return pt ? petAvatar(pt.species, pt.breed, px, studioLook()) : petAvatar(state.species, state.breed, px, myLook()); }
+    function openAvatarStudio(petId) {
+      studioPet = typeof petId === 'string' && petById(petId) ? petId : null;
+      const pt = studioTarget();
+      const a = pt ? ((pt.look && pt.look.a) || {}) : (state.accessories = state.accessories || {});
       const lockGold = false; // gold gear is for everyone until real verification exists
       const chip = (on, label, click, locked) =>
         '<div class="chip' + (on ? ' active' : '') + '"' + (locked ? ' style="opacity:0.6;"' : '') + ' onclick="' + click + '">' + label + (locked ? ' 🔒' : '') + '</div>';
-      openSheet('🎨 Customize my icon',
-        '<div style="text-align:center;"><div id="studio-preview" style="display:inline-block;">' + petAvatar(state.species, state.breed, 110, myLook()) + '</div></div>' +
+      openSheet(pt ? '🎨 Customize ' + esc(pt.name || 'my pet') : '🎨 Customize my icon',
+        '<div style="text-align:center;"><div id="studio-preview" style="display:inline-block;">' + studioPreview(110) + '</div></div>' +
         '<p style="text-align:center;margin:0.2rem 0 0.4rem;"><button class="pill-btn ghost" onclick="remixAvatar()">🎲 Change it up</button> ' +
           '<button class="pill-btn ghost" onclick="resetAvatarLook()">↺ Original</button></p>' +
         '<label>Collar</label><div class="chips" style="margin:0.3rem -1.3rem 0;padding:0 1.3rem;">' +
@@ -6214,11 +6390,22 @@
     }
     function setAcc(key, value) {
       if (key === 'collar' && value !== null && value !== 'none' && !COLLAR_COLORS.some(c => c[0] === value)) return;
+      const off = value === null || value === 'null' || value === 'none';
+      const pt = studioTarget();
+      if (pt) { // a pet's look: saveState mirrors it to the pet's public profile
+        const lk = pt.look = Object.assign({}, pt.look && typeof pt.look === 'object' ? pt.look : {});
+        const acc = lk.a = Object.assign({}, lk.a || {});
+        if (off) delete acc[key]; else acc[key] = value;
+        if (!Object.keys(acc).length) delete lk.a;
+        saveState(); setTopAvatar();
+        openAvatarStudio(pt.id);
+        return;
+      }
       state.accessories = state.accessories || {};
-      if (value === null || value === 'null' || value === 'none') delete state.accessories[key];
+      if (off) delete state.accessories[key];
       else state.accessories[key] = value;
       saveState(); cloudSaveProfile();
-      document.getElementById('top-avatar').innerHTML = myAvatar(40);
+      setTopAvatar();
       openAvatarStudio(); // re-render chips + preview
     }
 
@@ -6227,7 +6414,8 @@
       const f = document.getElementById('avatar-file');
       if (f) f.click();
     }
-    function avatarPhotoPicked(input) {
+    // onBlob: where the square photo goes (default: your own avatar; a pet's hero passes uploadPetPhoto)
+    function avatarPhotoPicked(input, onBlob) {
       const file = input.files && input.files[0];
       input.value = ''; // so picking the same file again still fires
       if (!file) return;
@@ -6242,7 +6430,7 @@
         const c = document.createElement('canvas');
         c.width = c.height = 320;
         c.getContext('2d').drawImage(img, sx, sy, side, side, 0, 0, 320, 320);
-        c.toBlob(blob => { if (blob) uploadAvatarPhoto(blob); else toast('⚠️ Couldn\'t read that photo'); }, 'image/jpeg', 0.85);
+        c.toBlob(blob => { if (blob) (typeof onBlob === 'function' ? onBlob : uploadAvatarPhoto)(blob); else toast('⚠️ Couldn\'t read that photo'); }, 'image/jpeg', 0.85);
       };
       img.onerror = () => photoUnreadable(url);
       img.src = url;
@@ -6292,6 +6480,14 @@
     function heroSpeak(el) {
       el.style.animation = 'wiggle 0.5s';
       setTimeout(() => { el.style.animation = ''; }, 550);
+      const ap = actingPet();
+      if (ap) { // the pet's hero: its own voice
+        const pv = speciesVoice(ap.species);
+        if (pv === 'like') { toast('👋 ' + (ap.name || 'Your pet') + ' says hi!'); return; }
+        if (state.soundsSend !== false) playVoice(pv);
+        toast(voiceWord(pv, String(ap.species || '').toLowerCase()));
+        return;
+      }
       if (iAmOrg()) { toast('👋 ' + (state.displayName || 'You') + ' says hi!'); return; }
       if (state.accountType === 'owner') {
         // People don't bark, and they don't beep either — silent wave.
@@ -6807,7 +7003,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.27.1';
+    const APP_VERSION = '1.28.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7920,6 +8116,7 @@
       const draft = composeDraft; composeDraft = '';
       composeScope = feedScope();
       openSheet('New post',
+        composeAsHtml() + // "Posting as": you or one of your pets (only once you have one to pick)
         '<div class="mm-seg" id="cmp-scope" style="margin-bottom:0.7rem;">' +
           '<div class="' + (composeScope === 'local' ? 'on' : '') + '" onclick="setComposeScope(\'local\',this)">🏡 Local<small>' + LOCAL_RADIUS_MI + ' mi · unfiltered</small></div>' +
           '<div class="' + (composeScope === 'national' ? 'on' : '') + '" onclick="setComposeScope(\'national\',this)">🌎 Everyone<small>nationwide · family-friendly</small></div></div>' +
@@ -8027,6 +8224,8 @@
     }
     async function submitPost() {
       if (!canSaveToCloud('post')) return;
+      const as = actor(); // who this post is from: you, or the pet you're acting as
+      if (!personaReady(as)) return;
       let t = val('cmp-text');
       if (!t && !postPhotos.length && !postVideo) { toast('Write something, or add a photo or video first'); return; }
       if (composeMood) { t = (t ? t + ' ' : '') + '— feeling ' + composeMood; composeMood = ''; }
@@ -8044,6 +8243,13 @@
       const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
         kind: iAmPerson() ? 'like' : speciesVoice(state.species),
         variant: state.avatarVariant || null, accessories: state.accessories || null, emoji: state.accountType === 'owner' ? ownerEmoji() : null, photo: state.avatarUrl || null, pendingKey, scope, loc };
+      if (as.pet) {
+        // Made as a pet: content.as plus the display fields older versions read
+        post.persona = personaRowFor(as);
+        const sb = personaMeta(post.persona, cloudUser ? cloudUser.id : null);
+        Object.assign(post, { who: as.name, subBase: sb, sub: sb + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: 'pet', species: as.species, breed: as.breed,
+          kind: as.voice, variant: as.look.v, accessories: as.look.a, emoji: null, photo: as.look.p || null, as: as.ppid });
+      }
       state.feedScope = scope; state.homeTab = 'feed'; // show the feed the post went to
       if (cloud && cloudUser) { post.mine = true; post.authorId = cloudUser.id; }
       const photos = postPhotos.slice(); postPhotos = [];
@@ -8091,7 +8297,7 @@
           if (appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
           const deadUrl = vid.url; setTimeout(() => URL.revokeObjectURL(deadUrl), 2000);
         }
-        const content = Object.assign({}, post); delete content.mine; delete content.authorId; delete content.sub; delete content.likes; delete content.fresh;
+        const content = Object.assign({}, post); delete content.mine; delete content.authorId; delete content.sub; delete content.likes; delete content.fresh; delete content.persona;
         // Never let a local-only link (or a fat data: poster) reach the row
         delete content.videoLocal;
         if (content.posterUrl && content.posterUrl.indexOf(PHOTO_ORIGIN) !== 0) delete content.posterUrl;
@@ -9855,7 +10061,7 @@
       // Answering a Mate Match hello is a Mate Match hello; answering a bark is a bark
       const mateCtx = MY_MESSAGES.some(m => m.sender_id === id && m.recipient_id === cloudUser.id && isMateHi(m));
       if (state.soundsSend !== false) { if (quiet || mateCtx) uiSound('send'); else playVoice(myVoice()); }
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: mateCtx ? MATE_HI : (quiet ? '👋 Hi!' : greetText()) })
+      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: mateCtx ? MATE_HI : (quiet ? '👋 Hi!' : greetText(id)) })
         .then(({ error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); return; }
           if (mateCtx) { state.mateBarks = state.mateBarks || {}; state.mateBarks[id] = 1; saveState(); }
@@ -9932,11 +10138,11 @@
         (g.desc ? '<p style="font-size:0.88rem;margin-bottom:0.7rem;">' + esc(g.desc) + '</p>' : '') +
         groupRequestsHtml(g, i) +
         '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
-          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
+          '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + esc(p.who) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + ' <span class="post-sub" style="font-weight:400;">· ' + esc(personaWith(p.authorId)) + '</span>' : '') + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
             (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin()) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
           : '<div class="note">No posts yet — start the conversation! 🐾</div>') + '</div>' +
         (canPost
-          ? '<div class="cmt-input-row"><input id="grp-post-in" type="text" aria-label="Post to the group..." placeholder="Post to the group..." onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
+          ? '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="grp-post-in" type="text" aria-label="' + esc(grpPlaceholder()) + '" placeholder="' + esc(grpPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
             '<button class="pill-btn" onclick="postToGroup(' + i + ')">Post</button></div>'
           : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? (g.requested ? '⏳ Request sent' : '🔒 Request to join') : '👥 Join to post') + '</button>') +
         groupOwnerHtml(g, i);
@@ -10000,7 +10206,8 @@
         const mySeq = sheetSeq;
         const { data } = await cloud.from('group_posts').select('id, author_id, content, created_at').eq('group_id', g.cloudId).order('created_at', { ascending: false }).limit(30);
         await ensureProfiles((data || []).map(r => r.author_id).concat(g.requests || []).concat(g.mine ? g.memberIds || [] : []));
-        g.posts = (data || []).filter(r => !hiddenUser(r.author_id)).map(r => ({ who: authorName(r.author_id, r.content && r.content.who), text: String((r.content && r.content.text) || ''), at: r.created_at, authorId: r.author_id, gid: r.id }));
+        await ensurePets((data || []).map(r => r.content && r.content.as), (data || []).map(r => r.author_id));
+        g.posts = (data || []).filter(r => !hiddenUser(r.author_id)).map(r => commentPersona(r, { who: authorName(r.author_id, r.content && r.content.who), text: String((r.content && r.content.text) || ''), at: r.created_at, authorId: r.author_id, gid: r.id }));
         if (sheetSeq !== mySeq) return; // user closed/switched sheets while loading
         openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
         return;
@@ -10014,9 +10221,13 @@
       const post = { who: state.displayName || 'You', text: t };
       if (g.cloudId && cloud && cloudUser) {
         if (!g.joined) { toast('Join the group to post in it 👥'); return; }
-        const { error } = await cloud.from('group_posts').insert({ group_id: g.cloudId, author_id: cloudUser.id, content: post });
+        const as = actor(); // acting as a pet: the group post is the pet's
+        if (!personaReady(as)) return;
+        if (as.pet) { post.who = as.name; post.as = as.ppid; }
+        const { error } = await cloud.from('group_posts').insert({ group_id: g.cloudId, author_id: cloudUser.id, content: Object.assign({}, post) });
         if (error) { toast('⚠️ Post didn\'t send — try again'); return; }
         toast('Posted to the group 👥');
+        if (as.pet) { delete post.as; post.persona = personaRowFor(as); post.authorId = cloudUser.id; }
       } else { canSaveToCloud('post'); return; }
       g.posts.unshift(post);
       openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
@@ -10028,9 +10239,14 @@
       if (pt && pt.passed) { openMemorial(i); return; }
       openSheet('🐾 ' + esc(pt.name),
         '<div style="text-align:center;">' +
-          '<div style="width:110px;height:110px;margin:0.5rem auto;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);">' + petAvatar(pt.species, pt.breed, 110) + '</div>' +
+          '<div style="width:110px;height:110px;margin:0.5rem auto;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);">' + myPetAvatar(pt, 110) + '</div>' +
           '<div class="prof-meta">' + esc(pt.breed || pt.species) + '</div>' +
         '</div>' +
+        // Pet profiles: be this pet, and whether it shows on Petfi at all
+        (iAmPerson() && personasOn() && pt.id
+          ? (pt.hidden === true ? '' : '<button class="btn secondary" onclick="closeSheet();openTab(\'profile\');setActingAs(\'' + jsStr(pt.id) + '\')">🐾 Be ' + esc(pt.name) + ' on Petfi</button>') +
+            '<div class="settings-card" style="margin-bottom:0.7rem;">' + petShownToggle(pt) + '</div>'
+          : '') +
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
         (pt.id ? '<button class="btn" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health, meds &amp; vaccines</button>' : '') +
         '<button class="btn' + (pt.id ? ' secondary' : '') + '" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
@@ -10097,6 +10313,7 @@
       openSheet('Remove ' + esc(pt.name) + '?',
         '<p class="sub">' + esc(pt.name) + ' will be taken off your profile, along with their meds, vaccines and vet records in My care.</p>' +
         (lost.length ? '<p class="sub">' + esc(pt.name) + '\'s ' + lost.join(' and ') + ' will be deleted too, and Undo can\'t bring ' + (lost.length > 1 ? 'those' : 'that') + ' back.</p>' : '') +
+        (iAmPerson() && personasOn() ? '<p class="sub">' + esc(pt.name) + '\'s profile on Petfi goes too, and posts made as ' + esc(pt.name) + ' will show under your name.</p>' : '') +
         '<button class="btn" onclick="removePet(' + i + ',' + sigArg(pt) + ')">🗑 Yes, remove</button>' +
         '<button class="btn secondary" onclick="savePetCopy(' + i + ',' + sigArg(pt) + ')">📄 Save a copy of ' + esc(pt.name) + '\'s records</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Keep</button>');
@@ -10119,7 +10336,8 @@
       const snap = state.pets[i] ? Object.assign(petSnapshot(state.pets[i]), { at: i }) : null;
       const pt = state.pets.splice(i, 1)[0];
       if (pt) hxForgetPet(pt.id);
-      saveState(); closeSheet(); openTab('profile');
+      if (pt) { queuePetGone(pt); if (state.actingAs && state.actingAs === pt.id) state.actingAs = null; } // its public profile goes after the Undo window
+      saveState(); closeSheet(); openTab('profile'); refreshTopAvatar();
       if (pt) toast(pt.name + ' removed 🐾', { label: 'Undo', fn: () => undoRemovePet(snap) });
     }
     // Puts the pet and its records back on this device (the server-side QR tag
@@ -10130,6 +10348,7 @@
       if ((state.pets || []).some(p => p === pt || (pt.id && p.id === pt.id))) return;
       state.pets = state.pets || [];
       state.pets.splice(Math.min(snap.at || 0, state.pets.length), 0, pt);
+      if (pt.id && Array.isArray(state.petGone)) { state.petGone = state.petGone.filter(g => g && g.id !== pt.id); if (!state.petGone.length) delete state.petGone; }
       if (pt.id && snap.info !== undefined) { state.petInfo = state.petInfo || {}; state.petInfo[pt.id] = snap.info; }
       const back = (key, list) => { const have = new Set(state[key] || []); state[key] = (state[key] || []).concat(list.filter(x => !have.has(x))); };
       back('meds', snap.meds); back('reminders', snap.reminders); back('vaccines', snap.vaccines);
@@ -10612,11 +10831,24 @@
 
     // ---- ids, pets, dates ----
     function hxId() { return Math.random().toString(36).slice(2, 10); }
+    function stablePetId(p, i, taken) {
+      const src = [p.name, p.species, p.breed, i].map(x => String(x == null ? '' : x).toLowerCase()).join('|');
+      let h = 2166136261;
+      for (let k = 0; k < src.length; k++) { h ^= src.charCodeAt(k); h = Math.imul(h, 16777619) >>> 0; }
+      const base = 'p' + h.toString(36);
+      let id = base, n = 1;
+      while (taken && taken[id]) id = base + 'x' + (++n);
+      return id;
+    }
     function hxInit() {
       ['meds', 'vaccines', 'visits', 'supplies', 'spend', 'journal'].forEach(k => { if (!Array.isArray(state[k])) state[k] = []; });
       if (!state.petInfo || typeof state.petInfo !== 'object' || Array.isArray(state.petInfo)) state.petInfo = {};
       if (!state.hxFired || typeof state.hxFired !== 'object') state.hxFired = {};
-      (state.pets || []).forEach(p => { if (!p.id) p.id = 'p' + hxId(); });
+      // A pet with no id gets one derived from the pet itself (never random), so
+      // two devices opening the same saved copy give it the same id
+      const taken = {};
+      (state.pets || []).forEach(p => { if (p && p.id) taken[p.id] = 1; });
+      (state.pets || []).forEach((p, i) => { if (p && !p.id) { p.id = stablePetId(p, i, taken); taken[p.id] = 1; } });
       // Fired-alert keys only need to outlive their alert
       const old = Date.now() - 180 * DAY_MS;
       Object.keys(state.hxFired).forEach(k => { if (!(state.hxFired[k] > old)) delete state.hxFired[k]; });
@@ -13667,6 +13899,7 @@
       noteSeen(cloudUser.id, row.updated_at);
       cloudSyncedJson = snapJson();
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
+      cloudSavePets(); // the adopted copy's pets may not be mirrored yet
     }
     // What the cloud row is known to hold (savedAt aside). A save whose content
     // matches it is skipped: otherwise two open devices would keep adopting and
@@ -13849,6 +14082,7 @@
       if (!cloud) return;
       if (!force && Date.now() - lastPostsFetch < 15000) return; // don't spam the network
       lastPostsFetch = Date.now();
+      personasProbe(); // once per session, alongside the feed query (awaited in ensurePets)
       // Exclude tagged rows (dating cards, territory claims live in `posts`
       // too) so they don't eat into the 50-row feed budget.
       const { data, error } = await cloud.from('posts')
@@ -13882,12 +14116,15 @@
       if (ids.length) {
         const [l, c] = await Promise.all([
           cloud.from('post_likes').select('post_id, user_id').in('post_id', ids),
-          cloud.from('post_comments').select('id, post_id, author_id, content').in('post_id', ids).order('created_at'),
+          cloud.from('post_comments').select('id, post_id, author_id, content, created_at').in('post_id', ids).order('created_at'),
         ]);
         likes = l.data || []; comments = c.data || [];
       }
       // Names come from real profiles (author_id), never from row content
       await ensureProfiles(data.map(r => r.author_id).concat(comments.map(c => c.author_id)), true);
+      // Pets posts/comments were made as, and authors' legacy pets (no-op without pet_profiles)
+      await ensurePets(data.map(r => r.content && r.content.as).concat(comments.map(c => c.content && c.content.as)),
+        data.map(r => r.author_id).concat(comments.map(c => c.author_id)));
       // Replace previously loaded cloud posts. Guard against a race: a post
       // you JUST made (still uploading, or newer than this fetch) stays.
       const fetchedIds = {};
@@ -13937,11 +14174,21 @@
           if (look) p.photo = safeAvatarUrl(look.p); // their photo avatar, as it is right now
           p.kind = p.type === 'pet' ? speciesVoice(p.species) : 'like';
         }
-        const meta = p.type === 'owner' ? 'Owner' : p.type === 'org' ? (prof ? personMeta(prof) : 'Organization') : (p.breed || p.species || 'Pet');
+        // Made as one of the author's pets: the pet's name, face and voice
+        const pet = personaOf(row.author_id, c, row.created_at);
+        if (pet) {
+          const lk = petLook(pet);
+          p.persona = pet; p.who = pet.name; p.type = 'pet'; p.emoji = null;
+          p.species = pet.species || ''; p.breed = pet.breed || '';
+          p.variant = lk.v || null; p.accessories = lk.a || null;
+          p.photo = safeAvatarUrl(lk.p);
+          p.kind = speciesVoice(p.species);
+        }
+        const meta = pet ? personaMeta(pet, row.author_id) : p.type === 'owner' ? 'Owner' : p.type === 'org' ? (prof ? personMeta(prof) : 'Organization') : (p.breed || p.species || 'Pet');
         p.sub = meta + ' · ' + timeAgo(row.created_at) + (p.loc && p.loc.area ? ' · 📍 ' + p.loc.area : '');
         p.likes = likes.filter(x => x.post_id === row.id).length;
         p.likedByMe = !!(cloudUser && likes.some(x => x.post_id === row.id && x.user_id === cloudUser.id));
-        p.comments = comments.filter(x => x.post_id === row.id && !hiddenUser(x.author_id)).map(x => ({ who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || ''), authorId: x.author_id, cid: x.id, edited: !!(x.content && x.content.edited) }));
+        p.comments = comments.filter(x => x.post_id === row.id && !hiddenUser(x.author_id)).map(x => commentPersona(x, { who: authorName(x.author_id, x.content && x.content.who), text: String((x.content && x.content.text) || ''), authorId: x.author_id, cid: x.id, edited: !!(x.content && x.content.edited) }));
         FEED.unshift(p);
       });
       freshMine.forEach(p => FEED.unshift(p)); // your seconds-old posts stay on top
@@ -14076,6 +14323,321 @@
       const d = document.getElementById('member-res');
       if (d) d.innerHTML = memberResultsHTML();
     }
+    // ---- Pet personas (display) ----
+    // A post, comment or group post made "as" a pet carries content.as = that
+    // pet's pet_profiles id; author_id stays the owner. The pet is shown only
+    // when its row belongs to the author (no wearing someone else's pet).
+    // Without the pet_profiles table (older database) personasOn() stays false
+    // and everything renders exactly as before.
+    let PERSONAS_STATE = 0;          // 0 not known yet, 1 on, -1 off for this session
+    let personasProbing = null;
+    const PET_BY_ID = {};            // pet_profiles rows by id (null = not visible to me)
+    const LEGACY_PET_BY_OWNER = {};  // owner id -> their legacy pet row, or null
+    const PET_COLS = 'id, owner_id, local_id, name, species, breed, status, age, look, passed, visible, legacy, created_at';
+    function personasOn() { return PERSONAS_STATE === 1; }
+    function personasProbe() {
+      if (PERSONAS_STATE !== 0 || !cloud) return Promise.resolve(personasOn());
+      if (!personasProbing) {
+        personasProbing = (async () => {
+          let res;
+          try { res = await cloud.from('pet_profiles').select('id').limit(1); } catch (e) { res = { error: e }; }
+          const er = res && res.error;
+          if (!er) PERSONAS_STATE = 1;
+          else if (res.status === 404 || er.code === 'PGRST205' || er.code === '42P01' || /schema cache|does not exist/i.test(String(er.message || ''))) PERSONAS_STATE = -1;
+          else setTimeout(() => { personasProbing = null; }, 60000); // network hiccup: ask again later
+          return personasOn();
+        })();
+      }
+      return personasProbing;
+    }
+    // Fetch pets by id (content.as values) and the legacy pet of these authors, in one query
+    async function ensurePets(ids, ownerIds) {
+      if (!cloud || !(await personasProbe())) return;
+      const want = {}, owners = {};
+      (ids || []).forEach(id => { if (typeof id === 'string' && UUID_RE.test(id) && !(id.toLowerCase() in PET_BY_ID)) want[id.toLowerCase()] = 1; });
+      (ownerIds || []).forEach(id => { if (typeof id === 'string' && UUID_RE.test(id) && !(id in LEGACY_PET_BY_OWNER)) owners[id] = 1; });
+      const w = Object.keys(want).slice(0, 100), o = Object.keys(owners).slice(0, 100);
+      if (!w.length && !o.length) return;
+      const parts = [];
+      if (w.length) parts.push('id.in.(' + w.join(',') + ')');
+      if (o.length) parts.push('and(legacy.is.true,owner_id.in.(' + o.join(',') + '))');
+      try {
+        const { data, error } = await cloud.from('pet_profiles').select(PET_COLS).or(parts.join(','));
+        if (error) { console.warn('pets:', error.code || error.message); return; }
+        w.forEach(id => { PET_BY_ID[id] = null; });
+        o.forEach(id => { LEGACY_PET_BY_OWNER[id] = null; });
+        (data || []).forEach(r => {
+          if (!r || !r.id || !r.owner_id) return;
+          PET_BY_ID[r.id] = r;
+          if (r.legacy) LEGACY_PET_BY_OWNER[r.owner_id] = r;
+        });
+      } catch (e) { console.warn('pets:', e && e.message); }
+    }
+    // Which pet (if any) a row was made as. content.as must be a pet of the
+    // author; an old row without it belongs to the author's legacy pet (a
+    // converted pet account) when it predates that pet row.
+    function personaOf(authorId, content, createdAt) {
+      if (!personasOn() || !authorId) return null;
+      const as = content && content.as;
+      if (as != null && as !== '') {
+        const pet = typeof as === 'string' ? PET_BY_ID[as.toLowerCase()] : null;
+        return pet && pet.owner_id === authorId ? pet : null;
+      }
+      const lg = LEGACY_PET_BY_OWNER[authorId];
+      if (lg && lg.owner_id === authorId && createdAt && lg.created_at &&
+          new Date(createdAt).getTime() < new Date(lg.created_at).getTime()) return lg;
+      return null;
+    }
+    function petLook(pet) { const l = pet && pet.look; return (l && typeof l === 'object' && !Array.isArray(l)) ? l : {}; }
+    function personaAvatar(pet, px) {
+      const lk = petLook(pet);
+      const photo = safeAvatarUrl(lk.p);
+      if (photo) return photoAvatar(photo, px);
+      return petAvatar(pet.species, pet.breed, px, { v: lk.v || null, a: lk.a || null });
+    }
+    function personaWith(authorId) { return 'with ' + authorName(authorId, 'their owner'); }
+    // "Beagle · with Jasmine"
+    function personaMeta(pet, authorId) { return (pet.breed || pet.species || 'Pet') + ' · ' + personaWith(authorId); }
+    // Comments and group posts: same rule, name only (row = the db row, o = the mapped item)
+    function commentPersona(row, o) {
+      const pet = personaOf(row.author_id, row.content, row.created_at);
+      if (pet) { o.persona = pet; o.who = pet.name; }
+      return o;
+    }
+
+    // ---- Pet personas: acting as a pet (owner and organization accounts) ----
+    // state.pets stays the source of truth. Each pet is mirrored to a public
+    // pet_profiles row by UPSERT on (owner_id, local_id), never delete and
+    // re-insert (other rows point at it), and the row id is kept on the pet as
+    // ppid. state.actingAs = the local id of the pet you're acting as, or null
+    // for yourself. Posts, comments and group posts made as a pet carry
+    // content.as = its ppid; author_id stays yours. Pet accounts never take part.
+    // var, not let: saveState can run before this part of the script has.
+    var MY_PET_ROWS = null;   // my own rows by local_id, as the server last returned them (null = not read yet)
+    var petSyncTimer = null, petSyncRun = null, petSyncAgain = false, petSyncFor = null;
+    var PET_GONE_WAIT = 9000; // a removed pet's row waits until the Undo toast is over
+    var PET_FILE_RE = /^pet-[A-Za-z0-9_-]{1,40}-\d{10,}\.jpg$/;
+    var MY_PET_COLS = PET_COLS + ', social';
+    var PET_ROW_KEYS = ['name', 'species', 'breed', 'status', 'age', 'look', 'passed', 'visible', 'social'];
+    function petClean(s, max) { return String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f-\u009f]/g, '').trim().slice(0, max).trim(); }
+    // A photo the server will take on a pet row: a file in MY folder of the photos bucket
+    function petPhotoOk(u) {
+      if (!cloudUser || typeof u !== 'string') return false;
+      return u.indexOf(PHOTO_ORIGIN + 'photos/' + cloudUser.id + '/') === 0 && u.length <= 300 && u.indexOf('..') < 0 && !/[\s"'<>\\]/.test(u);
+    }
+    // The public look, shaped like mate_picks.look: variant, accessories, photo
+    function petLookRow(p) {
+      const l = p && p.look && typeof p.look === 'object' && !Array.isArray(p.look) ? p.look : {};
+      const out = {};
+      if (l.v && typeof l.v === 'object' && !Array.isArray(l.v)) out.v = l.v;
+      if (l.a && typeof l.a === 'object' && !Array.isArray(l.a) && Object.keys(l.a).length) out.a = l.a;
+      if (petPhotoOk(l.p)) out.p = l.p;
+      return Object.keys(out).length ? out : null;
+    }
+    function petRowFor(p, uid) {
+      const info = (state.petInfo && state.petInfo[p.id]) || {};
+      return {
+        owner_id: uid, local_id: String(p.id),
+        name: petClean(p.name, 40) || 'My pet',
+        species: petClean(p.species, 30).toLowerCase() || null,
+        breed: petClean(p.breed, 60) || null,
+        status: petClean(p.status, 200) || null,
+        age: petClean(info.bday && !p.passed ? petAge(info.bday) : '', 20) || null,
+        look: petLookRow(p),
+        passed: hxValidYmd(p.passed) && p.passed <= hxToday() ? p.passed : null,
+        visible: p.hidden !== true,
+        social: p.social === true,
+      };
+    }
+    function petRowSame(a, b) {
+      return !!b && PET_ROW_KEYS.every(k => stableJson(a[k] == null ? null : a[k]) === stableJson(b[k] == null ? null : b[k]));
+    }
+    // The pets that get a public row (ids the server accepts, at most 30)
+    function mirrorablePets() {
+      return (state.pets || []).filter(p => p && typeof p.id === 'string' && /^[^\s\u0000-\u001f\u007f]{1,40}$/.test(p.id)).slice(0, 30);
+    }
+    // Debounced and one at a time; a failure is simply tried again on the next save
+    function cloudSavePets(soon) {
+      if (!iAmPerson() || !cloud || !cloudUser) return;
+      clearTimeout(petSyncTimer);
+      petSyncTimer = setTimeout(() => { petSyncTimer = null; flushPetSync(); }, soon ? 30 : 700);
+    }
+    function flushPetSync() {
+      if (petSyncRun) { petSyncAgain = true; return petSyncRun; }
+      petSyncRun = (async () => {
+        try { do { petSyncAgain = false; await syncPetsOnce(); } while (petSyncAgain); }
+        catch (e) { console.warn('pets sync:', e && e.message); }
+      })().finally(() => { petSyncRun = null; });
+      return petSyncRun;
+    }
+    async function syncPetsOnce() {
+      if (!iAmPerson() || !cloud || !cloudUser || cloudSavesOff || !appActive()) return;
+      if (!(await personasProbe())) return;
+      if (!cloudUser || !iAmPerson()) return;
+      const uid = cloudUser.id, still = () => !!(cloudUser && cloudUser.id === uid);
+      if (petSyncFor !== uid) { petSyncFor = uid; MY_PET_ROWS = null; }
+      let dirty = false;
+      // 1. Pets removed here: their rows go once the Undo toast is over
+      if (state.petGone !== undefined) {
+        const have = {}; (state.pets || []).forEach(p => { if (p && p.id) have[p.id] = 1; });
+        const gone = (Array.isArray(state.petGone) ? state.petGone : []).filter(g => g && typeof g.id === 'string' && !have[g.id]);
+        const now = Date.now(), due = gone.filter(g => now - (Number(g.at) || 0) >= PET_GONE_WAIT);
+        let left = gone.filter(g => due.indexOf(g) < 0);
+        if (left.length) setTimeout(() => cloudSavePets(true), Math.max(500, PET_GONE_WAIT - (now - Math.min.apply(null, left.map(g => Number(g.at) || 0)))));
+        if (due.length) {
+          const ids = due.map(g => g.id);
+          let res;
+          try { res = await cloud.from('pet_profiles').delete().eq('owner_id', uid).in('local_id', ids); } catch (e) { res = { error: e }; }
+          if (!still()) return;
+          if (res.error) { console.warn('pet delete:', res.error.code || res.error.message); left = left.concat(due); }
+          else if (MY_PET_ROWS) ids.forEach(id => { delete MY_PET_ROWS[id]; });
+        }
+        if (!left.length) { delete state.petGone; dirty = true; }
+        else if (stableJson(left) !== stableJson(state.petGone)) { state.petGone = left; dirty = true; }
+      }
+      // 2. What the server holds for me (read once a session, then kept from what writes return)
+      if (!MY_PET_ROWS) {
+        let res;
+        try { res = await cloud.from('pet_profiles').select(MY_PET_COLS).eq('owner_id', uid); } catch (e) { res = { error: e }; }
+        if (!still()) return;
+        if (res.error) { console.warn('pets read:', res.error.code || res.error.message); if (dirty) saveState({ bg: true }); return; }
+        MY_PET_ROWS = {};
+        (res.data || []).forEach(r => { if (r && r.local_id) MY_PET_ROWS[r.local_id] = r; });
+      }
+      // 3. Upsert every pet whose row is missing or out of date
+      const pets = mirrorablePets();
+      const send = pets.map(p => petRowFor(p, uid)).filter(r => !petRowSame(r, MY_PET_ROWS[r.local_id]));
+      // Rows I know exist are UPDATEd (an upsert runs the insert guard first, whose
+      // 30-pet cap would refuse every change once a member has 30); new ones are upserted
+      const known = send.filter(r => MY_PET_ROWS[r.local_id]), fresh = send.filter(r => !MY_PET_ROWS[r.local_id]);
+      for (const r of known) {
+        const patch = Object.assign({}, r); delete patch.owner_id; delete patch.local_id;
+        let res;
+        try { res = await cloud.from('pet_profiles').update(patch).eq('owner_id', uid).eq('local_id', r.local_id).select(MY_PET_COLS); } catch (e) { res = { error: e }; }
+        if (!still()) return;
+        if (res.error) console.warn('pets save:', res.error.code || res.error.message);
+        else if (res.data && res.data[0]) MY_PET_ROWS[r.local_id] = res.data[0];
+        else { delete MY_PET_ROWS[r.local_id]; petSyncAgain = true; } // removed elsewhere: made again on the next pass
+      }
+      if (fresh.length) {
+        const send = fresh;
+        let res;
+        try { res = await cloud.from('pet_profiles').upsert(send, { onConflict: 'owner_id,local_id' }).select(MY_PET_COLS); } catch (e) { res = { error: e }; }
+        if (!still()) return;
+        if (res.error) console.warn('pets save:', res.error.code || res.error.message);
+        else (res.data || []).forEach(r => { if (r && r.local_id) MY_PET_ROWS[r.local_id] = r; });
+      }
+      // 4. Each pet keeps its row id; my rows go where the feed looks for pets
+      Object.keys(MY_PET_ROWS).forEach(k => { const r = MY_PET_ROWS[k]; if (r && r.id) PET_BY_ID[String(r.id).toLowerCase()] = r; });
+      pets.forEach(p => {
+        const r = MY_PET_ROWS[p.id], want = r && r.id ? String(r.id).toLowerCase() : null;
+        if (want && p.ppid !== want) { p.ppid = want; dirty = true; }
+        else if (!want && p.ppid) { delete p.ppid; dirty = true; } // its row is gone and could not be made again
+      });
+      if (dirty) {
+        saveState({ bg: true }); // a background save: never asks anyone to redo a change
+        if (appActive()) { setTopAvatar(); refreshComposeAs(); if (state.tab === 'profile') rerenderTab(renderProfile); }
+      }
+    }
+    // A removed pet's row is deleted by the next sync after the Undo window
+    function queuePetGone(pt) {
+      if (!pt || !pt.id || !iAmPerson()) return;
+      if (!pt.ppid && !personasOn()) return; // never mirrored, so there is no row
+      state.petGone = (Array.isArray(state.petGone) ? state.petGone : []).filter(g => g && g.id !== pt.id).concat([{ id: pt.id, at: Date.now() }]);
+    }
+    function myPetAvatar(pet, px) {
+      const lk = pet && pet.look && typeof pet.look === 'object' ? pet.look : {};
+      const photo = safeAvatarUrl(lk.p);
+      if (photo) return photoAvatar(photo, px);
+      return petAvatar(pet.species, pet.breed, px, { v: lk.v || null, a: lk.a || null });
+    }
+    // The pet you're acting as right now (null = yourself). One that is gone,
+    // has passed or is hidden drops you back to yourself.
+    function actingPet() {
+      if (!state.actingAs || !iAmPerson() || !personasOn()) return null;
+      const p = (state.pets || []).find(x => x && x.id === state.actingAs);
+      if (p && !p.passed && p.hidden !== true) return p;
+      state.actingAs = null;
+      setTimeout(() => saveState({ bg: true }), 0);
+      return null;
+    }
+    // Whoever you are right now. ppid is null for a pet not on Petfi yet.
+    function actor() {
+      const pet = actingPet();
+      if (pet) {
+        const sp = String(pet.species || '').toLowerCase(), lk = pet.look && typeof pet.look === 'object' ? pet.look : {};
+        return { pet, id: pet.id, ppid: pet.ppid || null, name: pet.name || 'My pet', species: sp, breed: pet.breed || '',
+          look: { v: lk.v || null, a: lk.a || null, e: null, p: safeAvatarUrl(lk.p) }, voice: speciesVoice(sp), avatar: px => myPetAvatar(pet, px) };
+      }
+      const person = iAmPerson();
+      return { pet: null, id: null, ppid: null, name: state.displayName || 'You', species: person ? '' : (state.species || ''), breed: person ? '' : (state.breed || ''),
+        look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? ownerEmoji() : null, p: safeAvatarUrl(state.avatarUrl) },
+        voice: myVoice(), avatar: px => myAvatar(px) };
+    }
+    // Pets you can be: living and shown on Petfi. null when there's no choice
+    // to make (pet accounts, no such pets, no pet_profiles table).
+    function personaChoices() {
+      if (!iAmPerson() || !personasOn()) return null;
+      const pets = (state.pets || []).filter(p => p && p.id && !p.passed && p.hidden !== true);
+      return pets.length ? pets : null;
+    }
+    function humanShortName() { const n = state.displayName || 'Me'; return iAmOrg() ? n : n.split(' ')[0]; }
+    // You first, then each pet; fn is the handler called with the pet id (null = you)
+    function personaChipsHtml(fn, small, withAdd) {
+      const px = small ? 38 : 48, cur = actingPet(), curId = cur ? cur.id : null;
+      const chip = (id, label, ava) => '<button type="button" class="ps-chip' + (id === curId ? ' on' : '') + '" aria-pressed="' + (id === curId) + '" onclick="' + fn + '(' + (id ? '\'' + jsStr(id) + '\'' : 'null') + ')">' +
+        '<span class="ps-ava">' + ava + '</span><span class="ps-name">' + esc(label) + '</span></button>';
+      return '<div class="persona-strip' + (small ? ' sm' : '') + '" role="group" aria-label="Who you are on Petfi">' +
+        chip(null, humanShortName(), myAvatar(px)) +
+        (personaChoices() || []).map(p => chip(p.id, p.name || 'My pet', myPetAvatar(p, px))).join('') +
+        (withAdd ? '<button type="button" class="ps-chip ps-add" onclick="openAddPet()"><span class="ps-ava">＋</span><span class="ps-name">' + (iAmOrg() ? 'Add animal' : 'Add pet') + '</span></button>' : '') +
+      '</div>';
+    }
+    function setActingAs(id, quiet) {
+      if (!iAmPerson()) return;
+      const pet = id ? (state.pets || []).find(p => p && p.id === id && !p.passed && p.hidden !== true) : null;
+      if (id && !pet) { toast('That pet isn\'t available right now'); return; }
+      const next = pet ? pet.id : null;
+      if ((state.actingAs || null) !== next) { state.actingAs = next; saveState(); }
+      if (pet && !pet.ppid) cloudSavePets(true); // not on Petfi yet: try now
+      setTopAvatar(); haptic(8);
+      if (appActive() && state.tab === 'profile') { rerenderTab(renderProfile); if (!quiet) window.scrollTo(0, 0); }
+      else if (appActive() && state.tab === 'home') rerenderTab(renderHome); // comment boxes say who you are
+      const name = pet ? (pet.name || 'your pet') : (state.displayName || 'yourself');
+      toast(quiet ? 'Posting as ' + name + (pet ? ' 🐾' : '') : 'You\'re now ' + name + (pet ? ' 🐾' : ' 👋'));
+    }
+    // The composer's "Posting as" row (empty when there is no pet to pick)
+    function composeAsHtml() {
+      if (!personaChoices()) return '';
+      const a = actor();
+      return '<div class="post-as" id="cmp-as"><div class="pa-label">Posting as <b>' + esc(a.name) + '</b>' +
+        (a.pet && !a.ppid ? ' <span class="pa-warn">· not set up on Petfi yet</span>' : '') + '</div>' +
+        personaChipsHtml('pickComposeAs', true, false) + '</div>';
+    }
+    function refreshComposeAs() {
+      const el = document.getElementById('cmp-as'); if (!el) return;
+      el.outerHTML = composeAsHtml() || '<div id="cmp-as"></div>';
+    }
+    function pickComposeAs(id) { setActingAs(id, true); refreshComposeAs(); }
+    // A pet with no public profile yet (offline, or its save failed): say so
+    // instead of quietly posting as yourself
+    function personaReady(a) {
+      if (!a.pet || a.ppid) return true;
+      cloudSavePets(true);
+      toast('⚠️ ' + a.name + ' isn\'t set up on Petfi yet. Check your connection and try again, or switch to ' + humanShortName() + '.');
+      uiSound('error');
+      return false;
+    }
+    // How this device draws something it just made as a pet (shaped like a pet_profiles row)
+    function personaRowFor(a) {
+      return { id: a.ppid, owner_id: cloudUser ? cloudUser.id : null, local_id: a.id, name: a.name, species: a.species, breed: a.breed,
+        look: { v: a.look.v, a: a.look.a, p: a.look.p }, visible: true, legacy: false };
+    }
+    // The comment box: who you are commenting as (only once there is a pet to be)
+    function cmtAsAvatar() { return personaChoices() ? '<span class="cmt-as" aria-hidden="true">' + actor().avatar(30) + '</span>' : ''; }
+    function cmtPlaceholder() { return personaChoices() ? 'Comment as ' + actor().name + '…' : 'Add a comment...'; }
+    function grpPlaceholder() { return personaChoices() ? 'Post to the group as ' + actor().name + '…' : 'Post to the group...'; }
+
     // Make sure we hold the public profile of every author we're about to
     // show, so names/avatars come from real rows (one query for all missing).
     // fresh: re-read profiles already cached too, so a member's new name or
@@ -14250,7 +14812,7 @@
       const voice = myVoice();
       greetSound();
       haptic(8);
-      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: greetText() }).select('*').single()
+      cloud.from('messages').insert({ sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: greetText(id) }).select('*').single()
         .then(({ data, error }) => {
           if (error) { toast('⚠️ It didn\'t go through'); uiSound('error'); return; }
           if (data) MY_MESSAGES.unshift(data);
@@ -14805,6 +15367,7 @@
       if (cloudUser) state.ageId = cloudUser.id; // the age answer follows the saved copy (see AGE CHECK)
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSaveState(!(opts && opts.bg));
+      cloudSavePets();     // pets' public profiles follow (no network unless a pet changed)
       schedulePushSync(); // reminders or the calendar may have changed (no-op unless they did)
       schedulePassportSync(); // shared health passports follow the record
       scheduleCareSync();     // and so do care-team snapshots
