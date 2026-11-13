@@ -494,6 +494,124 @@
       body.printing #print-area { display: block; }
       #print-area pre { white-space: pre-wrap; font: 12pt/1.45 -apple-system, "Segoe UI", sans-serif; color: #000; }
     }
+    /* ---- Lost & Found ---- */
+    .lf-strip { display: flex; align-items: center; gap: 0.65rem; width: 100%; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.55rem 0.75rem; margin: 0 0 0.9rem; cursor: pointer; min-height: 52px; text-align: left; font: inherit; color: var(--ink); }
+    .lf-strip .i { font-size: 1.25rem; width: 36px; height: 36px; border-radius: 10px; background: var(--bg); display: flex; align-items: center; justify-content: center; flex-shrink: 0; overflow: hidden; }
+    .lf-strip .i img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .lf-strip > div { min-width: 0; flex: 1; }
+    .lf-strip b { display: block; font-size: 0.9rem; line-height: 1.3; }
+    .lf-strip small { display: block; color: var(--muted); font-size: 0.76rem; line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lf-strip .chev { color: var(--muted); font-size: 1.2rem; flex-shrink: 0; }
+    .lf-strip.alert { border: 2px solid #f0b7b3; background: #fff6f5; }
+    body.dark .lf-strip.alert { background: #3a2226; border-color: #6a3a40; }
+    .lf-head h2 { margin: 0 0 0.1rem; font-size: 1.35rem; }
+    .lf-head p { color: var(--muted); font-size: 0.88rem; margin: 0; }
+    .lf-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 0.55rem; margin: 0.75rem 0 0.4rem; }
+    .lf-actions .btn { margin: 0; padding: 0.8rem 0.4rem; font-size: 0.95rem; }
+    .btn.lf-lost { background: #b3261e; box-shadow: 0 6px 16px rgba(179,38,30,0.22); }
+    .btn.lf-lost:hover { background: #961f18; }
+    button.chip { font-family: inherit; color: var(--ink); }
+    .lf-reach { margin-top: 0.7rem; margin-bottom: 0.6rem; }
+    .lf-reach .chip { font-size: 0.8rem; padding: 0.3rem 0.85rem; }
+    .lf-filters { display: flex; gap: 0.45rem; align-items: center; flex-wrap: wrap; margin: 0 0 0.85rem; }
+    .lf-filters select { width: auto; flex: 1 1 8rem; padding: 0.45rem 0.7rem; font-size: 1rem; min-height: 40px; border-radius: 999px; }
+    .lf-seg { display: inline-flex; border: 2px solid var(--line); border-radius: 999px; overflow: hidden; background: var(--card); flex-shrink: 0; }
+    .lf-seg button { border: 0; background: transparent; font: inherit; font-size: 0.8rem; font-weight: 700; padding: 0 0.75rem; min-height: 40px; color: var(--ink); cursor: pointer; }
+    .lf-seg button.on { background: var(--brand-soft); color: var(--brand-text); }
+    .lf-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin-bottom: 0.9rem; }
+    .lf-card { background: var(--card); border: 1px solid var(--line); border-radius: 16px; overflow: hidden; cursor: pointer; text-align: left; padding: 0; font: inherit; color: var(--ink); display: flex; flex-direction: column; min-width: 0; }
+    .lf-card .ph { position: relative; aspect-ratio: 1 / 1; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 2.8rem; }
+    .lf-card .ph img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .lf-card .tx { padding: 0.45rem 0.6rem 0.6rem; min-width: 0; }
+    .lf-card b { display: block; font-size: 0.92rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lf-card small { display: block; color: var(--muted); font-size: 0.74rem; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lf-card .lf-org { color: var(--ink); font-weight: 600; display: flex; align-items: center; gap: 0.25rem; }
+    .lf-card .lf-org span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .lf-card .lf-org .verified { flex-shrink: 0; }
+    .btn.lf-found { background: #1f7a3d; box-shadow: 0 6px 16px rgba(31,122,61,0.22); }
+    .btn.lf-found:hover { background: #18642f; }
+    .lf-filters .lf-sp { flex: 1 1 100%; }
+    .lf-card.done .ph img { filter: saturate(0.55); }
+    .lf-card.skel-card .ph { background: var(--line); }
+    .lf-badge { position: absolute; top: 0.45rem; left: 0.45rem; border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.68rem; font-weight: 800; letter-spacing: 0.04em; color: #fff; line-height: 1.6; }
+    .lf-badge.lost { background: #b3261e; } .lf-badge.found { background: #1f7a3d; } .lf-badge.seen { background: #8a5a00; } .lf-badge.home { background: #5b3fa0; }
+    .lf-mine { position: absolute; top: 0.45rem; right: 0.45rem; border-radius: 999px; padding: 0.1rem 0.5rem; font-size: 0.66rem; font-weight: 800; background: var(--card); color: var(--ink); line-height: 1.6; }
+    .lf-pill { display: inline-block; vertical-align: middle; background: #b3261e; color: #fff; border-radius: 999px; padding: 0 0.45rem; font-size: 0.62rem; font-weight: 800; letter-spacing: 0.05em; line-height: 1.6; margin-left: 0.25rem; }
+    .lf-zip { background: var(--card); border: 1px dashed var(--line); border-radius: 16px; padding: 0.8rem 0.9rem; margin: 0.7rem 0 0.8rem; }
+    .lf-zip p { color: var(--muted); font-size: 0.86rem; margin: 0.2rem 0 0.55rem; }
+    .lf-zip small { display: block; color: var(--muted); font-size: 0.74rem; margin-top: 0.4rem; }
+    .lf-zip-row { display: flex; gap: 0.5rem; }
+    .lf-zip-row input { flex: 1; }
+    .lf-hint { color: var(--muted); font-size: 0.76rem; margin: 0.3rem 0 0; line-height: 1.45; }
+    .lf-form label small { color: var(--muted); font-weight: 400; }
+    .lf-check { display: flex; align-items: flex-start; gap: 0.55rem; font-weight: 600; margin: 0.9rem 0 0.2rem; }
+    .lf-check input { width: 22px; height: 22px; margin-top: 0.1rem; flex-shrink: 0; }
+    .lf-check small { display: block; font-weight: 400; font-size: 0.78rem; }
+    .lf-photos { display: flex; gap: 0.6rem; flex-wrap: wrap; margin-bottom: 0.4rem; }
+    .lf-photos:empty { display: none; }
+    .lf-ph { position: relative; width: 76px; }
+    .lf-ph img { width: 76px; height: 76px; object-fit: cover; border-radius: 12px; border: 2px solid var(--line); display: block; }
+    .lf-ph small { display: block; text-align: center; font-size: 0.66rem; color: var(--muted); }
+    .lf-ph .rm { position: absolute; top: -12px; right: -12px; width: 40px; height: 40px; border: 0; background: transparent; cursor: pointer; padding: 0; display: flex; align-items: center; justify-content: center; }
+    .lf-ph .rm span { width: 24px; height: 24px; border-radius: 50%; background: var(--ink); color: var(--card); font-size: 0.9rem; line-height: 24px; text-align: center; }
+    .lf-hero { position: relative; border-radius: 16px; overflow: hidden; background: var(--bg); margin-bottom: 0.5rem; }
+    .lf-hero img { width: 100%; aspect-ratio: 4 / 3; max-height: 330px; object-fit: cover; display: block; cursor: zoom-in; background: var(--line); color: transparent; }
+    .lf-hero .emo { font-size: 4.6rem; text-align: center; padding: 1.2rem 0; }
+    .lf-thumbs { display: flex; gap: 0.45rem; margin-bottom: 0.6rem; }
+    .lf-thumb { border: 0; background: none; padding: 0; cursor: pointer; width: 56px; height: 56px; }
+    .lf-thumb img { width: 56px; height: 56px; object-fit: cover; border-radius: 10px; border: 2px solid var(--line); display: block; }
+    .lf-status { border-radius: 14px; padding: 0.6rem 0.8rem; font-size: 0.88rem; line-height: 1.45; margin: 0.2rem 0 0.6rem; }
+    .lf-status.lost { background: #ffeceb; color: #8f1d17; } .lf-status.found { background: #e7f6e9; color: #1d6431; }
+    .lf-status.seen { background: #fff4dc; color: #6e4700; } .lf-status.home { background: #f0eaff; color: #46297f; }
+    body.dark .lf-status.lost { background: #3a2226; color: #ffb4ae; } body.dark .lf-status.found { background: #1f3326; color: #9fe0b2; }
+    body.dark .lf-status.seen { background: #3a3018; color: #ffd27a; } body.dark .lf-status.home { background: #2c2340; color: #d2c2ff; }
+    .lf-facts { display: grid; grid-template-columns: auto 1fr; gap: 0.3rem 0.85rem; font-size: 0.88rem; margin: 0.3rem 0 0.6rem; }
+    .lf-facts dt { color: var(--muted); font-weight: 600; }
+    .lf-facts dd { margin: 0; overflow-wrap: anywhere; }
+    .lf-tip { background: var(--brand-soft); border-radius: 12px; padding: 0.55rem 0.75rem; font-size: 0.87rem; margin: 0.4rem 0; overflow-wrap: anywhere; }
+    .lf-desc { font-size: 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; margin: 0.5rem 0; }
+    .lf-reward { font-weight: 700; font-size: 0.92rem; margin: 0.4rem 0; }
+    .lf-by { display: flex; align-items: center; gap: 0.6rem; margin: 0.8rem 0 0.2rem; }
+    .lf-by .av { width: 40px; height: 40px; border-radius: 50%; overflow: hidden; flex-shrink: 0; background: var(--bg); display: flex; align-items: center; justify-content: center; font-size: 1.4rem; }
+    .lf-by small { display: block; color: var(--muted); font-size: 0.76rem; }
+    .lf-btnrow { display: flex; gap: 0.5rem; }
+    .lf-btnrow .btn { margin-top: 0.6rem; padding: 0.75rem 0.4rem; font-size: 0.95rem; }
+    .lf-sight { border-left: 3px solid var(--line); padding: 0.3rem 0 0.4rem 0.75rem; margin: 0.45rem 0; font-size: 0.87rem; overflow-wrap: anywhere; }
+    .lf-sight small { display: block; color: var(--muted); font-size: 0.75rem; }
+    .lf-sight .acts { display: flex; gap: 0.4rem; align-items: center; margin-top: 0.3rem; }
+    .lf-sight img { width: 64px; height: 64px; object-fit: cover; border-radius: 10px; display: block; }
+    .lf-safety { font-size: 0.78rem; color: var(--muted); line-height: 1.5; margin-top: 0.9rem; }
+    .lf-safety .link, .lf-hint .link { color: var(--brand-text); font-weight: 700; cursor: pointer; }
+    .lf-tips li { margin: 0 0 0.6rem 1.1rem; font-size: 0.9rem; line-height: 1.5; }
+    .lf-poster { background: #fff; color: #111; border: 1px solid #ddd; border-radius: 8px; padding: 16px; text-align: center; font-family: -apple-system, "Segoe UI", Roboto, sans-serif; line-height: 1.3; }
+    .lf-poster .pt { font-size: 40px; font-weight: 900; letter-spacing: 0.03em; color: #b3261e; line-height: 1; margin: 0 0 10px; }
+    .lf-poster.found .pt { color: #1d6431; }
+    .lf-poster .pimg { width: 100%; height: auto; max-height: 300px; object-fit: cover; border-radius: 6px; display: block; margin: 0 auto 10px; }
+    .lf-poster .pemo { font-size: 96px; line-height: 1.15; }
+    .lf-poster .pn { font-size: 30px; font-weight: 800; margin: 2px 0; }
+    .lf-poster .pd { font-size: 16px; margin: 3px 0; }
+    .lf-poster .pseen { font-size: 17px; font-weight: 700; margin: 8px 0 4px; }
+    .lf-poster .ptip { font-size: 15px; font-style: italic; margin: 4px 0; }
+    .lf-poster .prew { font-size: 20px; font-weight: 800; margin: 6px 0; }
+    .lf-poster .pcontact { font-size: 19px; font-weight: 800; border-top: 2px solid #111; margin-top: 12px; padding-top: 10px; display: flex; align-items: center; justify-content: center; gap: 14px; text-align: left; }
+    .lf-poster .pqr { flex-shrink: 0; line-height: 0; }
+    .lf-poster .pqr svg { width: 104px; height: 104px; display: block; }
+    .lf-poster .pfoot { font-size: 11px; color: #555; margin-top: 10px; }
+    @media print {
+      @page { margin: 0.5in; }
+      body.printing #print-area .lf-poster { border: 0; border-radius: 0; padding: 0; page-break-inside: avoid; break-inside: avoid; }
+      body.printing #print-area .lf-poster .pt { font-size: 60pt; margin-bottom: 12pt; }
+      body.printing #print-area .lf-poster .pimg { max-height: 3.9in; width: auto; max-width: 100%; }
+      body.printing #print-area .lf-poster .pemo { font-size: 120pt; }
+      body.printing #print-area .lf-poster .pn { font-size: 34pt; }
+      body.printing #print-area .lf-poster .pd { font-size: 15pt; }
+      body.printing #print-area .lf-poster .pseen { font-size: 17pt; }
+      body.printing #print-area .lf-poster .ptip { font-size: 14pt; }
+      body.printing #print-area .lf-poster .prew { font-size: 20pt; }
+      body.printing #print-area .lf-poster .pcontact { font-size: 20pt; }
+      body.printing #print-area .lf-poster .pqr svg { width: 1.4in; height: 1.4in; }
+      body.printing #print-area .lf-poster .pfoot { font-size: 9pt; }
+    }
     /* ---- Store: hot right now on Amazon ---- */
     .hot-row { display: flex; gap: 0.6rem; overflow-x: auto; padding-bottom: 0.2rem; }
     .hot-card { flex: 0 0 150px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.6rem 0.7rem; cursor: pointer; }
@@ -3008,8 +3126,8 @@
       navRecord(name);
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       const c = document.getElementById('tab-content');
-      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile }[name];
-      if (name === 'groups') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active');
+      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile, lost: renderLostFound }[name];
+      if (name === 'groups' || name === 'lost') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active'); // side rooms off Nearby
       pvidStopAll(); // a video torn out mid-play would keep its sound going
       c.innerHTML = r ? r() : '';
       saveState({ bg: true }); // the tab itself is screen state; edits save themselves
@@ -3587,6 +3705,7 @@
              '<div class="ca">' + who.avatar(36) + '</div>' +
              '<div class="fake-input">' + (scope === 'local' ? 'Shout it out, ' + first + ' — what\'s happening?' : 'What\'s new with you, ' + first + '?') + '</div>' +
              '<span style="font-size:1.2rem;">📷</span></div>';
+      h += lfHomeStrip(); // Lost & Found: one quiet line, or a calm alert when a pet is lost close by
       // Petfi's reason for existing, one tap from the feed
       if (!start) {
         h += '<div class="mm-banner" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Looking for a breeding partner?</b><small>Dogs, cats, goats, cattle, chickens — find one near you</small></div><span class="chev">›</span></div>';
@@ -3702,7 +3821,7 @@
         (pinned ? '<div class="post-pin">📌 Pinned</div>' : '') +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
-          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') : (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + orgMarkId(p.authorId)) + '</div><div class="post-sub">' + esc(p.sub) + (p.edited ? '<span> · edited</span>' : '') + '</div></div>' +
+          '<div style="cursor:pointer;" onclick="viewProfileOf(' + i + ')"><div class="post-name">' + esc(p.who) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + lfLostPill(p.persona.id) : (isVerifiedUser(p.authorId) ? ' ' + vbadge() : '') + orgMarkId(p.authorId)) + '</div><div class="post-sub">' + esc(p.sub) + (p.edited ? '<span> · edited</span>' : '') + '</div></div>' +
           (pinTool || (p.mine && p.cloudId) ? '<span style="margin-left:auto;display:flex;">' + pinTool + del + '</span>' : del) +
         '</div>' +
         (p.text ? '<div class="post-body">' + esc(p.text) + '</div>' : '') + vidHtml + photo +
@@ -4455,7 +4574,7 @@
 
     function renderNearby() {
       const zip = state.zip || '';
-      let h = lostNearSection(); // a missing pet nearby beats everything else here
+      let h = cloudUser && lfOn() ? lfNearbySection() : lostNearSection(); // a missing pet nearby beats everything else here
       h += adoptSection();       // shelter pets near this ZIP (once the RescueGroups key is in)
       h += servicesSection('nearby'); // walkers, sitters, groomers… from ID-verified members
       // Members first — the people (and pets) you can actually talk to
@@ -6343,6 +6462,7 @@
         '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myPetAvatar(pt, 108) + '</div>' +
         '<div class="prof-name">' + esc(name) + (state.verified ? ' ' + vbadge('pet') : '') + '</div>' +
         '<div class="prof-meta">' + esc(pt.breed || speciesLabel(sp)) + (age ? ' · ' + esc(age) : '') + ' · with ' + esc(humanShortName()) + '</div>' +
+        lfHeroBanner(pt) +
         (pt.status
           ? '<div class="prof-status" style="cursor:pointer;" onclick="openPetStatus(\'' + id + '\')">' + esc(pt.status) + ' ✏️</div>'
           : '<div class="prof-status" style="cursor:pointer;background:transparent;color:var(--muted);border:2px dashed var(--line);" onclick="openPetStatus(\'' + id + '\')">＋ Add a status message</div>') +
@@ -6940,6 +7060,17 @@
         lead = 'Send ' + esc(pn) + ' to a friend. The link opens ' + (mine ? 'your' : esc(authorName(pet.owner_id, 'their owner')) + '\'s') + ' profile, where ' + esc(pn) + ' lives.';
         text = 'Meet ' + pn + ' on Petfi 🐾';
         subject = text;
+      } else if (kind === 'lost') {
+        // A Lost & Found report: the text carries the facts, the link opens the report (or the pet's
+        // QR tag page when its tag is in lost mode, which works without an account)
+        const r = LF_REPORT;
+        if (!r || Number(r.id) !== Number(id)) { toast('That report isn\'t up anymore'); return; }
+        url = lfShareUrl(r); qrUrl = url;
+        title = '📤 Share ' + esc(lfTitle(r));
+        lead = r.kind === 'lost' ? 'The more people who see it, the sooner ' + esc(lfTitle(r)) + ' gets home. Send it to neighbours, local groups and friends nearby.'
+          : 'Someone nearby may be looking for this ' + esc(lfWhat(r.species)) + '. Send it to neighbours and local groups.';
+        text = lfShareText(r);
+        subject = (r.kind === 'lost' && r.name ? 'Lost: ' : '') + lfTitle(r) + (r.area ? ' near ' + r.area : '');
       } else {
         url = shareInviteLink(); qrUrl = inviteUrl();
         title = '💌 Invite friends';
@@ -7090,7 +7221,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.30.0';
+    const APP_VERSION = '1.31.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7474,7 +7605,7 @@
       renderModeration(); toast('Post removed 🗑');
     }
     // Admins may delete these (an "admin delete" policy on each table)
-    const MOD_TABLES = { post_comments: 'comment', group_posts: 'group post', listings: 'listing', mate_listings: 'breeding listing', ads: 'ad' };
+    const MOD_TABLES = { post_comments: 'comment', group_posts: 'group post', listings: 'listing', mate_listings: 'breeding listing', ads: 'ad', petfi_lost_found: 'lost & found report' };
     async function modRemoveRow(table, rowId, reportId) {
       if (!MOD_TABLES[table]) return;
       const { error } = await cloud.from(table).delete().eq('id', rowId);
@@ -9208,7 +9339,7 @@
       { key: 'likes',     label: '❤️ Likes on my posts',       sub: 'Barks, meows & likes on your posts' },
       { key: 'comments',  label: '💬 Comments on my posts',    sub: 'When someone replies to you' },
       { key: 'reminders', label: '⏰ Care reminders & calendar', sub: 'Feeding times, vet visits, meds, refills…' },
-      { key: 'lostPets',  label: '🚨 Lost pets near me',        sub: 'When a pet goes missing within 25 miles' },
+      { key: 'lostPets',  label: '🚨 Lost pets near me',        sub: 'When a pet goes missing near you (set how far in Lost & Found)' },
       { key: 'mate',      label: '💘 Mate Match',               sub: 'When a possible match for your listing is posted' },
       { key: 'careTeam',  label: '👨‍👩‍👧 Care team',               sub: 'When someone on a care team gives meds or joins' },
     ];
@@ -9241,7 +9372,7 @@
     }
 
     function openNotifications() {
-      let real = '';
+      let real = lfBellHtml(); // Lost & Found: a pet lost nearby, a sighting, a possible match
       // Friend requests waiting on your answer
       const pending = incomingFriendRequests();
       pending.forEach(f => {
@@ -9283,6 +9414,7 @@
         real || (cloudUser
           ? '<div class="empty-state"><div class="es-emo">🔔</div><h3>You\'re all caught up</h3><p>Friend requests, barks and new messages show up here.</p></div>'
           : '<div class="note">Log in to see your notifications.</div>'));
+      lfMarkNoticesRead();
     }
 
     // ======================= MATE MATCHES (owners) =======================
@@ -12109,7 +12241,7 @@
           esc((t && t.lost ? 'Someone may have found ' : 'Someone scanned ') + (t ? t.pet_name + (t.lost ? '!' : '\'s tag') : 'your pet\'s tag')) + '</b><small>' +
           esc(String(fresh[0].message).slice(0, 80)) + '</small></div><span class="chev">›</span></div>';
       }
-      if (LOST_NEAR.length) {
+      if (LOST_NEAR.length && !lfOn()) { // with Lost & Found on, lfHomeStrip shows it
         const l = LOST_NEAR[0];
         return '<div class="mm-banner" style="border-color:#ffb3b3;" onclick="openLink(\'' + jsStr(tagUrl(l.code)) + '\')"><div class="i">🚨</div><div><b>' +
           esc('Lost ' + (l.species && l.species !== 'other' ? l.species : 'pet') + ' near you: ' + l.name) + '</b><small>' +
@@ -12149,6 +12281,8 @@
       if (t.lost) {
         h += '<div class="note" style="margin-top:0;background:#ffe9e9;color:#a02020;"><b>🚨 ' + esc(pet.name) + ' is marked lost</b> (' + esc(hxAgo(t.lost_at)) + ')' + (t.lost_area ? ' · ' + esc(t.lost_area) : '') + '. Members within 25 miles see it on their Nearby tab.</div>' +
           '<button class="btn" onclick="openLink(\'' + jsStr(url + '?print=poster') + '\')">🖨️ Print a lost poster</button>' +
+          (lfOn() ? (lfOpenFor(petId) ? '<button class="btn secondary" onclick="openLfReport(' + Number(lfOpenFor(petId).id) + ')">🔎 See ' + esc(pet.name) + '\'s Lost &amp; Found report</button>'
+            : '<button class="btn secondary" onclick="openLfForm(\'lost\',{pet:\'' + pid + '\'})">🔎 Post ' + esc(pet.name) + ' on Lost &amp; Found</button>') : '') +
           '<button class="btn secondary" onclick="postLostPet(\'' + pid + '\')">📣 Post it on my Local feed</button>' +
           '<button class="btn secondary" onclick="markPetFound(\'' + pid + '\')">🎉 ' + esc(pet.name) + ' is home — turn off lost mode</button>';
       }
@@ -12253,6 +12387,7 @@
       if (await tagEndLost(t)) { toast('⚠️ Could not update — try again'); return; }
       confetti(); toast('🎉 So glad ' + pet.name + ' is home!');
       renderPetTag(petId);
+      lfAfterTagHome(petId); // an open Lost & Found report for this pet: offer to mark it reunited too
     }
     // Ends lost mode and puts back the phone the tag showed before it (#23).
     // No remembered phone (lost on another device or an older version): leave it.
@@ -12291,6 +12426,1138 @@
       if (error) { toast('⚠️ Could not delete'); return; }
       TAG_REPORTS = TAG_REPORTS.filter(r => r.id !== id);
       openTagReports(code || undefined);
+    }
+
+    // ======================= LOST & FOUND =======================
+    // A board for lost and found animals, open to every member
+    // (petfi-lostfound-2026-11-13.sql). Reports live in petfi_lost_found; other
+    // members read them only through petfi_lf_board / petfi_lf_get, which never
+    // hand out where anyone lives: a report sits at the centre of the ZIP where
+    // the pet was lost or found, and distances come back as rough buckets.
+    // Without the SQL, petfi_lf_ready() is "not found" and nothing new shows; the
+    // QR tag lost mode above works on its own as before.
+    // A lost report about one of my pets links its pet_profiles row (pet_id) and,
+    // when the pet has a QR tag, can switch the tag to lost mode (tag_code);
+    // ending one offers to end the other.
+    let LF_STATE = 0, lfProbing = null;            // 0 not known yet, 1 on, -1 off for this session
+    let LF_LIST = null, LF_LOADING = false, LF_FAILED = '', lfBoardSeq = 0, LF_AT = 0;
+    let LF_NEAR = [], lfNearAt = 0;                // open reports within 25 mi (Home, Nearby)
+    let LF_MINE = null, lfMineAt = 0;              // my own rows, read from the table
+    let LF_NOTICES = [], lfNoticesAt = 0;          // bell notices (petfi_lf_notices)
+    let lfSig = '';
+    const LF_PET_LOST = {};                        // pet_profiles id -> { rid, at } of an open lost report, or null
+    const lfPetAsked = {};
+    let LF_REPORT = null;                          // the report on screen (petfi_lf_get)
+    let lfForm = null, lfBusy = false, lfSightPic = null, lfPosterQr = '', lfPosterContact = 'app';
+    const LF_REACH = [['25', '25 mi'], ['50', '50 mi'], ['100', '100 mi'], ['state', 'Statewide']];
+    const LF_FILE_RE = /^lost-\d{10,}-\d{1,2}\.jpg$/;
+    const LF_ALERT_OPTS = [5, 10, 25, 50], LF_DEFAULT_ALERT = 10;
+    const LF_SPECIES = PET_SPECIES.concat(FARM_SPECIES);
+    // A shared report link (petfi.pet/app/?lf=123) opens the report once the member is in
+    let LF_LINK_IN = (() => {
+      try {
+        const q = new URLSearchParams(location.search), v = q.get('lf');
+        if (v && /^\d{1,12}$/.test(v)) {
+          q.delete('lf');
+          const rest = q.toString();
+          history.replaceState(history.state, '', location.pathname + (rest ? '?' + rest : '') + location.hash);
+          try { localStorage.setItem('petfi-lf-link', JSON.stringify({ id: +v, at: Date.now() })); } catch (e) {}
+          return +v;
+        }
+        const s = JSON.parse(localStorage.getItem('petfi-lf-link') || 'null');
+        if (s && s.id > 0 && Date.now() - s.at < 14 * 864e5) return s.id;
+      } catch (e) {}
+      return 0;
+    })();
+    function lfOn() { return LF_STATE === 1; }
+    function lfProbe() {
+      if (LF_STATE !== 0 || !cloud) return Promise.resolve(lfOn());
+      if (!lfProbing) {
+        lfProbing = (async () => {
+          let r;
+          try { r = await cloud.rpc('petfi_lf_ready'); } catch (e) { r = { error: e }; }
+          const er = r && r.error;
+          if (!er) LF_STATE = r.data === 1 ? 1 : -1;
+          else if (r.status === 404 || er.code === 'PGRST202' || er.code === '42883' || /schema cache|does not exist|could not find/i.test(String(er.message || ''))) LF_STATE = -1;
+          else setTimeout(() => { lfProbing = null; }, 60000); // network hiccup: ask again later
+          return lfOn();
+        })();
+      }
+      return lfProbing;
+    }
+    function lfAlertMi() { const v = state.lfAlertMi; return v === 0 ? 0 : (LF_ALERT_OPTS.indexOf(v) >= 0 ? v : LF_DEFAULT_ALERT); }
+    function lfMyState() { return zipState(myGeo()); }
+    function lfReach() {
+      if (!state.zip) return 'all';
+      const r = state.lfReach;
+      if (r === 'state') return lfMyState() ? 'state' : '25';
+      return r === '50' || r === '100' ? r : '25';
+    }
+    function lfLc(x) { return typeof x === 'string' ? x.toLowerCase() : ''; }
+    function lfWhat(sp) { sp = String(sp || '').toLowerCase(); return !sp || sp === 'other' ? 'pet' : speciesLabel(sp).toLowerCase(); }
+    function lfCap(s) { s = String(s || ''); return s.charAt(0).toUpperCase() + s.slice(1); }
+    function lfTitle(r) {
+      if (r.name) return r.name;
+      const w = lfWhat(r.species);
+      if (r.kind === 'lost') return 'Lost ' + w;
+      return r.held ? 'Found ' + w : lfCap(w) + ' spotted';
+    }
+    function lfBadge(r) {
+      if (r.status === 'reunited') return ['home', 'REUNITED'];
+      if (r.kind === 'lost') return ['lost', 'LOST'];
+      return r.held ? ['found', 'FOUND'] : ['seen', 'SPOTTED'];
+    }
+    function lfMiles(m) { m = Number(m); return m > 0 && isFinite(m) ? (m <= 5 ? 'within 5 mi' : 'about ' + m + ' mi') : ''; }
+    function lfDay(ts) { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric' }); }
+    function lfDateTime(ts) { const d = new Date(ts); return isNaN(d) ? '' : d.toLocaleString(esLocale(), { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }); }
+    function lfWhenLine(r) {
+      if (r.status === 'reunited') return 'Reunited ' + hxAgo(r.reunited_at || r.created_at);
+      return (r.kind === 'lost' ? 'Lost ' : r.held ? 'Found ' : 'Seen ') + hxAgo(r.seen_at);
+    }
+    function lfPhotos(list) { return safePhotos(list).filter(u => u.indexOf(PHOTO_ORIGIN) === 0); }
+    function lfHidden(id) { return !!id && !(cloudUser && id === cloudUser.id) && (isBlocked(id) || !!BLOCKED_ME[id] || isBannedUser(id)); }
+    function lfOpenRow(r) { return r && r.status === 'open' && new Date(r.expires_at).getTime() > Date.now(); }
+    function lfMineRow(id) { return (LF_MINE || []).find(x => x.id === Number(id)) || null; }
+    function lfMineUpsert(row) { LF_MINE = [row].concat((LF_MINE || []).filter(x => x.id !== row.id)); lfNotePet(row); }
+    // Remember which pets have an open lost report (pet pages, posts, the pet hero)
+    function lfNotePet(r) {
+      if (!r || r.kind !== 'lost' || !r.pet_id) return;
+      const id = lfLc(r.pet_id), open = r.status === 'open' && (!r.expires_at || new Date(r.expires_at).getTime() > Date.now());
+      if (open) LF_PET_LOST[id] = { rid: Number(r.id), at: r.seen_at };
+      else if (LF_PET_LOST[id] && LF_PET_LOST[id].rid === Number(r.id)) LF_PET_LOST[id] = null;
+    }
+    function lfForgetReport(id) { Object.keys(LF_PET_LOST).forEach(k => { if (LF_PET_LOST[k] && LF_PET_LOST[k].rid === Number(id)) LF_PET_LOST[k] = null; }); }
+    // My open lost report for one of my pets (by local pet id)
+    function lfOpenFor(petLocal) { return (LF_MINE || []).find(x => x.kind === 'lost' && x.pet_local === petLocal && lfOpenRow(x)) || null; }
+    function lfTagFor(id) {
+      const m = lfMineRow(id); if (!m) return null;
+      return Object.values(TAGS).find(t => m.tag_code && t.code === m.tag_code) || (m.pet_local && TAGS[m.pet_local]) || null;
+    }
+
+    // ---- Loading ----
+    async function lfLoadMine(force) {
+      if (!cloud || !cloudUser || !lfOn()) return;
+      if (!force && LF_MINE && Date.now() - lfMineAt < 60000) return;
+      lfMineAt = Date.now();
+      const r = await cloud.from('petfi_lost_found').select('*').eq('user_id', cloudUser.id).order('created_at', { ascending: false }).limit(80).then(x => x, e => ({ error: e }));
+      if (!r || r.error || !Array.isArray(r.data)) return;
+      // Ended reports stay in "My reports" for 30 days so they can be renewed
+      LF_MINE = r.data.filter(x => x && (x.status === 'reunited' ? Date.now() - new Date(x.reunited_at).getTime() < 3 * DAY_MS : new Date(x.expires_at).getTime() > Date.now() - 30 * DAY_MS));
+      r.data.forEach(lfNotePet);
+    }
+    async function lfLoadNear(force) {
+      if (!cloud || !cloudUser || !lfOn()) return;
+      if (!state.zip) { LF_NEAR = []; return; }
+      if (!force && Date.now() - lfNearAt < 120000) return;
+      lfNearAt = Date.now();
+      await syncMyLocation();
+      let r;
+      try { r = await cloud.rpc('petfi_lf_board', { reach: '25', state_code: null, want_kind: null, want_species: '', sort_by: 'near', lim: 12 }); } catch (e) { r = { error: e }; }
+      if (!r || r.error || !Array.isArray(r.data)) return;
+      LF_NEAR = r.data.filter(x => x && x.status === 'open' && !x.mine && !lfHidden(x.poster_id));
+      r.data.forEach(lfNotePet);
+    }
+    async function lfLoadNotices(force) {
+      if (!cloud || !cloudUser || !lfOn()) return;
+      if (!force && Date.now() - lfNoticesAt < 120000) return;
+      const first = !lfNoticesAt;
+      lfNoticesAt = Date.now();
+      const since = new Date(Date.now() - 14 * DAY_MS).toISOString();
+      const r = await cloud.from('petfi_lf_notices').select('id, report_id, kind, title, body, created_at, read_at').eq('user_id', cloudUser.id).gte('created_at', since)
+        .order('created_at', { ascending: false }).limit(20).then(x => x, e => ({ error: e }));
+      if (!r || r.error || !Array.isArray(r.data)) return;
+      const before = lfUnread();
+      LF_NOTICES = r.data;
+      if (!first && lfUnread() > before) ringBell();
+    }
+    function lfUnread() { return LF_NOTICES.filter(n => !n.read_at).length; }
+    // Home, Nearby and the bell, refreshed together; redrawn only when something changed
+    async function lfRefresh(force) {
+      if (!cloud || !cloudUser) return;
+      if (!(await lfProbe())) return;
+      await Promise.all([lfLoadMine(force), lfLoadNear(force), lfLoadNotices(force)]);
+      lfLinkLanding();
+      updateBadges();
+      const sig = JSON.stringify([(LF_MINE || []).map(x => [x.id, x.status, x.expires_at]), LF_NEAR.map(x => x.id), LF_NOTICES.map(x => [x.id, !!x.read_at])]);
+      if (sig === lfSig || !appActive()) return;
+      lfSig = sig;
+      if (state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
+      else if (state.tab === 'nearby') rerenderTab(renderNearby);
+      else if (state.tab === 'lost') rerenderTab(renderLostFound);
+      else if (state.tab === 'profile') rerenderTab(renderProfile);
+    }
+    function lfLinkLanding() {
+      if (!LF_LINK_IN || !lfOn() || !cloudUser || !appActive()) return;
+      const id = LF_LINK_IN; LF_LINK_IN = 0;
+      try { localStorage.removeItem('petfi-lf-link'); } catch (e) {}
+      if (!document.body.classList.contains('sheet-open')) openLfReport(id);
+    }
+    function lfArgs() {
+      const reach = lfReach(), k = state.lfKind === 'lost' || state.lfKind === 'found' ? state.lfKind : null;
+      return { reach, state_code: reach === 'state' ? lfMyState() : null, want_kind: k, want_species: state.lfSpecies || '',
+        sort_by: state.lfSort === 'near' && state.zip ? 'near' : 'new', lim: 60 };
+    }
+    async function lfLoadBoard(force) {
+      if (!cloud || !cloudUser || !lfOn()) return;
+      const a = lfArgs(), key = JSON.stringify(a);
+      if (!force && LF_LIST && LF_LIST.key === key && Date.now() - LF_AT < 60000) return;
+      const seq = ++lfBoardSeq;
+      LF_LOADING = true;
+      if (a.reach !== 'all') await syncMyLocation(); // distances are measured from my ZIP's centre on the server
+      let r;
+      try { r = await cloud.rpc('petfi_lf_board', a); } catch (e) { r = { error: e }; }
+      if (seq !== lfBoardSeq) return;
+      LF_LOADING = false;
+      if (!r || r.error || !Array.isArray(r.data)) { LF_FAILED = key; }
+      else {
+        LF_FAILED = ''; LF_AT = Date.now();
+        LF_LIST = { key, rows: r.data.filter(x => x && !lfHidden(x.poster_id)) };
+        r.data.forEach(lfNotePet);
+      }
+      if (appActive() && state.tab === 'lost') rerenderTab(renderLostFound);
+    }
+    function lfRetry() { LF_FAILED = ''; lfLoadBoard(true); if (state.tab === 'lost') rerenderTab(renderLostFound); }
+    function lfSetReach(r) { state.lfReach = r; saveState(); rerenderTab(renderLostFound); }
+    function lfSetKind(k) { state.lfKind = k === 'lost' || k === 'found' ? k : 'all'; saveState(); rerenderTab(renderLostFound); }
+    function lfOpenLost() { state.lfKind = 'lost'; saveState(); openTab('lost'); }
+    function lfSetSpecies(s) { state.lfSpecies = LF_SPECIES.some(x => x[0] === s) ? s : ''; saveState(); rerenderTab(renderLostFound); }
+    function lfSetSort(s) { state.lfSort = s === 'near' ? 'near' : 'new'; saveState(); rerenderTab(renderLostFound); }
+    async function lfSaveZip() {
+      const z = val('lf-zip-in');
+      if (!/^\d{5}$/.test(z)) { toast('Enter a 5-digit ZIP code'); return; }
+      toast('📍 Looking up ' + z + '…');
+      const g = await geocodeZip(z);
+      if (!g) { toast('We couldn\'t find that ZIP code. Check it and try again.'); return; }
+      state.zip = z; saveState();
+      await syncMyLocation();
+      lfNearAt = 0; LF_LIST = null;
+      rerenderTab(renderLostFound);
+      lfRefresh(true);
+    }
+
+    // ---- The board ----
+    function lfCard(r) {
+      const b = lfBadge(r), ph = lfPhotos([r.photo])[0], title = lfTitle(r);
+      const l2 = [r.breed, r.color].filter(Boolean).join(' · ') || r.snippet || speciesLabel(r.species);
+      const l3 = [lfMiles(r.miles), r.area].filter(Boolean).join(' · ');
+      const org = r.poster_kind === 'org' ? '<small class="lf-org"><span>🏢 ' + esc(r.poster_name || 'Organization') + '</span>' + (r.poster_verified ? vbadge() : '') + '</small>' : '';
+      return '<button type="button" class="lf-card' + (r.status === 'reunited' ? ' done' : '') + '" onclick="openLfReport(' + Number(r.id) + ')">' +
+        '<div class="ph">' + (ph ? '<img src="' + esc(ph) + '" alt="' + esc('Photo of ' + title) + '" loading="lazy">' : '<span aria-hidden="true">' + speciesEmo(r.species) + '</span>') +
+          '<span class="lf-badge ' + b[0] + '">' + b[1] + '</span>' + (r.mine ? '<span class="lf-mine">Yours</span>' : '') + '</div>' +
+        '<div class="tx"><b>' + esc(title) + '</b><small>' + esc(l2) + '</small>' + (l3 ? '<small>' + esc(l3) + '</small>' : '') +
+          '<small>' + esc(lfWhenLine(r)) + '</small>' + org + '</div></button>';
+    }
+    function lfSkeletons() {
+      let h = '';
+      for (let i = 0; i < 4; i++) h += '<div class="lf-card skel-card" aria-hidden="true"><div class="ph"></div><div class="tx"><div class="sk w60"></div><div class="sk w90" style="margin-bottom:0;"></div></div></div>';
+      return '<div class="lf-grid" aria-busy="true" aria-label="Loading reports">' + h + '</div>';
+    }
+    function lfMineHtml() {
+      const list = (LF_MINE || []).filter(r => r.status === 'open' || r.status === 'reunited');
+      if (!list.length) return '';
+      const row = r => {
+        const left = Math.ceil((new Date(r.expires_at).getTime() - Date.now()) / DAY_MS), ph = lfPhotos(r.photos)[0];
+        const meta = r.status === 'reunited' ? 'Reunited 🎉'
+          : left <= 0 ? 'Ended ' + hxAgo(r.expires_at) + '. Still looking? Tap to renew'
+          : left <= 7 ? left + (left === 1 ? ' day' : ' days') + ' left. Tap to renew'
+          : 'On the board · ' + left + ' days left';
+        return '<div class="row" style="cursor:pointer;" onclick="openLfReport(' + Number(r.id) + ')"><div class="ricon">' +
+          (ph ? '<img src="' + esc(ph) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(r.species)) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(lfTitle(r)) + '</div><div class="rmeta">' + esc((r.kind === 'lost' ? 'Lost' : r.held ? 'Found' : 'Spotted') + ' · ' + meta) + '</div></div><span class="chev">›</span></div>';
+      };
+      return '<div class="sec"><h3>📋 My reports</h3>' + (list.length > 4 ? '<span class="link" onclick="openLfMine()">All ' + list.length + ' ›</span>' : '') + '</div>' + list.slice(0, 4).map(row).join('');
+    }
+    function openLfMine() {
+      const list = (LF_MINE || []).filter(r => r.status === 'open' || r.status === 'reunited');
+      openSheet('📋 My reports', list.length ? '<div class="lf-grid">' + list.map(r => lfCard(Object.assign({}, r, { photo: (r.photos || [])[0], mine: false }))).join('') + '</div>' : '<div class="note">No reports right now.</div>');
+    }
+    function lfEmptyHtml(reach, k) {
+      const what = k === 'lost' ? 'lost pets' : k === 'found' ? 'found pets' : 'lost or found pets';
+      const where = reach === 'state' ? 'in ' + (lfMyState() || 'your state') : reach === 'all' ? 'yet' : 'within ' + reach + ' miles';
+      const wider = reach === '25' ? '50' : reach === '50' ? '100' : reach === '100' && lfMyState() ? 'state' : null;
+      return '<div class="empty-state"><div class="es-emo">🏡</div><h3>No ' + what + ' ' + esc(where) + '</h3>' +
+        '<p>That\'s good news. When a pet goes missing near you, it shows up here' + (lfAlertMi() ? ' and we let you know' : '') + '.</p>' +
+        (state.lfSpecies ? '<button class="pill-btn ghost" onclick="lfSetSpecies(\'\')">Show all animals</button>' : '') +
+        (wider ? '<button class="pill-btn ghost" onclick="lfSetReach(\'' + wider + '\')">' + (wider === 'state' ? 'Look statewide' : 'Look within ' + wider + ' miles') + '</button>' : '') + '</div>';
+    }
+    function renderLostFound() {
+      if (!cloudUser) return '<div class="empty-state"><div class="es-emo">🔎</div><h3>Lost &amp; Found</h3><p>Log in to see pets lost and found near you.</p></div>';
+      if (!lfOn()) {
+        if (LF_STATE === 0 && cloud) {
+          lfProbe().then(() => { if (appActive() && state.tab === 'lost') rerenderTab(renderLostFound); });
+          return lfSkeletons();
+        }
+        return '<div class="empty-state"><div class="es-emo">🔎</div><h3>Lost &amp; Found is almost ready</h3><p>' + (cloud ? 'It opens soon. You can already switch a pet\'s QR tag to lost mode from its ID tag page.' : '📡 You\'re offline. Connect to see lost and found pets.') + '</p>' +
+          '<button class="pill-btn" onclick="openTab(\'home\')">Back to Home</button></div>';
+      }
+      const zip = state.zip || '', reach = lfReach(), st = lfMyState();
+      if (zip && !myGeo()) geocodeZip(zip).then(g => { if (g && appActive() && state.tab === 'lost') rerenderTab(renderLostFound); });
+      let h = '<div class="lf-head"><h2>🔎 Lost &amp; Found</h2><p>Helping pets get home. Free for every member.</p></div>' +
+        '<div class="lf-actions"><button class="btn lf-lost" onclick="openLfForm(\'lost\')">🚨 I lost my pet</button><button class="btn lf-found" onclick="openLfForm(\'found\')">🐾 I found a pet</button></div>';
+      h += lfMineHtml();
+      if (zip) {
+        h += '<div class="chips lf-reach" role="group" aria-label="How far to look">' + LF_REACH.map(x => {
+          const label = x[0] === 'state' ? 'Statewide' + (st ? ' (' + st + ')' : '') : x[1];
+          return '<button type="button" class="chip' + (reach === x[0] ? ' active' : '') + '" aria-pressed="' + (reach === x[0]) + '"' + (x[0] === 'state' ? '' : ' aria-label="Within ' + x[1].replace('mi', 'miles') + '"') + ' onclick="lfSetReach(\'' + x[0] + '\')">' + esc(label) + '</button>';
+        }).join('') + '</div>';
+      } else {
+        h += '<div class="lf-zip"><b>📍 Where are you?</b><p>Add your ZIP code to see pets lost and found within 25, 50 or 100 miles, or across your state. Until then, here are the newest reports everywhere.</p>' +
+          '<div class="lf-zip-row"><input type="text" id="lf-zip-in" inputmode="numeric" maxlength="5" aria-label="Your ZIP code" placeholder="ZIP code" onkeydown="if(event.key===\'Enter\')lfSaveZip()"><button class="btn small" onclick="lfSaveZip()">Save</button></div>' +
+          '<small>Only used to measure rough distances. Other members never see your ZIP.</small></div>';
+      }
+      const k = state.lfKind === 'lost' || state.lfKind === 'found' ? state.lfKind : 'all', sort = state.lfSort === 'near' && zip ? 'near' : 'new';
+      const seg = (label, opts, cur, fn) => '<div class="lf-seg" role="group" aria-label="' + label + '">' + opts.map(x =>
+        '<button type="button" class="' + (cur === x[0] ? 'on' : '') + '" aria-pressed="' + (cur === x[0]) + '" onclick="' + fn + '(\'' + x[0] + '\')">' + x[1] + '</button>').join('') + '</div>';
+      h += '<div class="lf-filters">' + seg('Show', [['all', 'All'], ['lost', 'Lost'], ['found', 'Found']], k, 'lfSetKind') +
+        (zip ? seg('Sort', [['new', 'Newest'], ['near', 'Nearest']], sort, 'lfSetSort') : '') +
+        '<select class="lf-sp" aria-label="Animal" onchange="lfSetSpecies(this.value)"><option value="">All animals</option>' +
+          LF_SPECIES.map(s => '<option value="' + s[0] + '"' + (state.lfSpecies === s[0] ? ' selected' : '') + '>' + esc(s[1]) + '</option>').join('') + '</select></div>';
+      const a = lfArgs(), key = JSON.stringify(a), fresh = LF_LIST && LF_LIST.key === key;
+      if (!fresh) {
+        if (LF_FAILED === key) {
+          h += '<div class="empty-state"><div class="es-emo">📡</div><h3>Lost &amp; Found didn\'t load</h3><p>' + (navigator.onLine === false ? 'You\'re offline. Connect and try again.' : 'Check your connection and try again.') + '</p><button class="pill-btn" onclick="lfRetry()">↻ Try again</button></div>';
+        } else {
+          if (!LF_LOADING) setTimeout(() => lfLoadBoard(), 0);
+          h += lfSkeletons();
+        }
+      } else if (!LF_LIST.rows.length) h += lfEmptyHtml(reach, k);
+      else h += '<div class="lf-grid">' + LF_LIST.rows.map(lfCard).join('') + '</div>';
+      const mi = lfAlertMi();
+      h += '<div class="settings-card" style="margin-top:0.4rem;">' +
+        '<div class="link-row" onclick="openLfSettings()"><span class="li">🔔</span><div>Lost pet alerts<small>' + (mi ? 'On · pets lost within ' + mi + ' miles' : 'Off') + '</small></div><span class="chev">›</span></div>' +
+        '<div class="link-row" onclick="openLfSafety()"><span class="li">🛟</span><div>Staying safe<small>Meeting up, proof of ownership, scams to avoid</small></div><span class="chev">›</span></div></div>';
+      return h;
+    }
+
+    // ---- Home, Nearby, the bell, pets ----
+    function lfHomeStrip() {
+      if (!lfOn() || !cloudUser) return '';
+      const mi = lfAlertMi();
+      const hots = mi ? LF_NEAR.filter(r => r.kind === 'lost' && r.miles != null && Number(r.miles) <= Math.max(mi, 5) && Date.now() - new Date(r.created_at).getTime() < 3 * DAY_MS) : [];
+      const hot = hots[0];
+      if (hots.length > 1) {
+        return '<button type="button" class="lf-strip alert" onclick="lfOpenLost()"><span class="i">🚨</span>' +
+          '<div><b>' + esc(hots.length + ' pets lost near you') + '</b><small>' + esc(hots.slice(0, 3).map(lfTitle).join(', ') + ' · tap to help look') + '</small></div><span class="chev">›</span></button>';
+      }
+      if (hot) {
+        const ph = lfPhotos([hot.photo])[0];
+        return '<button type="button" class="lf-strip alert" onclick="openLfReport(' + Number(hot.id) + ')"><span class="i">' + (ph ? '<img src="' + esc(ph) + '" alt="">' : '🚨') + '</span>' +
+          '<div><b>' + esc('Lost ' + lfWhat(hot.species) + ' near you: ' + lfTitle(hot)) + '</b><small>' + esc([lfMiles(hot.miles), hot.area, 'missing since ' + lfDay(hot.seen_at)].filter(Boolean).join(' · ')) + '</small></div><span class="chev">›</span></button>';
+      }
+      // A QR tag in lost mode with no board report yet (older app versions) still gets its alert
+      const tagOnly = mi ? LOST_NEAR.find(l => Number(l.miles) <= Math.max(mi, 5) && !LF_NEAR.some(r => r.tag_code && r.tag_code === l.code)) : null;
+      if (tagOnly) return '<button type="button" class="lf-strip alert" onclick="openLink(\'' + jsStr(tagUrl(tagOnly.code)) + '\')"><span class="i">🚨</span><div><b>' +
+        esc('Lost ' + (tagOnly.species && tagOnly.species !== 'other' ? tagOnly.species : 'pet') + ' near you: ' + tagOnly.name) + '</b><small>' +
+        esc([tagOnly.area, tagOnly.miles + ' mi away', 'missing ' + hxAgo(tagOnly.lost_at)].filter(Boolean).join(' · ')) + '</small></div><span class="chev">›</span></button>';
+      const n = LF_NEAR.length;
+      return '<button type="button" class="lf-strip" onclick="openTab(\'lost\')"><span class="i">🔎</span><div><b>Lost &amp; Found</b><small>' +
+        esc(n ? n + (n === 1 ? ' report' : ' reports') + ' within 25 miles' : 'Lost or found a pet? Post it here, free') + '</small></div><span class="chev">›</span></button>';
+    }
+    function lfNearbySection() {
+      let h = '<div class="sec"><h3>🔎 Lost &amp; Found</h3><span class="link" onclick="openTab(\'lost\')">See all ›</span></div>';
+      const list = LF_NEAR.slice().sort((a, b) => (a.kind === 'lost' ? 0 : 1) - (b.kind === 'lost' ? 0 : 1)).slice(0, 3);
+      h += list.map(r => {
+        const ph = lfPhotos([r.photo])[0], b = lfBadge(r);
+        return '<div class="row" style="cursor:pointer;' + (r.kind === 'lost' ? 'border-color:#f0c9c6;' : '') + '" onclick="openLfReport(' + Number(r.id) + ')"><div class="ricon">' +
+          (ph ? '<img src="' + esc(ph) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(r.species)) + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(lfTitle(r)) + ' <span class="lf-pill" style="background:' + ({ lost: '#b3261e', found: '#1f7a3d', seen: '#8a5a00' }[b[0]] || '#5b3fa0') + ';">' + b[1] + '</span></div>' +
+          '<div class="rmeta">' + esc([lfMiles(r.miles), r.area, lfWhenLine(r)].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>';
+      }).join('');
+      // Tag-only lost pets (no board report) keep their old rows
+      const tagOnly = LOST_NEAR.filter(l => !LF_NEAR.some(r => r.tag_code && r.tag_code === l.code)).slice(0, 3);
+      h += tagOnly.map(l => '<div class="row" style="cursor:pointer;border-color:#f0c9c6;" onclick="openLink(\'' + jsStr(tagUrl(l.code)) + '\')"><div class="ricon">' +
+        (typeof l.photo === 'string' && l.photo.indexOf(PHOTO_PUBLIC) === 0 ? '<img src="' + esc(l.photo) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(l.species)) + '</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(l.name) + ' <span class="lf-pill">LOST</span></div><div class="rmeta">' + esc([l.breed || l.species, l.area, l.miles + ' mi', 'missing ' + hxAgo(l.lost_at)].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>').join('');
+      if (!list.length && !tagOnly.length) h += '<p class="sub" style="font-size:0.85rem;margin:-0.2rem 0 0.5rem;">' + (state.zip ? 'No lost or found pets within 25 miles right now.' : 'Add your ZIP below to see lost and found pets near you.') + '</p>';
+      h += '<div style="display:flex;gap:0.5rem;margin:0.2rem 0 1rem;"><button class="pill-btn" style="background:#b3261e;flex:1;" onclick="openLfForm(\'lost\')">🚨 I lost my pet</button><button class="pill-btn ghost" style="flex:1;" onclick="openLfForm(\'found\')">🐾 I found a pet</button></div>';
+      return h;
+    }
+    function lfBellHtml() {
+      if (!lfOn()) return '';
+      return LF_NOTICES.filter(n => n && n.title).slice(0, 8).map(n => {
+        const t = String(n.title), sp = t.indexOf(' '), emo = sp > 0 && sp <= 3 ? t.slice(0, sp) : '🔎', rest = sp > 0 && sp <= 3 ? t.slice(sp + 1) : t;
+        return '<div class="notif"' + (n.read_at ? '' : ' style="background:var(--brand-soft);border-radius:12px;"') + '><span class="ne">' + esc(emo) + '</span><div class="nt"><b>' + esc(rest) + '</b>' + (n.body ? ' ' + esc(n.body) : '') + '<small>' + timeAgo(n.created_at) + '</small></div>' +
+          '<button class="pill-btn ghost" onclick="closeSheet();openLfReport(' + Number(n.report_id) + ')">Open</button></div>';
+      }).join('');
+    }
+    async function lfMarkNoticesRead() {
+      if (!cloud || !cloudUser || !lfUnread()) return;
+      const r = await cloud.from('petfi_lf_notices').update({ read_at: new Date().toISOString() }).eq('user_id', cloudUser.id).is('read_at', null).select('id, read_at').then(x => x, e => ({ error: e }));
+      if (!r || r.error || !Array.isArray(r.data)) return;
+      const got = {}; r.data.forEach(x => { got[x.id] = x.read_at; });
+      LF_NOTICES.forEach(n => { if (got[n.id]) n.read_at = got[n.id]; });
+      updateBadges();
+    }
+    function lfLostPill(petId) { return lfOn() && petId && LF_PET_LOST[lfLc(petId)] ? '<span class="lf-pill" title="This pet is lost">LOST</span>' : ''; }
+    async function lfCheckPets(ids) {
+      if (!cloud || !cloudUser || !(await lfProbe())) return false;
+      const now = Date.now(), want = Array.from(new Set((ids || []).map(lfLc))).filter(id => UUID_RE.test(id) && !(lfPetAsked[id] && now - lfPetAsked[id] < 300000)).slice(0, 100);
+      if (!want.length) return false;
+      want.forEach(id => { lfPetAsked[id] = now; });
+      let r;
+      try { r = await cloud.rpc('petfi_lf_pets_lost', { ids: want }); } catch (e) { return false; }
+      if (!r || r.error || !Array.isArray(r.data)) return false;
+      let changed = false;
+      want.forEach(id => {
+        const row = r.data.find(x => x && lfLc(x.pet_id) === id), v = row ? { rid: Number(row.report_id), at: row.seen_at } : null;
+        if (JSON.stringify(LF_PET_LOST[id] || null) !== JSON.stringify(v)) changed = true;
+        LF_PET_LOST[id] = v;
+      });
+      return changed;
+    }
+    // Posts made as a pet that is lost get a small LOST next to the name
+    function lfCheckFeedPets() {
+      if (!lfOn()) return;
+      const ids = FEED.map(p => p && p.persona && p.persona.id).filter(Boolean);
+      if (ids.length) lfCheckPets(ids).then(ch => { if (ch && appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome); });
+    }
+    async function lfFillPetBanner(pet) {
+      if (!pet || !pet.id || !(await lfProbe())) return;
+      const id = lfLc(pet.id), seq = sheetSeq;
+      await lfCheckPets([id]);
+      const hit = LF_PET_LOST[id], box = document.getElementById('pp-lost');
+      if (!hit || !box || seq !== sheetSeq) return;
+      const mine = !!(cloudUser && pet.owner_id === cloudUser.id), name = pet.name || 'This pet';
+      box.innerHTML = '<button type="button" class="lf-strip alert" style="margin:0.6rem 0 0.2rem;" onclick="openLfReport(' + Number(hit.rid) + ')"><span class="i">🚨</span><div><b>' + esc(name + ' is lost') + '</b><small>' +
+        esc(mine ? 'Missing since ' + lfDay(hit.at) + '. See your report' : 'Missing since ' + lfDay(hit.at) + '. Seen ' + name + '? Tap to help') + '</small></div><span class="chev">›</span></button>';
+    }
+    function lfHeroBanner(pt) {
+      if (!lfOn() || !pt) return '';
+      const r = (LF_MINE || []).find(x => x.kind === 'lost' && lfOpenRow(x) && (x.pet_local === pt.id || (pt.ppid && lfLc(x.pet_id) === lfLc(pt.ppid))));
+      if (!r) return '';
+      return '<button type="button" class="lf-strip alert" style="margin:0.6rem 0 0;" onclick="openLfReport(' + Number(r.id) + ')"><span class="i">🚨</span><div><b>' + esc((pt.name || 'Your pet') + ' is marked lost') + '</b><small>' +
+        esc('Missing since ' + lfDay(r.seen_at) + '. See the report') + '</small></div><span class="chev">›</span></button>';
+    }
+
+    // ---- Posting ----
+    function lfMyPets() { return hxPets().filter(p => !hxPassed(p.id)); }
+    function lfNowParts(d) { d = d || new Date(); return { d: hxYmd(d), t: String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0') }; }
+    async function openLfForm(kind, opts) {
+      opts = opts || {};
+      kind = kind === 'found' ? 'found' : 'lost';
+      if (!canSaveToCloud(kind === 'lost' ? 'report a lost pet' : 'report a found pet')) return;
+      if (orgLocked()) { showOrgGate(); return; }
+      if (!(await lfProbe())) { toast('Lost & Found isn\'t available right now'); return; }
+      const e = opts.edit || null, now = lfNowParts(), last = state.lfLast || {};
+      if (e) {
+        const w = lfNowParts(new Date(e.seen_at));
+        lfForm = { kind: e.kind, edit: e.id, pet: e.pet_local || '', petId: e.pet_id || null, name: e.name || '', species: e.species || '', breed: e.breed || '', color: e.color || '',
+          age: e.age || '', desc: e.description || '', wear: e.wearing || '', chip: e.chip || 'unknown', temper: e.temperament || '', reward: e.reward || '', phone: e.phone || '',
+          zip: e.zip || '', spot: e.spot || '', held: !!e.held, d: w.d, t: w.t, photos: lfPhotos(e.photos).map(u => ({ src: u })), before: (e.photos || []).slice(), tag: false, tagCode: e.tag_code || null };
+      } else {
+        lfForm = { kind, edit: null, pet: '', petId: null, name: '', species: kind === 'found' ? (last.species || '') : '', breed: '', color: '', age: '', desc: '', wear: '', chip: 'unknown',
+          temper: '', reward: '', phone: '', zip: (kind === 'found' && last.zip) || state.zip || '', spot: (kind === 'found' && last.spot) || '', held: kind === 'found' ? last.held !== false : false,
+          d: now.d, t: now.t, photos: [], before: [], tag: true, tagCode: null };
+        if (kind === 'lost') {
+          // One pet that isn't on the board already: start with it
+          const pets = lfMyPets(), free = pets.filter(p => !lfOpenFor(p.id));
+          const pick = (opts.pet && pets.find(p => p.id === opts.pet)) || (pets.length === 1 && free.length === 1 && !opts.other ? free[0] : null);
+          if (pick) lfFillPet(pick);
+        }
+      }
+      lfDrawForm();
+      if (kind === 'lost' && !e) loadTags().then(() => { if (lfForm && lfForm.pet && !lfForm.tagCode && TAGS[lfForm.pet]) { lfReadForm(); lfFillTag(); lfDrawForm(true); } }).catch(() => {});
+    }
+    function lfFillTag() {
+      const f = lfForm, t = f && f.pet ? TAGS[f.pet] : null;
+      f.tagCode = t ? t.code : null;
+      f.tagFill = {};  // what came from the tag, so choosing another pet can take it back out
+      const take = (k, v) => { f[k] = v; f.tagFill[k] = v; };
+      if (t && t.lost && !lfOpenFor(f.pet)) { // lost on the tag (older flow), no report yet: carry over what it says
+        if (!f.spot && t.lost_area) take('spot', String(t.lost_area).slice(0, 80));
+        if (!f.reward && t.reward) take('reward', t.reward);
+        if (t.lost_at) { const w = lfNowParts(new Date(t.lost_at)); take('d', w.d); take('t', w.t); }
+      }
+      if (!f.phone && t && t.phone) take('phone', t.phone);
+    }
+    function lfUnfillTag() {
+      const f = lfForm, now = lfNowParts();
+      Object.keys(f.tagFill || {}).forEach(k => { if (f[k] === f.tagFill[k]) f[k] = k === 'd' ? now.d : k === 't' ? now.t : ''; });
+      f.tagFill = {};
+    }
+    function lfFillPet(p) {
+      const f = lfForm, lp = petById(p.id), info = (state.petInfo || {})[p.id] || {};
+      f.pet = p.id;
+      f.petId = lp && typeof lp.ppid === 'string' && UUID_RE.test(lp.ppid) ? lp.ppid.toLowerCase() : null;
+      f.name = String(p.name || '').slice(0, 40);
+      f.species = LF_SPECIES.some(s => s[0] === p.species) ? p.species : (p.species ? 'other' : '');
+      f.breed = String(p.breed || '').slice(0, 60);
+      const bday = hxMeIsAccount(p.id) ? state.bday : info.bday;
+      f.age = [bday ? hxPetAge(p, bday) : '', info.sex || ''].filter(Boolean).join(' · ').slice(0, 30);
+      f.chip = info.chip ? 'yes' : 'unknown';
+      const photo = safeAvatarUrl(lp ? petLook(lp).p : (hxMeIsAccount(p.id) ? state.avatarUrl : null));
+      f.photos = f.photos.filter(x => !x.profile);
+      if (photo) f.photos.unshift({ src: photo, profile: true });
+      f.photos = f.photos.slice(0, 3);
+      lfFillTag();
+    }
+    function lfChoosePet(id) {
+      if (!lfForm) return;
+      lfReadForm();
+      lfUnfillTag();
+      const p = id ? lfMyPets().find(x => x.id === id) : null;
+      if (p) lfFillPet(p);
+      else Object.assign(lfForm, { pet: '', petId: null, name: '', breed: '', age: '', color: '', chip: 'unknown', species: '', tagCode: null, photos: lfForm.photos.filter(x => !x.profile) });
+      lfDrawForm();
+    }
+    function lfSetHeld(v, el) {
+      if (!lfForm) return;
+      lfForm.held = !!v;
+      if (el && el.parentNode) Array.from(el.parentNode.children).forEach(c => { c.classList.toggle('on', c === el); c.setAttribute('aria-pressed', String(c === el)); });
+      const b = document.getElementById('lf-go'); if (b && !lfForm.edit) b.textContent = lfForm.held ? '🐾 Post this found pet' : '👀 Post this sighting';
+    }
+    function lfSetChip(v, el) {
+      if (!lfForm) return;
+      lfForm.chip = v;
+      if (el && el.parentNode) Array.from(el.parentNode.children).forEach(c => { c.classList.toggle('on', c === el); c.setAttribute('aria-pressed', String(c === el)); });
+    }
+    function lfReadForm() {
+      const f = lfForm; if (!f) return;
+      const map = { name: 'lf-name', species: 'lf-species', breed: 'lf-breed', color: 'lf-color', age: 'lf-age', wear: 'lf-wear', temper: 'lf-temper', desc: 'lf-desc', d: 'lf-d', t: 'lf-t', zip: 'lf-zip', spot: 'lf-spot', reward: 'lf-reward', phone: 'lf-phone' };
+      Object.keys(map).forEach(k => { const e = document.getElementById(map[k]); if (e) f[k] = e.value; });
+      const tg = document.getElementById('lf-tag'); if (tg) f.tag = tg.checked;
+    }
+    function lfGoLabel() {
+      const f = lfForm, nm = String(f.name || '').trim();
+      if (f.edit) return 'Save changes';
+      return f.kind === 'lost' ? '🚨 Post ' + (nm || 'my pet') + ' as lost' : f.held ? '🐾 Post this found pet' : '👀 Post this sighting';
+    }
+    function lfDrawForm(keepScroll) {
+      const f = lfForm; if (!f) return;
+      const lost = f.kind === 'lost', pets = lost && !f.edit ? lfMyPets() : [], nm = String(f.name || '').trim(), who = nm || 'your pet';
+      const t = f.pet ? TAGS[f.pet] : null;
+      let h = '<div class="lf-form">';
+      if (lost && !f.edit) {
+        h += '<div class="note" style="margin-top:0;">First, right now: walk the block calling softly, check under porches and cars, and call nearby shelters and vets. Then post here so neighbours can look too.</div>';
+        if (pets.length) h += '<label id="lf-pet-l">Which pet?</label><div class="chips lf-reach" role="group" aria-labelledby="lf-pet-l" style="margin-bottom:0.2rem;">' +
+          pets.map(p => '<button type="button" class="chip' + (f.pet === p.id ? ' active' : '') + '" aria-pressed="' + (f.pet === p.id) + '" onclick="lfChoosePet(\'' + jsStr(p.id) + '\')">' + esc(p.name) + (lfOpenFor(p.id) ? ' · on the board' : '') + '</button>').join('') +
+          '<button type="button" class="chip' + (!f.pet ? ' active' : '') + '" aria-pressed="' + (!f.pet) + '" onclick="lfChoosePet(\'\')">A pet not on Petfi</button></div>';
+      }
+      const already = lost && !f.edit && f.pet ? lfOpenFor(f.pet) : null;
+      if (already) h += '<div class="note">🔎 ' + esc(who) + ' is already on the board. <span class="link" onclick="openLfReport(' + Number(already.id) + ')">See ' + esc(who) + '\'s report</span> to edit it, add a sighting or renew it.</div>';
+      if (!lost) {
+        h += '<label id="lf-held-l">Is the animal with you?</label><div class="mm-seg" role="group" aria-labelledby="lf-held-l">' +
+          '<div class="' + (f.held ? 'on' : '') + '" aria-pressed="' + f.held + '" onclick="lfSetHeld(true,this)">🏠 Safe with me<small>I have it right now</small></div>' +
+          '<div class="' + (!f.held ? 'on' : '') + '" aria-pressed="' + !f.held + '" onclick="lfSetHeld(false,this)">👀 I only saw it<small>It\'s still out there</small></div></div>';
+      }
+      if (lost) h += '<label for="lf-name">Name</label><input type="text" id="lf-name" maxlength="40" autocomplete="off" placeholder="e.g. Echo" oninput="lfNameTyped()">';
+      h += '<label for="lf-species">Animal</label><select id="lf-species"><option value="">Choose…</option>' + LF_SPECIES.map(s => '<option value="' + s[0] + '">' + esc(s[1]) + '</option>').join('') + '</select>' +
+        '<label for="lf-breed">Breed <small>(if you know)</small></label><input type="text" id="lf-breed" maxlength="60" placeholder="e.g. Border Collie mix">' +
+        '<label for="lf-color">Colour and markings</label><input type="text" id="lf-color" maxlength="80" placeholder="e.g. Black and white, white tip on the tail">';
+      if (lost) h += '<label for="lf-age">Age and sex <small>(optional)</small></label><input type="text" id="lf-age" maxlength="30" placeholder="e.g. 3 years, female">';
+      h += '<label for="lf-wear">Collar, tag or harness <small>(optional)</small></label><input type="text" id="lf-wear" maxlength="120" placeholder="' + (lost ? 'e.g. Red collar with a bone-shaped tag' : 'e.g. Blue collar, no tag') + '">';
+      if (lost) h += '<label id="lf-chip-l">Microchipped?</label><div class="lf-seg" role="group" aria-labelledby="lf-chip-l">' + [['yes', 'Yes'], ['no', 'No'], ['unknown', 'Not sure']].map(x =>
+        '<button type="button" class="' + (f.chip === x[0] ? 'on' : '') + '" aria-pressed="' + (f.chip === x[0]) + '" onclick="lfSetChip(\'' + x[0] + '\',this)">' + x[1] + '</button>').join('') + '</div>';
+      h += '<label for="lf-temper">' + (lost ? 'A tip for people who see ' + esc(who) : 'How is the animal doing?') + ' <small>(optional)</small></label>' +
+        '<input type="text" id="lf-temper" maxlength="160" placeholder="' + (lost ? 'e.g. Shy. Please don\'t chase; sit down and call softly' : 'e.g. Friendly, a little scared, eating well') + '">' +
+        '<label for="lf-desc">Anything else that helps <small>(optional)</small></label><textarea id="lf-desc" rows="3" maxlength="600" placeholder="' + (lost ? 'e.g. Slipped her leash during a walk. Answers to her name and loves cheese.' : 'e.g. Found him by the school around 7am. Very gentle.') + '"></textarea>';
+      h += '<label id="lf-ph-l">Photos <small>(up to 3)</small></label><div id="lf-photos" class="lf-photos"></div>' +
+        '<input type="file" id="lf-file" accept="image/*" multiple aria-labelledby="lf-ph-l" style="display:none;" onchange="lfPhotosPicked(this)">' +
+        '<button type="button" class="pill-btn ghost" id="lf-ph-add" onclick="document.getElementById(\'lf-file\').click()">📷 Add photos</button>';
+      h += '<div class="sec" style="margin-top:1.2rem;"><h3>📍 ' + (lost ? 'Last seen' : 'Where and when') + '</h3></div>' +
+        '<label id="lf-when-l" style="margin-top:0.2rem;">When</label><div style="display:flex;gap:0.5rem;"><input type="date" id="lf-d" aria-labelledby="lf-when-l" max="' + hxToday() + '" style="flex:1.3;"><input type="time" id="lf-t" aria-label="Time" style="flex:1;"></div>' +
+        '<label for="lf-zip">ZIP code where ' + (lost ? esc(who) + ' went missing' : 'you found or saw it') + '</label><input type="text" id="lf-zip" inputmode="numeric" maxlength="5" autocomplete="postal-code">' +
+        '<label for="lf-spot">Nearest cross streets or landmark <small>(optional)</small></label><input type="text" id="lf-spot" maxlength="80" placeholder="e.g. Near McKinley Park, 33rd and H St">' +
+        '<p class="lf-hint">Please don\'t enter a home address. The report shows the town and this note, nothing more.</p>';
+      if (lost) h += '<label for="lf-reward">Reward <small>(optional)</small></label><input type="text" id="lf-reward" maxlength="60" placeholder="e.g. $200">';
+      h += '<div class="sec" style="margin-top:1.2rem;"><h3>💬 How people reach you</h3></div>' +
+        '<p class="lf-hint" style="margin-top:0;">Members can always message you here in Petfi.' + (state.friendsOnly ? ' <b>Right now only friends can message you</b> (Settings on the Me tab), so add a phone number or turn that off while you look.' : '') + '</p>' +
+        '<label for="lf-phone">Phone number to show <small>(optional)</small></label><input type="tel" id="lf-phone" maxlength="24" autocomplete="tel" placeholder="Leave empty to keep it private">' +
+        '<p class="lf-hint">Shown only on this report and its poster, to anyone who sees them.</p>';
+      if (lost && !f.edit && t) {
+        h += t.lost ? '<div class="note">🏷️ ' + esc(who) + '\'s QR tag is already in lost mode. This report will link to it.</div>'
+          : '<label class="lf-check"><input type="checkbox" id="lf-tag"' + (f.tag ? ' checked' : '') + '><span>Also switch ' + esc(who) + '\'s QR tag to lost mode<small>Anyone who scans the tag sees that ' + esc(who) + ' is lost and can message you.</small></span></label>';
+      }
+      h += '<button class="btn' + (lost ? ' lf-lost' : '') + '" id="lf-go" onclick="lfSubmit()"' + (already ? ' disabled' : '') + '>' + esc(lfGoLabel()) + '</button>';
+      if (f.edit) h += '<button class="btn secondary" onclick="openLfReport(' + Number(f.edit) + ')">Cancel</button>';
+      if (!lost) h += '<p class="lf-safety">Most vets and shelters scan for a microchip for free. Before you hand the animal over, ask for photos or vet records, and meet in a public place.</p>';
+      h += '</div>';
+      const sh = document.getElementById('sheet'), y = keepScroll && sh ? sh.scrollTop : 0;
+      openSheet(f.edit ? '✏️ Edit report' : lost ? '🚨 Report a lost pet' : '🐾 Report a found pet', h);
+      const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v == null ? '' : v; };
+      set('lf-name', f.name); set('lf-species', f.species); set('lf-breed', f.breed); set('lf-color', f.color); set('lf-age', f.age); set('lf-wear', f.wear);
+      set('lf-temper', f.temper); set('lf-desc', f.desc); set('lf-d', f.d); set('lf-t', f.t); set('lf-zip', f.zip); set('lf-spot', f.spot); set('lf-reward', f.reward); set('lf-phone', f.phone);
+      lfRenderPhotos();
+      if (y && sh) sh.scrollTop = y;
+    }
+    function lfNameTyped() { if (!lfForm || lfForm.edit) return; lfForm.name = val('lf-name'); const b = document.getElementById('lf-go'); if (b) b.textContent = lfGoLabel(); }
+    function lfRenderPhotos() {
+      const d = document.getElementById('lf-photos'); if (!d || !lfForm) return;
+      d.innerHTML = lfForm.photos.map((p, i) => '<div class="lf-ph"><img src="' + esc(p.src) + '" alt="' + esc('Photo ' + (i + 1)) + '">' + (p.profile ? '<small>From profile</small>' : '') +
+        '<button type="button" class="rm" aria-label="' + esc('Remove photo ' + (i + 1)) + '" onclick="lfRemovePhoto(' + i + ')"><span aria-hidden="true">×</span></button></div>').join('');
+      const add = document.getElementById('lf-ph-add'); if (add) add.style.display = lfForm.photos.length >= 3 ? 'none' : '';
+    }
+    function lfRemovePhoto(i) { if (!lfForm) return; lfForm.photos.splice(i, 1); lfRenderPhotos(); }
+    function lfShrink(file, cb) {
+      const img = new Image(), url = URL.createObjectURL(file);
+      img.onload = () => {
+        const scale = Math.min(1, 900 / Math.max(img.width, img.height));
+        const c = document.createElement('canvas');
+        c.width = Math.round(img.width * scale); c.height = Math.round(img.height * scale);
+        c.getContext('2d').drawImage(img, 0, 0, c.width, c.height);
+        URL.revokeObjectURL(url);
+        cb(c.toDataURL('image/jpeg', 0.82));
+      };
+      img.onerror = () => photoUnreadable(url);
+      img.src = url;
+    }
+    function lfPhotosPicked(input) {
+      if (!lfForm) return;
+      const all = Array.from(input.files || []), files = all.slice(0, Math.max(0, 3 - lfForm.photos.length));
+      if (all.length > files.length) toast('3 photos is the most for one report');
+      files.forEach(f => lfShrink(f, src => { if (lfForm && lfForm.photos.length < 3) { lfForm.photos.push({ src }); lfRenderPhotos(); } }));
+      input.value = '';
+    }
+    // New photos go to MY folder as uid/lost-<ms>-<i>.jpg; kept ones (and the pet's profile photo) stay as they are.
+    // An uploaded photo replaces its preview, so trying again does not upload it twice.
+    async function lfUploadPhotos(list, slot) {
+      const out = [];
+      for (let i = 0; i < list.length && out.length < 3; i++) {
+        const s = list[i].src;
+        if (!/^data:/.test(s)) { if (safeAvatarUrl(s)) out.push(s); continue; }
+        const blob = await (await fetch(s)).blob();
+        const path = cloudUser.id + '/lost-' + Date.now() + '-' + (slot != null ? slot : i) + '.jpg';
+        const up = await cloud.storage.from('photos').upload(path, blob, { contentType: 'image/jpeg' });
+        if (up && up.error) throw up.error;
+        const url = cloud.storage.from('photos').getPublicUrl(path).data.publicUrl;
+        if (!safeAvatarUrl(url)) throw new Error('upload');
+        list[i].src = url;
+        out.push(url);
+      }
+      return out;
+    }
+    function lfPostError(e) {
+      const m = String((e && (e.message || '')) || ''), c = e && e.code;
+      if (c === '54000' || /too many/i.test(m)) return /open/i.test(m) ? 'You have the most open reports allowed. Close one that\'s done, then post again.' : 'You\'ve posted the most reports for today. You can post again tomorrow.';
+      if (c === '42501' || /row-level|policy|not yours/i.test(m)) return iAmOrg() && !state.verified ? 'Organizations can post once Petfi has verified them.' : 'Your account can\'t post reports right now.';
+      if (/photos/i.test(m)) return 'One of the photos couldn\'t be used. Remove it and try again.';
+      return '📡 Couldn\'t save right now. Check your connection and try again.';
+    }
+    async function lfSubmit() {
+      const f = lfForm; if (!f || lfBusy) return;
+      lfReadForm();
+      const lost = f.kind === 'lost';
+      if (lost && !f.edit && f.pet && lfOpenFor(f.pet)) { toast(f.name + ' is already on the board'); return; }
+      if (!canSaveToCloud(lost ? 'report a lost pet' : 'report a found pet')) return;
+      const name = petClean(f.name, 40), species = String(f.species || '').toLowerCase();
+      const focus = id => { const el = document.getElementById(id); if (el) { el.focus(); el.scrollIntoView({ block: 'center' }); } };
+      if (lost && !name) { toast('Add your pet\'s name'); focus('lf-name'); return; }
+      if (!species) { toast('Choose what kind of animal it is'); focus('lf-species'); return; }
+      const zip = String(f.zip || '').trim();
+      if (!/^\d{5}$/.test(zip)) { toast('Enter the 5-digit ZIP code'); focus('lf-zip'); return; }
+      const when = new Date((hxValidYmd(f.d) ? f.d : hxToday()) + 'T' + (/^\d{1,2}:\d{2}$/.test(f.t || '') ? f.t : '12:00') + ':00');
+      if (isNaN(when) || when.getTime() > Date.now() + 3600000) { toast('The date and time can\'t be in the future'); focus('lf-d'); return; }
+      if (when.getTime() < Date.now() - 364 * DAY_MS) { toast('Reports can go back one year at most'); focus('lf-d'); return; }
+      const phone = hxPhone(f.phone).replace(/[^0-9+() .-]/g, '');
+      if (phone && !hxTel(phone)) { toast('That phone number looks too short'); focus('lf-phone'); return; }
+      lfBusy = true;
+      const btn = document.getElementById('lf-go'); if (btn) { btn.disabled = true; btn.textContent = f.edit ? 'Saving…' : 'Posting…'; }
+      try {
+        const g = await geocodeZip(zip);
+        if (!g) { toast(navigator.onLine === false ? '📡 You\'re offline. Connect and try again.' : 'We couldn\'t find that ZIP code. Check it and try again.'); return; }
+        let photos;
+        try { photos = await lfUploadPhotos(f.photos); } catch (e) { toast('📡 The photos didn\'t upload. Check your connection and try again.'); return; }
+        const tagged = lost && !f.edit && f.pet && TAGS[f.pet] && (TAGS[f.pet].lost || f.tag) ? TAGS[f.pet] : null;
+        const row = { held: !lost && !!f.held, name, species, breed: petClean(f.breed, 60), color: petClean(f.color, 80), age: lost ? petClean(f.age, 30) : '',
+          description: String(f.desc || '').trim().slice(0, 600), wearing: petClean(f.wear, 120), chip: lost && ['yes', 'no'].indexOf(f.chip) >= 0 ? f.chip : 'unknown',
+          temperament: petClean(f.temper, 160), reward: lost ? petClean(f.reward, 60) : '', phone, seen_at: when.toISOString(), zip, area: String(g.area || '').slice(0, 80),
+          spot: petClean(f.spot, 80), st: zipState(g) || '', lat: Math.round(g.lat * 100) / 100, lon: Math.round(g.lon * 100) / 100, photos };
+        let res;
+        if (f.edit) res = await cloud.from('petfi_lost_found').update(row).eq('id', f.edit).eq('user_id', cloudUser.id).select().then(x => x, e => ({ error: e }));
+        else res = await cloud.from('petfi_lost_found').insert(Object.assign({ user_id: cloudUser.id, kind: f.kind, pet_id: lost ? f.petId : null, pet_local: lost ? (f.pet || '') : '', tag_code: tagged ? tagged.code : null }, row)).select().then(x => x, e => ({ error: e }));
+        const saved = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+        if (!saved || !saved.id) { toast(lfPostError(res && res.error)); return; }
+        lfMineUpsert(saved);
+        if (f.edit) {
+          const keep = new Set((saved.photos || []).map(u => myPhotoPath(u, LF_FILE_RE)).filter(Boolean));
+          removeMyPhotos((f.before || []).map(u => myPhotoPath(u, LF_FILE_RE)).filter(p => p && !keep.has(p)), 'lost & found photos');
+        } else if (!lost) { state.lfLast = { zip, spot: saved.spot, species, held: saved.held }; saveState(); }
+        let tagNote = '';
+        if (tagged && !tagged.lost) tagNote = (await lfTagLost(tagged, saved)) ? 'fail' : 'ok';
+        LF_LIST = null; lfNearAt = 0;
+        track(f.edit ? 'lf_edit' : 'lf_post', f.kind);
+        lfForm = null;
+        if (f.edit) { toast('✅ Changes saved'); openLfReport(saved.id); return; }
+        lfPosted(saved, tagNote);
+      } finally {
+        lfBusy = false;
+        const b = document.getElementById('lf-go'); if (b && lfForm) { b.disabled = false; b.textContent = lfGoLabel(); }
+      }
+    }
+    // The QR tag goes into lost mode with the report's place and contact; "home" puts the old phone back (#23)
+    async function lfTagLost(t, r) {
+      const upd = { lost: true, lost_at: r.seen_at, lost_area: ([r.spot, r.area].filter(Boolean).join(', ') || ('ZIP ' + r.zip)).slice(0, 80), reward: r.reward || '',
+        phone: r.phone || t.phone || '', lost_lat: r.lat, lost_lon: r.lon, updated_at: new Date().toISOString() };
+      const before = String(t.phone || '');
+      const res = await cloud.from('petfi_pet_tags').update(upd).eq('code', t.code).select('code, lost').then(x => x, e => ({ error: e }));
+      if (!res || res.error || !Array.isArray(res.data) || !res.data.length || !res.data[0].lost) return res && res.error || new Error('not updated');
+      Object.assign(t, upd);
+      state.tagPhoneBeforeLost = state.tagPhoneBeforeLost || {};
+      state.tagPhoneBeforeLost[t.code] = before;
+      saveState();
+      return null;
+    }
+    async function lfPosted(r, tagNote) {
+      const lost = r.kind === 'lost', title = lfTitle(r), id = Number(r.id);
+      haptic(20);
+      let h = '<div style="text-align:center;padding:0.2rem 0 0.3rem;"><div style="font-size:2.4rem;" aria-hidden="true">' + (lost ? '📣' : '💛') + '</div>' +
+        '<h3 style="margin:0.3rem 0 0.25rem;">' + esc(lost ? title + ' is on the board' : 'Thank you for helping') + '</h3>' +
+        '<p class="sub" style="margin:0;font-size:0.88rem;">' + esc(lost ? 'Members near ' + (r.area || 'you') + ' with lost pet alerts on will hear about ' + title + '. Sharing helps too: the more eyes, the better.'
+          : 'Your report is on the board. If this ' + lfWhat(r.species) + '\'s family is looking, they can message you here.') + '</p></div>';
+      if (tagNote === 'ok') h += '<div class="note">🏷️ ' + esc(title) + '\'s QR tag is in lost mode too.</div>';
+      if (tagNote === 'fail') h += '<div class="note">⚠️ The QR tag couldn\'t be switched to lost mode. You can do it from the report.</div>';
+      h += '<div id="lf-match-box"><p class="sub" style="font-size:0.85rem;margin:0.6rem 0 0;">Looking for possible matches…</p></div>' +
+        '<button class="btn" style="margin-top:1rem;" onclick="openLfReport(' + id + ')">See the report</button>' +
+        '<div class="lf-btnrow"><button class="btn secondary" onclick="lfShare(' + id + ')">📤 Share</button><button class="btn secondary" onclick="openLfPoster(' + id + ')">🖨️ Poster</button></div>';
+      if (!lost) h += '<button class="btn secondary" onclick="openLfForm(\'found\')">➕ Post another found animal</button>' +
+        '<p class="lf-safety">Most vets and shelters scan for a microchip for free. Telling the local shelter helps too: many families look there first.</p>';
+      openSheet('✅ Posted', h);
+      const seq = sheetSeq, m = await lfMatches(id), box = document.getElementById('lf-match-box');
+      if (seq !== sheetSeq || !box) return;
+      box.innerHTML = m && m.length
+        ? '<div class="sec" style="margin-top:0.9rem;"><h3>🔎 ' + esc(lost ? 'Could one of these be ' + title + '?' : 'Could this be one of these lost pets?') + '</h3></div>' + m.slice(0, 5).map(lfMatchRow).join('')
+        : '<p class="sub" style="font-size:0.85rem;margin:0.6rem 0 0;">' + esc(lost ? 'No matching found reports yet. If one is posted near you, we\'ll let you know.' : 'No matching lost reports yet. If one is posted nearby, we\'ll let you know.') + '</p>';
+    }
+    async function lfMatches(id) {
+      if (!cloud || !cloudUser) return null;
+      let r;
+      try { r = await cloud.rpc('petfi_lf_matches', { rid: Number(id) }); } catch (e) { return null; }
+      return r && !r.error && Array.isArray(r.data) ? r.data.filter(x => x && !lfHidden(x.poster_id)) : null;
+    }
+    function lfMatchRow(x) {
+      const ph = lfPhotos([x.photo])[0], b = lfBadge(x);
+      return '<div class="row" style="cursor:pointer;" onclick="openLfReport(' + Number(x.id) + ')"><div class="ricon">' + (ph ? '<img src="' + esc(ph) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : speciesEmo(x.species)) + '</div>' +
+        '<div class="rmain"><div class="rtitle">' + esc(lfTitle(x)) + ' <span class="lf-pill" style="background:' + ({ lost: '#b3261e', found: '#1f7a3d', seen: '#8a5a00' }[b[0]] || '#5b3fa0') + ';">' + b[1] + '</span></div>' +
+        '<div class="rmeta">' + esc([[x.breed, x.color].filter(Boolean).join(', '), x.miles ? lfMiles(x.miles) + ' from there' : '', lfWhenLine(x)].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>';
+    }
+    async function openLfMatches() {
+      const r = LF_REPORT; if (!r || !r.mine) return;
+      openSheet('🔎 Possible matches', '<p class="sub" style="font-size:0.85rem;">Looking…</p>');
+      const seq = sheetSeq, m = await lfMatches(r.id);
+      if (seq !== sheetSeq) return;
+      openSheet('🔎 Possible matches', (m === null ? '<div class="note">📡 Couldn\'t look right now. Check your connection and try again.</div>'
+        : m.length ? '<p class="sub" style="font-size:0.85rem;">' + esc(r.kind === 'lost' ? 'Found and spotted animals near where ' + lfTitle(r) + ' was lost, since then.' : 'Lost pets reported near where this ' + lfWhat(r.species) + ' was found.') + '</p>' + m.map(lfMatchRow).join('')
+        : '<div class="empty-state"><div class="es-emo">🔎</div><h3>No matches yet</h3><p>We\'ll let you know in the 🔔 bell if one is posted.</p></div>') +
+        '<button class="btn secondary" onclick="lfDrawReport()">‹ Back to the report</button>');
+    }
+
+    // ---- One report ----
+    async function lfEnsure(id) {
+      id = Number(id);
+      if (LF_REPORT && LF_REPORT.id === id) return true;
+      let r;
+      try { r = await cloud.rpc('petfi_lf_get', { rid: id }); } catch (e) { r = { error: e }; }
+      if (!r || r.error || !r.data) { toast(r && !r.error ? 'That report isn\'t up anymore' : '📡 Couldn\'t load the report. Check your connection and try again.'); return false; }
+      LF_REPORT = r.data;
+      return true;
+    }
+    async function openLfReport(id) {
+      id = Number(id);
+      if (!(id > 0)) return;
+      if (!cloud || !cloudUser) { toast('📡 Connect to the internet to see this report'); return; }
+      openSheet('🔎 Lost &amp; Found', '<div class="note" style="margin-top:0;">Loading…</div>');
+      const seq = sheetSeq;
+      if (!(await lfProbe())) { if (seq === sheetSeq) openSheet('🔎 Lost &amp; Found', '<div class="note">Lost &amp; Found isn\'t available right now.</div>'); return; }
+      let r;
+      try { r = await cloud.rpc('petfi_lf_get', { rid: id }); } catch (e) { r = { error: e }; }
+      if (seq !== sheetSeq) return;
+      if (!r || r.error) {
+        openSheet('🔎 Lost &amp; Found', '<div class="empty-state"><div class="es-emo">📡</div><h3>Couldn\'t load this report</h3><p>' + (navigator.onLine === false ? 'You\'re offline. Connect and try again.' : 'Check your connection and try again.') + '</p><button class="pill-btn" onclick="openLfReport(' + id + ')">↻ Try again</button></div>');
+        return;
+      }
+      if (!r.data) {
+        lfForgetReport(id);
+        openSheet('🔎 Lost &amp; Found', '<div class="empty-state"><div class="es-emo">🏡</div><h3>This report isn\'t up anymore</h3><p>It may have ended, been removed, or the pet is already home.</p><button class="pill-btn" onclick="closeSheet();openTab(\'lost\')">See Lost &amp; Found</button></div>');
+        return;
+      }
+      LF_REPORT = r.data;
+      lfNotePet(Object.assign({}, r.data, { expires_at: r.data.open ? null : 0, status: r.data.open ? 'open' : 'closed' }));
+      if (r.data.mine) { if (!lfMineRow(id)) await lfLoadMine(true); await loadTags(); }
+      if (!r.data.mine && r.data.poster && r.data.poster.id && !PROFILE_BY_ID[r.data.poster.id]) ensureProfiles([r.data.poster.id]).then(() => { if (seq === sheetSeq && LF_REPORT && LF_REPORT.id === id) lfDrawReport(true); });
+      if (seq !== sheetSeq) return;
+      lfDrawReport();
+    }
+    function lfSafetyLine(r) {
+      const t = lfTitle(r);
+      if (r.mine) return r.kind === 'lost' ? 'If someone says they have ' + t + ', ask for a photo of ' + t + ' taken today, and meet in a public place. Never send money to get a pet back.'
+        : 'Ask anyone who says this animal is theirs for photos or vet records. Most vets and shelters scan for a microchip for free.';
+      return r.kind === 'lost' ? 'Never send money to anyone about a lost pet. If you meet, choose a public place.'
+        : 'If this is your pet, be ready to show photos or vet records, and meet in a public place.';
+    }
+    function lfDrawReport(keepScroll) {
+      const r = LF_REPORT; if (!r) return;
+      const mine = !!r.mine, lost = r.kind === 'lost', title = lfTitle(r), p = r.poster || {}, b = lfBadge(r), what = lfWhat(r.species);
+      const photos = lfPhotos(r.photos), first = String(p.name || 'them').trim().split(/\s+/)[0];
+      const row = mine ? lfMineRow(r.id) : null, open = !!r.open;
+      const expMs = r.expires_at ? new Date(r.expires_at).getTime() - Date.now() : null;
+      let h = '<div class="lf-hero">' + (photos.length ? '<img src="' + esc(photos[0]) + '" alt="' + esc('Photo of ' + title) + '" onclick="lfZoom(0)">' : '<div class="emo" aria-hidden="true">' + speciesEmo(r.species) + '</div>') +
+        '<span class="lf-badge ' + b[0] + '">' + b[1] + '</span></div>';
+      if (photos.length > 1) h += '<div class="lf-thumbs">' + photos.map((u, i) => '<button type="button" class="lf-thumb" onclick="lfZoom(' + i + ')" aria-label="' + esc('Open photo ' + (i + 1) + ' of ' + title) + '"><img src="' + esc(u) + '" alt=""></button>').join('') + '</div>';
+      if (r.status === 'reunited') h += '<div class="lf-status home">🎉 <b>Reunited!</b> ' + esc(lost ? title + ' is home.' : 'This ' + what + ' is back with its family.') + ' Thank you to everyone who looked.</div>';
+      else if (lost) h += '<div class="lf-status lost"><b>Missing since ' + esc(lfDateTime(r.seen_at)) + '</b> (' + esc(hxAgo(r.seen_at)) + ')' + (!open ? '. This report has ended.' : '') + '</div>';
+      else if (r.held) h += '<div class="lf-status found"><b>Safe with ' + esc(mine ? 'you' : p.name || 'the finder') + '</b> since ' + esc(lfDateTime(r.seen_at)) + (!open ? '. This report has ended.' : '') + '</div>';
+      else h += '<div class="lf-status seen"><b>Seen ' + esc(lfDateTime(r.seen_at)) + '</b>, not caught yet' + (!open ? '. This report has ended.' : '') + '</div>';
+      const place = [r.spot ? 'Near ' + r.spot : '', r.area].filter(Boolean).join(', ');
+      const facts = [['Animal', [speciesLabel(r.species), r.breed].filter(Boolean).join(' · ')], ['Colour', r.color], ['Age', r.age], ['Wearing', r.wearing],
+        ['Microchip', r.chip === 'yes' ? 'Yes' : r.chip === 'no' ? 'No' : ''], [lost ? 'Last seen' : r.held ? 'Found' : 'Seen', place], ['Distance', !mine && r.miles ? lfMiles(r.miles) + ' from you' : '']];
+      h += '<dl class="lf-facts">' + facts.filter(x => x[1]).map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('') + '</dl>';
+      const home = r.status === 'reunited';
+      if (r.temperament && !home) h += '<div class="lf-tip">💛 <b>' + (lost ? 'If you see ' + esc(title) + ':' : 'How it\'s doing:') + '</b> ' + esc(r.temperament) + '</div>';
+      if (r.description) h += '<p class="lf-desc">' + esc(r.description) + '</p>';
+      if (lost && r.reward && !home) h += '<p class="lf-reward">🎁 Reward: ' + esc(r.reward) + '</p>';
+      const prof = !mine && p.id ? PROFILE_BY_ID[p.id] : null;
+      h += '<div class="lf-by"><span class="av">' + (mine ? myAvatar(40) : prof ? personAvatar(prof, 40) : (p.kind === 'org' ? '🏢' : '👤')) + '</span><div><b>' + esc(mine ? 'You' : p.name || 'A Petfi member') +
+        (!mine && p.verified ? ' ' + vbadge() : '') + (!mine && p.kind === 'org' && p.verified ? orgMark({ kind: 'org', verified: true }) : '') + '</b><small>Posted ' + esc(hxAgo(r.created_at)) +
+        (r.updated_at && new Date(r.updated_at) - new Date(r.created_at) > 120000 ? ' · updated ' + esc(hxAgo(r.updated_at)) : '') + '</small></div></div>';
+      if (!mine) {
+        if (open && r.status !== 'reunited') {
+          h += '<button class="btn" onclick="lfMessage()">💬 Message ' + esc(first) + '</button>';
+          const second = lost ? '<button class="btn secondary" onclick="openLfSighting()">👀 I saw ' + esc(title) + '</button>'
+            : '<button class="btn secondary" onclick="lfMessage(true)">🐾 ' + (hxTel(r.phone) ? 'It\'s my pet' : 'I think this is my pet') + '</button>';
+          h += hxTel(r.phone) ? '<div class="lf-btnrow"><a class="btn secondary" style="text-align:center;text-decoration:none;" href="tel:' + esc(hxTel(r.phone)) + '" aria-label="' + esc('Call ' + r.phone) + '">📞 Call</a>' + second + '</div>' : second;
+        }
+      } else {
+        if (r.status !== 'reunited') {
+          if (expMs != null && expMs < 7 * DAY_MS) h += '<div class="note">' + (expMs <= 0 ? 'This report has ended and is off the board.' : 'This report ends ' + esc(hxWhen(Math.ceil(expMs / DAY_MS))) + '.') + ' Still looking?</div>' +
+            '<button class="btn" onclick="lfRenew()">🔄 Still looking: renew for 30 days</button>';
+          h += '<button class="btn' + (expMs != null && expMs < 7 * DAY_MS ? ' secondary' : '') + '" onclick="lfAskReunite()">🎉 ' + esc(lost ? title + ' is home' : 'Back with the owner') + '</button>';
+          h += '<div class="lf-btnrow"><button class="btn secondary" onclick="lfEditReport()">✏️ Edit</button><button class="btn secondary" onclick="openLfMatches()">🔎 Matches</button></div>';
+          const t = lfTagFor(r.id);
+          if (lost && t) h += t.lost ? '<p class="lf-hint" style="margin-top:0.6rem;">🏷️ ' + esc(title) + '\'s QR tag is in lost mode. <span class="link" onclick="renderPetTag(\'' + jsStr(t.pet_id) + '\')">Open the tag</span></p>'
+            : open ? '<button class="btn secondary" onclick="lfTagFromReport()">🏷️ Switch ' + esc(title) + '\'s QR tag to lost mode</button>' : '';
+        }
+      }
+      h += '<div class="lf-btnrow"><button class="btn secondary" onclick="lfShare()">📤 Share</button><button class="btn secondary" onclick="openLfPoster()">🖨️ Poster</button></div>';
+      const s = Array.isArray(r.sightings) ? r.sightings.filter(x => x && !lfHidden(x.user_id)) : [];
+      if (lost && (s.length || mine)) {
+        h += '<div class="sec" style="margin-top:1.1rem;"><h3>👀 Sightings' + (s.length ? ' (' + s.length + ')' : '') + '</h3>' + (mine && open && r.status !== 'reunited' ? '<span class="link" onclick="openLfSighting()">+ Add</span>' : '') + '</div>' +
+          (s.length ? s.map(lfSightRow).join('') : '<p class="sub" style="font-size:0.85rem;">No sightings yet. When someone reports seeing ' + esc(title) + ', it shows here and you get a notification.</p>');
+      }
+      h += '<p class="lf-safety">' + esc(lfSafetyLine(r)) + ' <span class="link" onclick="openLfSafety(1)">More safety tips</span></p>';
+      if (mine) h += '<button class="pill-btn ghost" style="display:block;margin:0.8rem auto 0;" onclick="lfAskRemove()">🗑 Remove this report</button>';
+      if (!mine) h += '<button class="pill-btn ghost" style="display:block;margin:0.8rem auto 0;" onclick="lfReportPost()">🚩 Report this post</button>';
+      const sh = document.getElementById('sheet'), y = keepScroll && sh ? sh.scrollTop : 0;
+      openSheet((r.status === 'reunited' ? '🎉 ' : lost ? '🚨 ' : r.held ? '🐾 ' : '👀 ') + esc(title), h);
+      if (y && sh) sh.scrollTop = y;
+    }
+    function lfSightRow(x) {
+      const ph = lfPhotos([x.photo])[0], canDel = x.mine || (LF_REPORT && LF_REPORT.mine);
+      return '<div class="lf-sight"><b>' + esc(x.spot) + '</b> · ' + esc(lfDateTime(x.seen_at)) + (x.note ? '<div>' + esc(x.note) + '</div>' : '') +
+        '<small>' + esc((x.mine ? 'You' : x.name || 'A Petfi member') + ' · ' + hxAgo(x.created_at)) + '</small>' +
+        (ph || canDel ? '<div class="acts">' + (ph ? '<button type="button" class="lf-thumb" style="width:64px;height:64px;" onclick="lfZoomSight(' + Number(x.id) + ')" aria-label="Open the sighting photo"><img src="' + esc(ph) + '" alt=""></button>' : '') +
+          (canDel ? '<button class="pill-btn ghost" onclick="lfDelSighting(' + Number(x.id) + ')" aria-label="Delete this sighting">🗑</button>' : '') + '</div>' : '') + '</div>';
+    }
+    function lfZoom(i) {
+      const r = LF_REPORT; if (!r) return;
+      const u = lfPhotos(r.photos)[i]; if (!u) return;
+      openSheet(esc(lfTitle(r)), '<img src="' + esc(u) + '" alt="' + esc('Photo ' + (i + 1) + ' of ' + lfTitle(r)) + '" style="width:100%;border-radius:14px;display:block;">' +
+        '<button class="btn secondary" onclick="lfDrawReport()">‹ Back to the report</button>');
+    }
+    function lfZoomSight(sid) {
+      const r = LF_REPORT; if (!r) return;
+      const x = (r.sightings || []).find(s => s.id === sid), u = x && lfPhotos([x.photo])[0]; if (!u) return;
+      openSheet('👀 ' + esc(x.spot), '<img src="' + esc(u) + '" alt="' + esc('Sighting photo near ' + x.spot) + '" style="width:100%;border-radius:14px;display:block;">' +
+        '<button class="btn secondary" onclick="lfDrawReport()">‹ Back to the report</button>');
+    }
+    function lfMessage(claim) {
+      const r = LF_REPORT; if (!r || !r.poster || !r.poster.id) return;
+      const first = String(r.poster.name || '').trim().split(/\s+/)[0], hi = 'Hi' + (first ? ' ' + first : '') + ', ', what = lfWhat(r.species);
+      pendingDMDraft = r.kind === 'lost' ? hi + 'I\'m writing about ' + lfTitle(r) + ' on Lost & Found. '
+        : claim ? hi + 'I think the ' + what + ' you ' + (r.held ? 'found' : 'saw') + (r.area ? ' near ' + r.area : '') + ' might be mine. '
+        : hi + 'I\'m writing about the ' + what + ' you ' + (r.held ? 'found' : 'saw') + ' on Lost & Found. ';
+      openCloudDM(r.poster.id);
+    }
+    function lfReportPost() {
+      const r = LF_REPORT; if (!r || r.mine) return;
+      openReport('lostfound', 'this post', Number(r.id), { authorId: r.poster && r.poster.id, table: 'petfi_lost_found', rowId: Number(r.id), text: (lfTitle(r) + '. ' + (r.description || '')).slice(0, 600) });
+    }
+    function lfEditReport() {
+      const r = LF_REPORT, row = r && lfMineRow(r.id);
+      if (!row) { toast('📡 Couldn\'t open the report for editing. Try again.'); lfLoadMine(true); return; }
+      openLfForm(row.kind, { edit: row });
+    }
+    async function lfTagFromReport() {
+      const r = LF_REPORT, row = r && lfMineRow(r.id), t = r && lfTagFor(r.id);
+      if (!row || !t || !canSaveToCloud('update the tag')) return;
+      const err = await lfTagLost(t, row);
+      if (err) { toast('⚠️ Couldn\'t switch the tag. Check your connection and try again.'); return; }
+      if (!row.tag_code) {
+        const res = await cloud.from('petfi_lost_found').update({ tag_code: t.code }).eq('id', row.id).eq('user_id', cloudUser.id).select().then(x => x, e => ({ error: e }));
+        if (res && !res.error && Array.isArray(res.data) && res.data[0]) lfMineUpsert(res.data[0]);
+      }
+      toast('🏷️ The QR tag is in lost mode');
+      LF_REPORT = null; openLfReport(row.id);
+    }
+    // ---- Sightings ----
+    function openLfSighting() {
+      const r = LF_REPORT; if (!r || !canSaveToCloud('add a sighting')) return;
+      const now = lfNowParts(), title = lfTitle(r), first = String((r.poster || {}).name || 'The owner').trim().split(/\s+/)[0];
+      lfSightPic = null;
+      openSheet('👀 ' + (r.mine ? 'New sighting of ' : 'I saw ') + esc(title), '<div class="lf-form">' +
+        (r.mine ? '' : '<p class="sub" style="font-size:0.86rem;margin-bottom:0.2rem;">Thank you. ' + esc(first) + ' gets a notification right away.</p>') +
+        '<label for="lfs-spot">Where?</label><input type="text" id="lfs-spot" maxlength="80" placeholder="e.g. 20th and J St, by the coffee shop">' +
+        '<label id="lfs-when-l">When?</label><div style="display:flex;gap:0.5rem;"><input type="date" id="lfs-d" aria-labelledby="lfs-when-l" max="' + hxToday() + '" value="' + now.d + '" style="flex:1.3;"><input type="time" id="lfs-t" aria-label="Time" value="' + now.t + '" style="flex:1;"></div>' +
+        '<label for="lfs-note">What did you see? <small>(optional)</small></label><textarea id="lfs-note" rows="3" maxlength="300" placeholder="e.g. Running east, looked okay. Didn\'t let me get close."></textarea>' +
+        '<label id="lfs-ph-l">Photo <small>(optional)</small></label><div id="lfs-photo" class="lf-photos"></div>' +
+        '<input type="file" id="lfs-file" accept="image/*" aria-labelledby="lfs-ph-l" style="display:none;" onchange="lfSightPhoto(this)">' +
+        '<button type="button" class="pill-btn ghost" id="lfs-add" onclick="document.getElementById(\'lfs-file\').click()">📷 Add a photo</button>' +
+        '<p class="lf-hint">' + (r.temperament ? 'Tip from the owner: ' + esc(r.temperament) : 'Please don\'t chase. A scared pet runs further.') + '</p>' +
+        '<button class="btn" id="lfs-go" onclick="lfSaveSighting()">👀 Send sighting</button>' +
+        '<button class="btn secondary" onclick="lfDrawReport()">Cancel</button></div>');
+    }
+    function lfSightPhoto(input) {
+      const f = (input.files || [])[0]; input.value = '';
+      if (!f) return;
+      lfShrink(f, src => {
+        lfSightPic = { src };
+        const d = document.getElementById('lfs-photo');
+        if (d) d.innerHTML = '<div class="lf-ph"><img src="' + esc(src) + '" alt="Your sighting photo"><button type="button" class="rm" aria-label="Remove the photo" onclick="lfSightPhotoClear()"><span aria-hidden="true">×</span></button></div>';
+        const a = document.getElementById('lfs-add'); if (a) a.style.display = 'none';
+      });
+    }
+    function lfSightPhotoClear() {
+      lfSightPic = null;
+      const d = document.getElementById('lfs-photo'), a = document.getElementById('lfs-add');
+      if (d) d.innerHTML = '';
+      if (a) a.style.display = '';
+    }
+    async function lfSaveSighting() {
+      const r = LF_REPORT; if (!r || lfBusy || !canSaveToCloud('add a sighting')) return;
+      const spot = petClean(val('lfs-spot'), 80);
+      if (!spot) { toast('Say where you saw ' + lfTitle(r)); const e = document.getElementById('lfs-spot'); if (e) e.focus(); return; }
+      const d = val('lfs-d'), t = val('lfs-t');
+      const when = new Date((hxValidYmd(d) ? d : hxToday()) + 'T' + (/^\d{1,2}:\d{2}$/.test(t) ? t : '12:00') + ':00');
+      if (isNaN(when) || when.getTime() > Date.now() + 3600000) { toast('The time can\'t be in the future'); return; }
+      lfBusy = true;
+      const btn = document.getElementById('lfs-go'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
+      try {
+        let photo = '';
+        if (lfSightPic) {
+          try { photo = (await lfUploadPhotos([lfSightPic], 9))[0] || ''; } catch (e) { toast('📡 The photo didn\'t upload. Check your connection and try again.'); return; }
+        }
+        const res = await cloud.from('petfi_lf_sightings').insert({ report_id: Number(r.id), user_id: cloudUser.id, spot, note: String(val('lfs-note')).slice(0, 300), seen_at: when.toISOString(), photo })
+          .select().then(x => x, e => ({ error: e }));
+        const row = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+        if (!row || !row.id) {
+          const m = String((res && res.error && res.error.message) || '');
+          toast(/too many/i.test(m) ? 'You\'ve sent a lot of sightings. Please wait a little and try again.' : /not open|row-level|policy/i.test(m) ? 'This report isn\'t taking sightings anymore.' : '📡 Couldn\'t send it. Check your connection and try again.');
+          return;
+        }
+        lfSightPic = null;
+        track('lf_sighting');
+        const first = String((r.poster || {}).name || '').trim().split(/\s+/)[0];
+        toast(r.mine ? '👀 Sighting added' : '👀 Thank you. ' + (first || 'The owner') + ' has been told.');
+        LF_REPORT = null;
+        openLfReport(r.id);
+      } finally {
+        lfBusy = false;
+        const b = document.getElementById('lfs-go'); if (b) { b.disabled = false; b.textContent = '👀 Send sighting'; }
+      }
+    }
+    async function lfDelSighting(sid) {
+      const r = LF_REPORT; if (!r || !canSaveToCloud('delete it')) return;
+      const x = (r.sightings || []).find(s => s.id === sid);
+      const res = await cloud.from('petfi_lf_sightings').delete().eq('id', sid).select('id, photo').then(y => y, e => ({ error: e }));
+      const gone = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+      if (!gone) { toast('⚠️ Couldn\'t delete it. Try again.'); return; }
+      if (x && x.mine) removeMyPhotos([myPhotoPath(gone.photo, LF_FILE_RE)], 'sighting photo');
+      r.sightings = (r.sightings || []).filter(s => s.id !== sid);
+      toast('Sighting deleted');
+      lfDrawReport(true);
+    }
+    // ---- Reunited, remove, renew ----
+    function lfAskReunite() {
+      const r = LF_REPORT; if (!r || !r.mine) return;
+      const title = lfTitle(r), lost = r.kind === 'lost', t = lfTagFor(r.id);
+      openSheet('🎉 ' + (lost ? esc(title) + ' is home?' : 'Back with the owner?'),
+        '<p class="sub" style="font-size:0.9rem;">' + (lost ? 'Wonderful. The report will show as reunited for 3 days so neighbours know they can stop looking, then it leaves the board by itself.'
+          : 'Thank you for helping. The report will show as reunited for 3 days, then it leaves the board by itself.') + '</p>' +
+        (t && t.lost ? '<label class="lf-check"><input type="checkbox" id="lf-endtag" checked><span>Turn off lost mode on ' + esc(title) + '\'s QR tag</span></label>' : '') +
+        '<button class="btn" onclick="lfReunite()">🎉 ' + (lost ? 'Yes, ' + esc(title) + ' is home' : 'Yes, they\'re together again') + '</button>' +
+        '<button class="btn secondary" onclick="lfDrawReport()">Not yet</button>');
+    }
+    async function lfReunite(skipTag) {
+      const r = LF_REPORT; if (!r || !r.mine || lfBusy || !canSaveToCloud('update the report')) return;
+      const endTag = !skipTag && !!(document.getElementById('lf-endtag') || {}).checked, t = lfTagFor(r.id), title = lfTitle(r);
+      lfBusy = true;
+      let row = null;
+      try {
+        const res = await cloud.from('petfi_lost_found').update({ status: 'reunited' }).eq('id', r.id).eq('user_id', cloudUser.id).select().then(x => x, e => ({ error: e }));
+        row = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+      } finally { lfBusy = false; }
+      if (!row || row.status !== 'reunited') { toast('⚠️ Couldn\'t update the report. Check your connection and try again.'); return; }
+      lfMineUpsert(row); lfForgetReport(row.id);
+      if (endTag && t && t.lost) { if (await tagEndLost(t)) toast('⚠️ The QR tag is still in lost mode. Turn it off from the tag page.'); }
+      confetti(); haptic([20, 40, 20]);
+      toast(r.kind === 'lost' ? '🎉 So glad ' + title + ' is home!' : '💛 Thank you for helping them find each other');
+      track('lf_reunited', r.kind);
+      LF_LIST = null; lfNearAt = 0; LF_REPORT = null;
+      openLfReport(row.id);
+      lfRefreshTab();
+    }
+    async function lfReuniteById(id) { if (await lfEnsure(id)) lfReunite(true); }
+    function lfAskRemove() {
+      const r = LF_REPORT; if (!r || !r.mine) return;
+      const t = lfTagFor(r.id), title = lfTitle(r);
+      openSheet('🗑 Remove this report?',
+        '<p class="sub" style="font-size:0.9rem;">It leaves the board right away, and its photos and sightings are deleted. This can\'t be undone.' + (r.kind === 'lost' ? ' If ' + esc(title) + ' is home, use “' + esc(title) + ' is home” instead so neighbours know.' : '') + '</p>' +
+        (t && t.lost ? '<label class="lf-check"><input type="checkbox" id="lf-endtag" checked><span>Also turn off lost mode on ' + esc(title) + '\'s QR tag</span></label>' : '') +
+        '<button class="btn" style="background:#b3261e;" onclick="lfRemove()">Remove report</button><button class="btn secondary" onclick="lfDrawReport()">Keep it</button>');
+    }
+    async function lfRemove() {
+      const r = LF_REPORT; if (!r || !r.mine || lfBusy || !canSaveToCloud('remove the report')) return;
+      const endTag = !!(document.getElementById('lf-endtag') || {}).checked, t = lfTagFor(r.id);
+      lfBusy = true;
+      let gone = null;
+      try {
+        const res = await cloud.from('petfi_lost_found').delete().eq('id', r.id).eq('user_id', cloudUser.id).select('id, photos').then(x => x, e => ({ error: e }));
+        gone = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+      } finally { lfBusy = false; }
+      if (!gone) { toast('⚠️ Couldn\'t remove it. Check your connection and try again.'); return; }
+      removeMyPhotos((gone.photos || []).map(u => myPhotoPath(u, LF_FILE_RE)), 'lost & found photos');
+      (r.sightings || []).forEach(s => { if (s.mine) removeMyPhotos([myPhotoPath(s.photo, LF_FILE_RE)], 'sighting photo'); });
+      LF_MINE = (LF_MINE || []).filter(x => x.id !== gone.id); lfForgetReport(gone.id);
+      if (endTag && t && t.lost) { if (await tagEndLost(t)) toast('⚠️ The QR tag is still in lost mode. Turn it off from the tag page.'); }
+      LF_LIST = null; lfNearAt = 0; LF_REPORT = null;
+      closeSheet(); toast('Report removed');
+      lfRefreshTab();
+    }
+    async function lfRenew() {
+      const r = LF_REPORT; if (!r || !r.mine || lfBusy || !canSaveToCloud('renew the report')) return;
+      lfBusy = true;
+      let row = null;
+      try {
+        const res = await cloud.from('petfi_lost_found').update({ expires_at: new Date().toISOString() }).eq('id', r.id).eq('user_id', cloudUser.id).select().then(x => x, e => ({ error: e }));
+        row = res && !res.error && Array.isArray(res.data) ? res.data[0] : null;
+      } finally { lfBusy = false; }
+      if (!row) { toast('⚠️ Couldn\'t renew it. Check your connection and try again.'); return; }
+      lfMineUpsert(row);
+      if (new Date(row.expires_at).getTime() - Date.now() < 29 * DAY_MS) { toast('Renewing opens in the last week before a report ends.'); return; }
+      toast('✅ Renewed for 30 more days' + (r.kind === 'lost' ? '. We hope ' + lfTitle(r) + ' is home soon.' : ''));
+      LF_LIST = null; LF_REPORT = null;
+      openLfReport(row.id);
+      lfRefreshTab();
+    }
+    function lfRefreshTab() {
+      if (!appActive()) return;
+      if (state.tab === 'lost') rerenderTab(renderLostFound);
+      else if (state.tab === 'home') rerenderTab(renderHome);
+      else if (state.tab === 'nearby') rerenderTab(renderNearby);
+      else if (state.tab === 'profile') rerenderTab(renderProfile);
+    }
+    // The QR tag went home from the tag page: offer to close the board report too
+    function lfAfterTagHome(petId) {
+      if (!lfOn()) return;
+      const r = lfOpenFor(petId); if (!r) return;
+      const name = lfTitle(r);
+      setTimeout(() => openSheet('🎉 ' + esc(name) + ' is home!',
+        '<p class="sub" style="font-size:0.9rem;">' + esc(name) + '\'s Lost & Found report is still up. Mark it reunited too, so neighbours know they can stop looking?</p>' +
+        '<button class="btn" onclick="lfReuniteById(' + Number(r.id) + ')">🎉 Mark the report reunited</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Keep it up for now</button>'), 1200);
+    }
+    // ---- Share and poster ----
+    function lfShareUrl(r) { return r.tag_code ? tagUrl(r.tag_code) : APP_URL + '?lf=' + Number(r.id); }
+    function lfShareText(r) {
+      const place = [r.spot ? r.spot : '', r.area].filter(Boolean).join(', ') || 'my area', day = lfDay(r.seen_at);
+      if (r.kind === 'lost') return ('LOST: ' + [r.name || lfCap(lfWhat(r.species)), r.breed].filter(Boolean).join(', ') + ', last seen near ' + place + ' on ' + day + '.' +
+        (r.reward ? ' Reward: ' + r.reward + '.' : '') + ' If you see ' + (r.name || 'this pet') + ', please message on Petfi. Please share 🙏').slice(0, 400);
+      return ((r.held ? 'FOUND: ' : 'SEEN: ') + [lfWhat(r.species), r.breed, r.color].filter(Boolean).join(', ') + ', near ' + place + ' on ' + day + '. Is it yours, or do you know the family? Please share 🙏').slice(0, 400);
+    }
+    async function lfShare(id) {
+      if (id != null && !(await lfEnsure(id))) return;
+      if (!LF_REPORT) return;
+      openShareSheet('lost', LF_REPORT.id);
+    }
+    function lfPosterHtml(r, qr, contact) {
+      const lost = r.kind === 'lost', title = lfTitle(r), what = lfWhat(r.species).toUpperCase();
+      const photo = lfPhotos(r.photos)[0];
+      const head = lost ? 'LOST ' + what : r.held ? 'FOUND ' + what : what + ' SEEN';
+      const place = [r.spot ? 'near ' + r.spot : '', r.area].filter(Boolean).join(', ');
+      const phone = contact === 'phone' && hxTel(r.phone) ? r.phone : '';
+      return '<div class="lf-poster ' + (lost ? 'lost' : 'found') + '">' +
+        '<div class="pt">' + esc(head) + '</div>' +
+        (photo ? '<img class="pimg" src="' + esc(photo) + '" alt="' + esc('Photo of ' + title) + '">' : '<div class="pemo" aria-hidden="true">' + speciesEmo(r.species) + '</div>') +
+        (r.name ? '<div class="pn">' + esc(r.name) + '</div>' : '') +
+        ([r.breed, r.color].filter(Boolean).length ? '<div class="pd">' + esc([r.breed, r.color].filter(Boolean).join(' · ')) + '</div>' : '') +
+        ([r.age, r.wearing].filter(Boolean).length ? '<div class="pd">' + esc([r.age, r.wearing].filter(Boolean).join(' · ')) + '</div>' : '') +
+        '<div class="pseen">' + esc((lost ? 'Last seen ' : r.held ? 'Found ' : 'Seen ') + (place || 'nearby')) + '<br>' + esc(lfDateTime(r.seen_at)) + '</div>' +
+        (r.temperament ? '<div class="ptip">' + esc(r.temperament) + '</div>' : '') +
+        (lost && r.reward ? '<div class="prew">REWARD: ' + esc(r.reward) + '</div>' : '') +
+        '<div class="pcontact"><div>' + (phone ? '📞 ' + esc(phone) + '<div style="font-size:0.6em;font-weight:600;">' + (qr ? 'or scan to message on Petfi' : 'or message on Petfi') + '</div>'
+            : (qr ? 'Scan to message ' + (lost ? 'the owner' : 'the finder') + ' on Petfi' : 'Message ' + (lost ? 'the owner' : 'the finder') + ' on Petfi')) +
+          (qr ? '' : '<div style="font-size:0.6em;font-weight:600;word-break:break-all;">' + esc(lfShareUrl(r).replace(/^https:\/\//, '')) + '</div>') + '</div>' +
+          (qr ? '<div class="pqr">' + qr + '</div>' : '') + '</div>' +
+        '<div class="pfoot">Made with Petfi · petfi.pet · free lost and found for pets</div></div>';
+    }
+    async function openLfPoster(id) {
+      if (id != null && !(await lfEnsure(id))) return;
+      const r = LF_REPORT; if (!r) return;
+      const hasPhone = !!hxTel(r.phone);
+      if (!hasPhone) lfPosterContact = 'app';
+      lfPosterQr = '';
+      const seg = hasPhone ? '<label id="lfp-c-l" style="margin-top:0;">Contact line on the poster</label><div class="lf-seg" role="group" aria-labelledby="lfp-c-l" style="margin-bottom:0.7rem;">' +
+        [['phone', '📞 My phone number'], ['app', '💬 Petfi only']].map(x => '<button type="button" class="' + (lfPosterContact === x[0] ? 'on' : '') + '" aria-pressed="' + (lfPosterContact === x[0]) + '" onclick="lfPosterSet(\'' + x[0] + '\')">' + x[1] + '</button>').join('') + '</div>' : '';
+      openSheet('🖨️ Poster', seg + '<div id="lf-poster-prev">' + lfPosterHtml(r, '', lfPosterContact) + '</div>' +
+        '<button class="btn" onclick="lfPrintPoster()">🖨️ Print</button>' +
+        '<p class="lf-hint">Print a few for vets, pet stores and community boards. Ask before posting on private property.</p>');
+      const seq = sheetSeq;
+      try {
+        const q = await qrFor(lfShareUrl(r));
+        lfPosterQr = qrSvg(q, 200);
+        const box = document.getElementById('lf-poster-prev');
+        if (box && seq === sheetSeq) box.innerHTML = lfPosterHtml(r, lfPosterQr, lfPosterContact);
+      } catch (e) {}
+    }
+    function lfPosterSet(c) {
+      lfPosterContact = c === 'phone' ? 'phone' : 'app';
+      document.querySelectorAll('#sheet .lf-seg button').forEach(b => { const on = /phone/.test(b.getAttribute('onclick')) === (lfPosterContact === 'phone'); b.classList.toggle('on', on); b.setAttribute('aria-pressed', String(on)); });
+      const box = document.getElementById('lf-poster-prev'); if (box && LF_REPORT) box.innerHTML = lfPosterHtml(LF_REPORT, lfPosterQr, lfPosterContact);
+    }
+    // Print only the poster (the same #print-area as the symptom journal)
+    function lfPrintPoster() {
+      const r = LF_REPORT; if (!r) return;
+      let box = document.getElementById('print-area');
+      if (!box) { box = document.createElement('div'); box.id = 'print-area'; document.body.appendChild(box); }
+      box.innerHTML = lfPosterHtml(r, lfPosterQr, lfPosterContact);
+      document.body.classList.add('printing');
+      track('lf_poster');
+      const done = () => { document.body.classList.remove('printing'); window.removeEventListener('afterprint', done); };
+      window.addEventListener('afterprint', done);
+      setTimeout(() => { try { window.print(); } catch (e) {} setTimeout(done, 2000); }, 50);
+    }
+    // ---- Settings and safety ----
+    function openLfSettings() {
+      const mi = lfAlertMi();
+      openSheet('🔔 Lost pet alerts',
+        '<div class="toggle-row"><div class="t-label" id="lfa-l">Tell me when a pet is lost near me<small>A note in the 🔔 bell, and a phone notification if those are on</small></div>' +
+          '<label class="switch"><input type="checkbox" id="lfa-on" aria-labelledby="lfa-l"' + (mi ? ' checked' : '') + ' onchange="lfAlertToggle(this.checked)"><span class="slider"></span></label></div>' +
+        '<label for="lfa-mi">How far from my ZIP code</label><select id="lfa-mi" onchange="lfSetAlert(+this.value)"' + (mi ? '' : ' disabled') + '>' +
+          LF_ALERT_OPTS.map(v => '<option value="' + v + '"' + (v === (mi || LF_DEFAULT_ALERT) ? ' selected' : '') + '>Within ' + v + ' miles</option>').join('') + '</select>' +
+        '<p class="lf-hint">' + (state.zip ? 'Measured from the middle of ZIP ' + esc(state.zip) + '.' : 'Add your ZIP code on the Lost &amp; Found page so we know what\'s near you.') + ' One alert per lost pet, never more.</p>' +
+        (notifPref('lostPets') ? pushNote('Turn on notifications to get lost pet alerts on your phone too.') : '<div class="note">Phone notifications for lost pets are off in <span class="link" onclick="openNotifSettings()">Notification settings</span>. You\'ll still see alerts in the bell.</div>') +
+        '<button class="btn secondary" onclick="closeSheet()">Done</button>');
+    }
+    function lfSetAlert(v) {
+      state.lfAlertMi = LF_ALERT_OPTS.indexOf(v) >= 0 ? v : 0;
+      saveState();
+      toast(state.lfAlertMi ? '🔔 We\'ll tell you about pets lost within ' + state.lfAlertMi + ' miles' : '🔕 Lost pet alerts are off');
+      if (state.tab === 'lost') rerenderTab(renderLostFound);
+    }
+    function lfAlertToggle(on) {
+      const s = document.getElementById('lfa-mi');
+      if (s) s.disabled = !on;
+      lfSetAlert(on ? (Number(s && s.value) || LF_DEFAULT_ALERT) : 0);
+    }
+    function openLfSafety(fromReport) {
+      openSheet('🛟 Staying safe', '<ul class="lf-tips">' +
+        '<li><b>Meet in a public place</b>, like a vet\'s office, a pet store or a police station parking lot. Bring a friend if you can.</li>' +
+        '<li><b>Found a pet?</b> Before you hand it over, ask for proof it\'s theirs: photos together or vet records.</li>' +
+        '<li><b>Lost a pet?</b> Have photos and vet records ready. Never send money to someone who says they have your pet. That\'s a common scam.</li>' +
+        '<li><b>Microchips:</b> most vets and shelters scan a found pet for free.</li>' +
+        '<li><b>Tell the local shelter too.</b> Many families look there first.</li>' +
+        '<li><b>Keep your home address private.</b> The town and a nearby landmark are enough.</li></ul>' +
+        '<p class="lf-hint">See something that doesn\'t feel right? Use “Report this post” on the report.</p>' +
+        '<button class="btn secondary" onclick="' + (fromReport && LF_REPORT ? 'lfDrawReport()' : 'closeSheet()') + '">' + (fromReport && LF_REPORT ? '‹ Back to the report' : 'OK') + '</button>');
     }
 
     // ======================= SYMPTOM JOURNAL =======================
@@ -14386,6 +15653,7 @@
       }
       // If the feed is on screen, refresh it — unless the user is mid-typing
       if (appActive() && state.tab === 'home' && (state.homeTab || 'feed') === 'feed') rerenderTab(renderHome);
+      lfCheckFeedPets(); // posts made as a pet that is lost get a small LOST
     }
     // Background refreshes must never rip a half-typed comment or an open
     // thread out from under the user.
@@ -14713,10 +15981,12 @@
             : '<span class="link" onclick="openPersonSheetById(\'' + jsStr(oid) + '\')">' + esc(ownerName) + (owner.verified ? ' ' + vbadge() : '') + '</span>' + orgMark(owner)) + '</div>' +
           (passed ? '<p class="sub" style="margin-top:0.4rem;">Forever part of the family. 💜</p>' : '') +
         '</div>' +
+        '<div id="pp-lost"></div>' +
         '<div id="pp-actions">' + petPageActionsHtml(pet, owner) + '</div>' +
         '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>📝 Recent posts</h3></div>' +
         '<div id="pet-posts"><p class="sub" style="font-size:0.85rem;">Loading…</p></div>');
       loadPetPagePosts(false);
+      lfFillPetBanner(pet); // an open lost report shows as a banner at the top
     }
     // The pet page's action buttons. A pet whose owner switched on its own
     // friends and messages (pet.social, and the server supports it) gets
@@ -15697,7 +16967,7 @@
     function updateBadges() {
       const unread = cloudUser ? unreadConvos().reduce((s, c) => s + c.unread, 0) : 0;
       setBadge('dm-dot', unread);
-      const pend = cloudUser ? incomingFriendRequests().length : 0;
+      const pend = cloudUser ? incomingFriendRequests().length + (lfOn() ? lfUnread() : 0) : 0;
       setBadge('notif-dot', pend);
     }
     // Requests waiting on my answer; ones from members I blocked don't count or show
@@ -16203,12 +17473,13 @@
     function ringBell() { const b = document.querySelectorAll('.top-icon')[2]; if (b) { b.classList.remove('ring'); void b.offsetWidth; b.classList.add('ring'); } }
     function cloudTabRefresh(name) {
       if (!cloud || !cloudUser) return;
-      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); loadTags(); loadCare(); }
+      if (name === 'home') { loadCloudPosts(); loadMatesAndAds(); loadTags(); loadCare(); lfRefresh(); }
       else if (name === 'groups') loadGroups();
       else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
-      else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); loadTags(); }
+      else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); loadTags(); lfRefresh(); }
       else if (name === 'store') loadListings();
-      else if (name === 'profile') loadTerritory();
+      else if (name === 'profile') { loadTerritory(); lfRefresh(); }
+      else if (name === 'lost') { loadTags(); lfRefresh(); lfLoadBoard(); }
     }
     // Background heartbeat: new DMs & friend requests. Every 20 s while we
     // rely on polling; relaxes to 60 s once the live channel is confirmed
@@ -16222,6 +17493,7 @@
       lastHeartbeat = Date.now();
       loadMessages(); loadFriendships(); flushOutbox(); flushPendingReports();
       retryCloudSave(); // a save that failed earlier (at most once a minute)
+      lfRefresh(); // Lost & Found bell notices and nearby reports (each throttled to 1-2 minutes)
     }, 5000);
 
     // ======================= PERSISTENCE =======================
