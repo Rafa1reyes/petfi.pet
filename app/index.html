@@ -972,19 +972,14 @@
         <button class="pill-btn" onclick="setLang('es')">Sí, en español</button> <button class="pill-btn ghost" onclick="setLang('en');document.getElementById('lang-ask').style.display='none'">No, English</button></div>
       <div id="invite-slot"></div>
       <div id="resume-slot"></div>
-      <h2 style="text-align:center; margin-top:1.5rem;">How do you want to join?</h2>
-      <p class="sub" style="text-align:center;">You can change this later.</p>
+      <h2 style="text-align:center; margin-top:1.5rem;">Join Petfi</h2>
+      <p class="sub" style="text-align:center;">One account for you, with all your pets inside it.</p>
 
-      <div class="choice" role="button" tabindex="0" onclick="startSocial()">
-        <div class="big">🐶</div>
-        <h3>I'm a Pet 🐾</h3>
-        <p>A fun social account. Pick your species, get an animated icon, make friends, and bark or meow at pals nearby.</p>
-      </div>
-
+      <!-- The old "I'm a Pet" card is gone (stage 4): every account is a person, pets live inside it -->
       <div class="choice owner" role="button" tabindex="0" onclick="startOwner()">
-        <div class="big">🧑‍🦰</div>
-        <h3>I'm an Owner</h3>
-        <p>An account for real people — show off your pets, sell products or services, find a breeding match, and meet other pet people.</p>
+        <div class="big">🐾</div>
+        <h3>I'm a pet owner</h3>
+        <p>Make your account, then add your pets. Post as yourself or as any of your pets, find a breeding match, and meet other pet people.</p>
       </div>
 
       <p style="text-align:center;margin:0.2rem 0 0;font-size:0.9rem;">
@@ -1079,7 +1074,7 @@
       </div>
       <label style="margin-top:1.2rem;">Who do you want to connect with?</label>
       <p class="sub" style="font-size:0.8rem;margin:0 0 0.4rem;">Pick one, two or all three. Tick only “Verified members” to hear just from ID-checked people. Change it any time in Settings.</p>
-      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Fun, social Pet accounts: barks, meows and friends</small></div><input type="checkbox" id="aud-pets" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Posts made as pets: barks, meows and friends</small></div><input type="checkbox" id="aud-pets" checked style="width:22px;height:22px;"></label>
       <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🧑‍💼 Owners &amp; businesses<small>Real people buying, selling, breeding and offering services</small></div><input type="checkbox" id="aud-owners" checked style="width:22px;height:22px;"></label>
       <label class="toggle-row" style="cursor:pointer;"><div class="t-label">✔️ Verified members<small>Anyone who passed Petfi's ID check</small></div><input type="checkbox" id="aud-verified" checked style="width:22px;height:22px;"></label>
 
@@ -1131,8 +1126,8 @@
 
       <label style="margin-top:1.2rem;">Who do you want to connect with?</label>
       <p class="sub" style="font-size:0.8rem;margin:0 0 0.4rem;">Pick one, two or all three. Tick only “Verified members” to hear just from ID-checked people. Change it any time in Settings.</p>
-      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Fun, social Pet accounts: barks, meows and friends</small></div><input type="checkbox" id="oaud-pets" checked style="width:22px;height:22px;"></label>
-      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🧑‍💼 Owners &amp; businesses<small>Real people buying, selling, breeding and offering services</small></div><input type="checkbox" id="oaud-owners" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🐾 Pet pals<small>Posts made as pets: barks, meows and friends</small></div><input type="checkbox" id="oaud-pets" checked style="width:22px;height:22px;"></label>
+      <label class="toggle-row" style="cursor:pointer;"><div class="t-label">🧑‍💼 Owners &amp; businesses<small>Posts made by people and businesses: buying, selling, breeding and services</small></div><input type="checkbox" id="oaud-owners" checked style="width:22px;height:22px;"></label>
       <label class="toggle-row" style="cursor:pointer;"><div class="t-label">✔️ Verified members<small>Anyone who passed Petfi's ID check</small></div><input type="checkbox" id="oaud-verified" checked style="width:22px;height:22px;"></label>
       <button class="btn blue" onclick="showOwnerPet()">Continue</button>
     </section>
@@ -1142,15 +1137,20 @@
       <button class="back" onclick="show('s-owner-interests')">← Back</button>
       <div class="steps"><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div></div>
       <h1>Who's your pet? 🐾</h1>
-      <p class="sub">Their name sets up reminders, a free ID tag and a health record. You can add more pets later.</p>
+      <p class="sub">Your pet gets their own profile you can post as, plus reminders, a free ID tag and a health record. You can add more pets later.</p>
       <label for="owner-pet-name">Pet name</label>
-      <input type="text" id="owner-pet-name" maxlength="40" placeholder="e.g. Biscuit" />
-      <label for="owner-pet-species">Species</label>
-      <select id="owner-pet-species"></select>
+      <input type="text" id="owner-pet-name" maxlength="40" placeholder="e.g. Biscuit" oninput="ownerPetPreview()" />
+      <label>Species</label>
+      <div class="grid" id="owner-pet-grid"></div>
+      <p class="sub" style="margin-top:1rem;font-size:0.85rem;font-weight:600;">Farm &amp; ranch</p>
+      <div class="grid" id="owner-pet-farm"></div>
+      <input type="hidden" id="owner-pet-species" value="dog" />
       <label for="owner-pet-breed">Breed <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
-      <input type="text" id="owner-pet-breed" maxlength="60" placeholder="e.g. Golden Retriever" />
+      <input type="text" id="owner-pet-breed" maxlength="60" placeholder="e.g. Golden Retriever" oninput="ownerPetPreview()" />
+      <div class="avatar-wrap" style="margin:0.8rem 0 0.2rem;"><span class="avatar" id="owner-pet-ava"></span></div>
+      <p class="sub" style="text-align:center;margin-bottom:0.6rem;" id="owner-pet-cap"></p>
       <button class="btn blue" onclick="goOwnerPet(true)">Build my home page</button>
-      <button class="btn secondary" onclick="goOwnerPet(false)">I don't have a pet yet</button>
+      <button class="btn secondary" onclick="goOwnerPet(false)">Skip for now</button>
     </section>
 
     <!-- ================= ORGANIZATION: DETAILS ================= -->
@@ -2568,14 +2568,37 @@
       // The first pet from sign-up (once, even if this runs twice)
       const pn = val('owner-pet-name').slice(0, 40);
       if (pn && !(state.pets || []).some(x => x.name === pn)) {
-        state.pets = (state.pets || []).concat([{ id: 'p' + hxId(), name: pn, species: (val('owner-pet-species') || 'dog').toLowerCase(), breed: val('owner-pet-breed').slice(0, 60) }]);
+        const np = { id: 'p' + hxId(), name: pn, species: (val('owner-pet-species') || 'dog').toLowerCase(), breed: val('owner-pet-breed').slice(0, 60) };
+        state.pets = (state.pets || []).concat([np]);
+        // They start as themselves; a one-time hint points at the switcher (this device only)
+        try { localStorage.setItem(SWITCH_HINT_KEY, np.id); } catch (e) {}
       }
     }
     function enterOwnerHome() { applyOwnerHome(); enterApp(); }
     function showOwnerPet() {
-      const sel = document.getElementById('owner-pet-species');
-      if (sel && !sel.options.length) sel.innerHTML = speciesOptions('dog');
+      const g = document.getElementById('owner-pet-grid');
+      if (g && !g.innerHTML) {
+        const cur = val('owner-pet-species') || 'dog';
+        const pick = s => '<div class="pick' + (s[0] === cur ? ' selected' : '') + '" role="button" tabindex="0" data-sp="' + s[0] + '" onclick="pickOwnerPetSpecies(this)"><span class="e">' + SPECIES_EMO[s[0]] + '</span>' + esc(s[1]) + '</div>';
+        g.innerHTML = PET_SPECIES.map(pick).join('');
+        const f = document.getElementById('owner-pet-farm'); if (f) f.innerHTML = FARM_SPECIES.map(pick).join('');
+      }
+      ownerPetPreview();
       show('s-owner-pet');
+    }
+    function pickOwnerPetSpecies(el) {
+      document.querySelectorAll('#owner-pet-grid .pick, #owner-pet-farm .pick').forEach(p => p.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('owner-pet-species').value = el.dataset.sp;
+      ownerPetPreview();
+    }
+    // The first pet's drawn icon, live as they type (the old pet sign-up's reveal)
+    function ownerPetPreview() {
+      const ava = document.getElementById('owner-pet-ava'); if (!ava) return;
+      const sp = val('owner-pet-species') || 'dog', br = val('owner-pet-breed'), n = val('owner-pet-name');
+      ava.innerHTML = petAvatar(sp, br, 110);
+      const cap = document.getElementById('owner-pet-cap');
+      if (cap) cap.textContent = (n || 'Your pet') + ' the ' + (br || speciesLabel(sp));
     }
     function goOwnerPet(has) {
       if (has && !val('owner-pet-name')) { toast('What\'s your pet\'s name?'); return; }
@@ -2595,7 +2618,7 @@
     // A real person runs this account (owner or organization), not a pet
     function iAmPerson() { return state.accountType === 'owner' || state.accountType === 'org'; }
     function isPersonKind(k) { return k === 'owner' || k === 'org'; }
-    function kindLabel(k) { return k === 'org' ? 'Organization' : k === 'owner' ? 'Owner account' : 'Pet account'; }
+    function kindLabel(k) { return k === 'org' ? 'Organization' : k === 'owner' ? 'Pet owner' : 'Member'; }
     // Not usable until verified (the server's badge, mirrored by checkSuspended / markVerifiedLocally)
     function orgLocked() { return iAmOrg() && !(state.verified && state.verifiedBy); }
     function isOrgId(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.kind === 'org'); }
@@ -2849,6 +2872,8 @@
     // Who really wrote a row: the profile behind author_id beats whatever
     // name the row's content claims (no impersonation via content.who).
     function authorName(authorId, fallback) {
+      // A converted pet account that hasn't named its human yet: "{pet}'s human" on my own screen
+      if (cloudUser && authorId === cloudUser.id && state.needsHumanName && iAmPerson()) return humanLabel();
       const p = authorId && PROFILE_BY_ID[authorId];
       if (p && p.username) return p.username;
       if (cloudUser && authorId === cloudUser.id) return state.displayName || fallback || 'You';
@@ -2912,6 +2937,7 @@
       setTimeout(careJoinPending, 2500);                     // arrived on a care-team invite link
       setTimeout(openPendingMate, 3000);                     // arrived on a shared Mate Match listing
       setTimeout(() => loadCare(true), 5000);                // shared pets and the care log               // pet ID tags, finder messages, lost pets nearby
+      migrateAccountModel(); // an old pet account becomes an owner acting as its pet (once; needs pet_profiles)
     }
 
     // 🎂 It's the big day! Confetti once per birthday.
@@ -2923,9 +2949,11 @@
         const today = t.getFullYear() + '-' + String(t.getMonth() + 1).padStart(2, '0') + '-' + String(t.getDate()).padStart(2, '0');
         if (state.lastBdayParty === today) return;
         state.lastBdayParty = today; saveState({ bg: true });
+        // A converted pet account: state.bday is still the pet's birthday (kept for older versions)
+        const lp = state.legacyPet && iAmPerson() ? petById('me') : null;
         setTimeout(() => {
           confetti();
-          toast('🎂 Happy birthday, ' + (state.displayName || 'friend') + '! ' + (petAge(state.bday) || ''));
+          toast('🎂 Happy birthday, ' + ((lp && lp.name) || state.displayName || 'friend') + '! ' + (petAge(state.bday) || ''));
         }, 1200);
       } catch (e) {}
     }
@@ -3527,9 +3555,12 @@
       h += interestShortcuts() + (start
         ? (tagHomeStrip() || (hxAttention().length ? hxHomeStrip() : '')) + start
         : pledgeTrackerStrip() + (tagHomeStrip() || hxHomeStrip()));
-      const first = esc((state.displayName || 'friend').split(' ')[0]);
+      // Whoever is posting right now: you, or the pet you're acting as
+      const who = actor();
+      const first = esc(who.pet ? who.name : state.needsHumanName && iAmPerson() ? 'friend' : (state.displayName || 'friend').split(' ')[0]);
+      h += nameCardHtml() + switchHintHtml(true);
       h += '<div class="composer" onclick="openCompose()">' +
-             '<div class="ca">' + myAvatar(36) + '</div>' +
+             '<div class="ca">' + who.avatar(36) + '</div>' +
              '<div class="fake-input">' + (scope === 'local' ? 'Shout it out, ' + first + ' — what\'s happening?' : 'What\'s new with you, ' + first + '?') + '</div>' +
              '<span style="font-size:1.2rem;">📷</span></div>';
       // Petfi's reason for existing, one tap from the feed
@@ -6136,17 +6167,17 @@
       const isPet = state.accountType === 'pet', isOrg = iAmOrg();
       const oi = isOrg ? (orgInfo(state.org) || { type: 'other', about: '', links: [] }) : null;
       const age = isPet ? petAge(state.bday) : '';
-      const meta = isPet ? esc(state.breed || state.species || 'Pet') + (age ? ' · ' + age : '') + ' · Pet account'
+      const meta = isPet ? esc(state.breed || state.species || 'Pet') + (age ? ' · ' + age : '') + ' · Pet profile'
                          : isOrg ? 'Organization · ' + esc(orgTypeLabel(oi.type))
-                         : 'Owner account' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
+                         : 'Pet owner' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
       // Owners and organizations with pet profiles: who you are right now, then that one's hero
       const actingNow = actingPet();
-      let h = (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) : '') +
+      let h = nameCardHtml() + (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) + switchHintHtml(false) : '') +
         (actingNow ? petHeroHtml(actingNow) : '<div class="prof-hero">' +
         // One quiet way in for anyone who isn't verified yet, pet or owner account
         (state.verified ? '' : '<button class="prof-verify" onclick="startVerify()">🪪 Become a verified member</button>') +
         '<div class="pa" style="cursor:pointer;" title="Tap to speak!" onclick="heroSpeak(this)">' + myAvatar(108) + '</div>' +
-        '<div class="prof-name">' + esc(state.displayName) + (state.verified ? ' ' + vbadge() : '') + (isOrg && state.verified ? orgMark({ kind: 'org', verified: true }) : '') + '</div>' +
+        '<div class="prof-name">' + esc(humanLabel()) + (state.verified ? ' ' + vbadge() : '') + (isOrg && state.verified ? orgMark({ kind: 'org', verified: true }) : '') + '</div>' +
         '<div class="prof-meta">' + meta + '</div>' +
         (isPet ? (state.status
           ? '<div class="prof-status" style="cursor:pointer;" onclick="openEditStatus()">' + esc(state.status) + ' ✏️</div>'
@@ -6653,13 +6684,16 @@
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
       // Inner card
       roundRect(ctx, 30, 30, W - 60, H - 60, 28); ctx.fillStyle = '#fffaf7'; ctx.fill();
+      // Acting as a pet: the card is that pet's
+      const ap = actingPet(), apLook = ap && ap.look && typeof ap.look === 'object' ? ap.look : {};
       const finish = () => {
         // Text
         ctx.textAlign = 'center'; ctx.fillStyle = '#2d2a32';
         ctx.font = '800 40px -apple-system, "Segoe UI", Roboto, sans-serif';
-        ctx.fillText(clip(state.displayName || 'My Pet', 16), W / 2, 400);
+        ctx.fillText(clip(ap ? (ap.name || 'My Pet') : humanLabel() || 'My Pet', 16), W / 2, 400);
         ctx.fillStyle = '#6b6772'; ctx.font = '500 22px -apple-system, "Segoe UI", Roboto, sans-serif';
-        const sub = state.accountType === 'pet'
+        const sub = ap ? [ap.breed || speciesLabel(ap.species), petAge(((state.petInfo || {})[ap.id] || {}).bday)].filter(Boolean).join(' · ')
+          : state.accountType === 'pet'
           ? [state.breed || state.species, petAge(state.bday)].filter(Boolean).join(' · ')
           : iAmOrg() ? orgTypeLabel((orgInfo(state.org) || {}).type)
           : 'Pet parent' + ((state.pets || []).length ? ' of ' + state.pets.map(p => p.name).slice(0, 3).join(', ') : '');
@@ -6695,7 +6729,7 @@
       };
       // The drawn icon, never the photo — this is the fallback path
       const drawIcon = () => {
-        const av = iAmPerson() ? '' : petAvatar(state.species, state.breed, 220, myLook());
+        const av = ap ? petAvatar(ap.species, ap.breed, 220, { v: apLook.v || null, a: apLook.a || null }) : iAmPerson() ? '' : petAvatar(state.species, state.breed, 220, myLook());
         if (av.indexOf('<svg') === 0) {
           const img = new Image();
           img.onload = () => { drawInCircle(img, 220); finish(); };
@@ -6707,7 +6741,7 @@
           finish();
         }
       };
-      const photo = safeAvatarUrl(state.avatarUrl);
+      const photo = ap ? safeAvatarUrl(apLook.p) : safeAvatarUrl(state.avatarUrl);
       if (photo) {
         const pimg = new Image();
         pimg.crossOrigin = 'anonymous'; // the bucket is public + CORS-open
@@ -6856,10 +6890,10 @@
         if (!(cloud && cloudUser)) { toast('Connect to the internet to share your profile link'); return; }
         syncShareAvatar();   // so the link preview shows the current icon
         url = shareProfileLink(cloudUser.id); qrUrl = profileUrl(cloudUser.id);
-        const name = state.displayName || 'me';
+        const ap = actingPet(), name = ap ? (ap.name || 'my pet') : humanLabel() || 'me';
         title = '🔗 Share my profile';
         lead = 'Anyone with this link sees ' + esc(name) + '\'s profile — even without an account — and can join Petfi in a tap. Whoever joins from it sends you a friend request automatically.';
-        text = state.accountType === 'pet' ? 'Meet ' + name + ' on Petfi 🐾' : iAmOrg() ? 'Find ' + name + ' on Petfi 🏢' : 'Find me and my pets on Petfi 🐾';
+        text = state.accountType === 'pet' || ap ? 'Meet ' + name + ' on Petfi 🐾' : iAmOrg() ? 'Find ' + name + ' on Petfi 🏢' : 'Find me and my pets on Petfi 🐾';
         subject = text;
       } else if (kind === 'person') {
         who = PROFILE_BY_ID[id];
@@ -7029,7 +7063,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.28.1';
+    const APP_VERSION = '1.29.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7058,7 +7092,7 @@
         '<ul><li>Petfi is a <b>venue</b> — sales, purchases and breeding arrangements happen directly between users. Petfi is not a party to those transactions and doesn\'t guarantee them.</li>' +
         '<li>Listings must be honest: real photos, true prices, and (for breeding) accurate age, health and pedigree information.</li>' +
         '<li>Farm and livestock breeding listings (cattle, goats, sheep, horses, pigs, poultry and others) are welcome. You are responsible for any state agriculture, health-certificate, brand-inspection and transport rules that apply to your animals.</li>' +
-        '<li>Selling anything in the Pet Store (products, food, pets or services) requires an Owner account and Petfi ID verification. So does posting a breeding listing in Mate Match. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
+        '<li>Selling anything in the Pet Store (products, food, pets or services) requires Petfi ID verification. So does posting a breeding listing in Mate Match. Illegal sales — including protected or wild animals — are banned and will be reported.</li>' +
         '<li><b>Payments:</b> Petfi does not process payments. Buyers and sellers arrange payment, pickup and shipping directly. Petfi currently charges no fee on member listings. Never pay a seller you haven\'t spoken with, and prefer in-person exchange for live animals.</li>' +
         '<li><b>No homemade consumables:</b> food, treats and anything a pet ingests must be sealed, commercially licensed products — the same regulations real pet stores follow.</li>' +
         '<li><b>Shipping &amp; refunds:</b> delivery and refunds are entirely between buyer and seller (and any retail partner, e.g. Amazon). Petfi is not responsible for an order at any point.</li>' +
@@ -7140,13 +7174,13 @@
     function openHelp() {
       openSheet('❓ Help & FAQ',
         '<div class="faq" style="margin-top:0.4rem;">' +
-        '<details><summary>🐾 What\'s the difference between a Pet and an Owner account?</summary><p>A <b>Pet account</b> is the fun one — your pet gets an animated icon, makes friends, and barks or meows at pals. An <b>Owner account</b> is for real people: it can get verified, sell in the store, advertise, and list pets for breeding. Both kinds are for adults ' + MIN_AGE + ' and older, and you can have one of each!</p></details>' +
+        '<details><summary>🐾 Can my pet have its own profile?</summary><p>Yes. Petfi has one account per person, with your pets inside it. Each pet gets its own profile with an animated icon or a photo. On your Me page, tap a pet to post, comment and say hi as them, and tap yourself to switch back. Accounts are for adults ' + MIN_AGE + ' and older. If you had a pet account before, it is now your account, with your pet inside it and nothing lost.</p></details>' +
         '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Owners verify from their profile with a government ID and a quick selfie (one-time $3; in the Android app the charge goes through Google Play). The check runs on Stripe Identity\'s own page: Petfi never sees the ID or selfie, only pass or fail and whether the person is 18 or older. A failed check can be retried at no extra charge.</p></details>' +
         '<details><summary>💊 Can Petfi refill my pet\'s prescription?</summary><p>Petfi keeps track so you never run out. Add a med under <b>🔒 My care</b> with how many pills you have: we remind you at dose time and tell you <b>a few days before it runs out</b>. Tap <b>Refill</b> to call your vet or pharmacy, or open a licensed pet pharmacy (Chewy, 1-800-PetMeds, Petco, Walmart) — they get your vet\'s OK and ship it to you. Petfi itself never sells or fills prescriptions, and your pets\' health records are private to you.</p></details>' +
         '<details><summary>🏷️ What is a Petfi pet ID tag?</summary><p>A free QR code for your pet\'s collar, made from your pet\'s health record in <b>🔒 My care</b>. Anyone who finds your pet scans it with their phone camera — no app needed — and can message you; you get a notification right away. Your phone number stays private unless you add it to the tag. If your pet goes missing, tap <b>Report lost</b>: members within 25 miles get an alert, and you can print a lost poster with the same QR.</p></details>' +
         '<details><summary>🔗 How do I share my pet\'s records with a sitter or boarder?</summary><p>Open your pet\'s health record in <b>🔒 My care</b> and tap <b>Share health passport</b>. Pick what to include and how long the link should work. The link stays up to date as you change things, and you can turn it off any time.</p></details>' +
         '<details><summary>🎬 Can I post videos?</summary><p>Yes \u2014 one video per post, <b>under a minute</b> long and up to <b>45 MB</b>. Tap <b>🎬 Add a video</b> in the composer. In the feed videos start playing <b>muted</b> when they scroll into view; tap <b>🔇</b> for sound, or tap the video itself to pause it.</p></details>' +
-        '<details><summary>🛒 How do I sell something?</summary><p>With an <b>Owner account</b>, go to the <b>Store</b> tab and tap <b>+ Sell something</b>. Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
+        '<details><summary>🛒 How do I sell something?</summary><p>Go to the <b>Store</b> tab and tap <b>+ Sell something</b> (selling needs the one-time ID check). Add photos, a price and a description — it\'s live for every member right away. Buyers message you in Petfi and you arrange payment and pickup or shipping together; Petfi takes no fee.</p></details>' +
         '<details><summary>💳 How do I pay for something?</summary><p>Member listings: message the seller and agree on payment and pickup or shipping directly — Petfi doesn\'t handle money yet, so never pay someone you haven\'t talked to. Catalog products open the retailer\'s site (Amazon and friends) where you pay them.</p></details>' +
         '<details><summary>💘 What is Mate Match?</summary><p>It\'s why Petfi exists. <b>For your animal:</b> the 💘 Mate Match tab lists dogs, cats, goats, cattle, horses, chickens — any breed — that are available to breed or looking for a mate near you. List yours in about a minute (name, breed, male or female, age, terms &amp; health), and message any owner directly. When someone lists an animal that pairs with yours nearby, Petfi tells you. People see only your town and distance, never your ZIP or address. <b>For you:</b> owners set preferences — who you\'re into, age range, whether they should have a dog or cat, and search radius — then say hi. If they say hi back, it\'s a match and you can message each other from Mate Match. Anyone can still reach you from your profile unless you turn on <b>Only friends can message</b> in Settings.</p></details>' +
         '<details><summary>🏡 What\'s the difference between Local and Everyone?</summary><p>Two feeds on Home. <b>🏡 Local</b> shows posts from within about 50 miles of your ZIP code and is unfiltered — say it how you\'d say it at the dog park. <b>🌎 Everyone</b> is the whole country and family-friendly: a post or comment with slurs or profanity can\'t be published there (you\'ll be offered Local instead). When you post, you pick which feed it goes to; Local posts never appear in Everyone. Others see only your town, never your address.</p></details>' +
@@ -7655,7 +7689,7 @@
           (owner ? '<button class="btn secondary" onclick="closeSheet();openSell()">🛒 Sell something</button>' +
             '<button class="btn secondary" onclick="closeSheet();openOfferService()">🧑‍🔧 Offer a pet service</button>' +
             (iAmOrg() ? '' : '<button class="btn secondary" onclick="closeSheet();startMateListing()">💘 List an animal in Mate Match</button>')
-            : '<p class="sub" style="font-size:0.8rem;">Selling, services and Mate Match listings use an Owner account.</p>') +
+            : '<p class="sub" style="font-size:0.8rem;">Selling, services and Mate Match listings open once this account switches to a pet owner account. That happens by itself the next time Petfi opens with a connection.</p>') +
           '<button class="btn secondary" onclick="closeSheet()">Later</button>'), 1800);
       });
     }
@@ -7675,15 +7709,34 @@
     // Verified members, any mix. A member shows if they're in ANY ticked
     // group. The old "Hide owner accounts" switch becomes Pet pals only.
     function myAudience() {
-      if (!state.audience && state.petsOnly && state.accountType === 'pet') state.audience = { pets: true, owners: false, verified: false };
+      if (!state.audience && state.petsOnly && (state.accountType === 'pet' || state.legacyPet)) state.audience = { pets: true, owners: false, verified: false };
       const a = state.audience || {};
       return (a.pets || a.owners || a.verified) ? a : { pets: true, owners: true, verified: true };
     }
+    // Pet personas (stage 4): every account is a person now, so "Pet pals" means
+    // posts made as a pet and members who have at least one pet on Petfi, and
+    // "Owners & businesses" means what people post as themselves. Here: the
+    // member as a whole (lists, messages); postAudienceOk decides each post.
     function audienceShows(p) {
       const a = myAudience();
       if (a.pets && a.owners) return true;
-      // Organizations count as "Owners & businesses"
-      return !!((a.pets && !isPersonKind(p.kind)) || (a.owners && isPersonKind(p.kind)) || (a.verified && p.verified));
+      if (a.verified && p.verified) return true;
+      if (!personasOn()) return !!((a.pets && !isPersonKind(p.kind)) || (a.owners && isPersonKind(p.kind))); // Organizations count as "Owners & businesses"
+      if (a.owners && isPersonKind(p.kind)) return true;
+      if (a.pets && !isPersonKind(p.kind)) return true; // an account not converted yet
+      if (!a.pets) return false;
+      const l = ownerPets(p.id);
+      return l === null || l.length > 0; // pets not loaded yet: give them the benefit until they are
+    }
+    // One post: made as a pet = Pet pals; made as a person = Owners & businesses
+    function postAudienceOk(authorId, pet) {
+      if (!personasOn() || (cloudUser && authorId === cloudUser.id)) return true;
+      const a = myAudience();
+      if (a.pets && a.owners) return true;
+      if (a.verified && isVerifiedUser(authorId)) return true;
+      const prof = PROFILE_BY_ID[authorId];
+      if (pet || (prof && !isPersonKind(prof.kind))) return !!a.pets;
+      return !!a.owners;
     }
     function audienceFromBoxes(prefix) {
       const on = k => { const e = document.getElementById(prefix + k); return !e || e.checked; };
@@ -7695,8 +7748,8 @@
       const row = (k, t, sub) => '<label class="toggle-row" style="cursor:pointer;"><div class="t-label">' + t + '<small>' + sub + '</small></div>' +
         '<input type="checkbox" ' + (a[k] ? 'checked' : '') + ' onchange="setAudience(\'' + k + '\',this)" style="width:22px;height:22px;"></label>';
       return '<div class="t-label" style="margin:0.6rem 0 0.2rem;font-weight:800;">Who you connect with<small>Posts, messages and members from the groups you tick. Pick one, two or all three.</small></div>' +
-        row('pets', '🐾 Pet pals', 'Fun, social Pet accounts') +
-        row('owners', '🧑‍💼 Owners &amp; businesses', 'People buying, selling, breeding and offering services') +
+        row('pets', '🐾 Pet pals', personasOn() ? 'Posts made as pets, and members with pets' : 'Fun, social pet profiles') +
+        row('owners', '🧑‍💼 Owners &amp; businesses', personasOn() ? 'Posts made by people and businesses' : 'People buying, selling, breeding and offering services') +
         row('verified', '✔️ Verified members', 'Anyone who passed Petfi\'s ID check');
     }
     function setAudience(k, box) {
@@ -8266,7 +8319,7 @@
       if (state.zip) { const g = myGeo() || await geocodeZip(state.zip); if (g) loc = { lat: +g.lat.toFixed(2), lon: +g.lon.toFixed(2), area: g.area || '' }; }
       const subBase = state.accountType === 'owner' ? 'Owner' : iAmOrg() ? orgTypeLabel((orgInfo(state.org) || {}).type) : (state.breed || state.species);
       const pendingKey = 'p' + Date.now() + Math.random().toString(36).slice(2, 7);
-      const post = { who: state.displayName, subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
+      const post = { who: humanLabel(), subBase: subBase, sub: subBase + ' · now' + (loc && loc.area ? ' · 📍 ' + loc.area : ''), type: state.accountType, species: state.species, breed: state.breed, text: t, likes: 0,
         kind: iAmPerson() ? 'like' : speciesVoice(state.species),
         variant: state.avatarVariant || null, accessories: state.accessories || null, emoji: state.accountType === 'owner' ? ownerEmoji() : null, photo: state.avatarUrl || null, pendingKey, scope, loc };
       if (as.pet) {
@@ -8870,9 +8923,10 @@
     }
     function requireSeller(what) {
       if (!iAmPerson()) {
-        openSheet('🧑 Owner account needed',
-          '<div class="note">Pet accounts are anonymous fun accounts. To ' + what + ' you need an <b>Owner account</b> so buyers know there\'s a real person behind the listing.</div>' +
-          '<p class="sub" style="font-size:0.85rem;">Log out and choose “I\'m an Owner” to create one — you can keep this pet account too.</p>' +
+        // Only an account from before stage 4 that hasn't converted yet gets here
+        openSheet('🧑 For pet owners',
+          '<div class="note">To ' + what + ' you need a pet owner account, so buyers know there\'s a real person behind the listing.</div>' +
+          '<p class="sub" style="font-size:0.85rem;">This account is still a pet account from an older version of Petfi. It switches to a pet owner account by itself the next time Petfi opens with a connection, with your pet inside it and nothing lost.</p>' +
           '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
         return false;
       }
@@ -9842,7 +9896,7 @@
       if (orgNoMate()) return;
       if (state.accountType !== 'owner') {
         openSheet('💘 Mate Match for people',
-          '<div class="note">Finding a mate for <b>you</b> needs an <b>Owner account</b> — pet accounts are anonymous fun accounts. Log out and choose "I\'m an Owner" to join Mate Match.</div>' +
+          '<div class="note">Finding a mate for <b>you</b> needs a pet owner account. This account is still a pet account from an older version of Petfi; it switches to a pet owner account by itself the next time Petfi opens with a connection.</div>' +
           '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
         return;
       }
@@ -10244,7 +10298,7 @@
     async function postToGroup(i) {
       const t = val('grp-post-in'); if (!t) { toast('Write something first'); return; }
       const g = GROUPS_VIEW[i]; if (!g) return;
-      const post = { who: state.displayName || 'You', text: t };
+      const post = { who: humanLabel(), text: t };
       if (g.cloudId && cloud && cloudUser) {
         if (!g.joined) { toast('Join the group to post in it 👥'); return; }
         const as = actor(); // acting as a pet: the group post is the pet's
@@ -10501,7 +10555,7 @@
         org ? null : ['🆘', 'Ask the Pledge for help', (assistOpen() ? 'with a vet bill, a cremation or pet food; we pay the provider directly.' : 'with a vet bill, a cremation or pet food, once the fund opens. Only verified members can ask.') + ' Not guaranteed: it depends on the funds available, how serious it is and how many requests we have'],
       ].concat(AVATAR.ready ? [['✨', 'AI avatar', 'a cartoon of your pet or you, drawn from a photo, ' + AVATAR.cap + ' tries']] : [])
        .concat([['🤝', 'Members know you\'re real', pet ? 'everyone can see a verified, accountable person is behind this pet' : org ? 'members can see a verified, accountable person stands behind this organization' : 'buyers, clients and breeders can see you\'re a verified, accountable person']])
-       .concat(pet ? [['ℹ️', 'Not included on a pet account', 'selling, offering services and listing in Mate Match need an Owner account']] : [])
+       .concat(pet ? [['ℹ️', 'Not included yet', 'selling, offering services and listing in Mate Match open once this account switches to a pet owner account']] : [])
        .filter(Boolean);
     }
     function verifyPerksHtml(title) {
@@ -10889,7 +10943,22 @@
     function hxPet(id) { return hxPets().find(p => p.id === id) || null; }
     function hxPetName(id) { const p = hxPet(id); return p ? p.name : 'My pet'; }
     function hxInfo(id) { if (!state.petInfo[id]) state.petInfo[id] = {}; return state.petInfo[id]; }
-    function hxPetIcon(p, px) { return p.id === 'me' ? myAvatar(px) : petAvatar(p.species, p.breed, px); }
+    // 'me' is a pet account's own pet (drawn from the account fields) until that
+    // account converts (stage 4); after that 'me' is a pet entry like any other,
+    // and everything keyed 'me' (meds, vaccines, petInfo, tags, cards) stays put
+    function hxMeIsAccount(id) { return id === 'me' && !iAmPerson(); }
+    function hxPetIcon(p, px) {
+      if (hxMeIsAccount(p.id)) return myAvatar(px);
+      const lp = p.id === 'me' ? petById('me') : null;
+      return lp ? myPetAvatar(lp, px) : petAvatar(p.species, p.breed, px);
+    }
+    // The photo a health card or ID tag carries for 'me' (none for other pets, as before)
+    function hxMePhoto(id) {
+      if (id !== 'me') return null;
+      const lp = hxMeIsAccount(id) ? null : petById('me');
+      const u = lp ? (lp.look && typeof lp.look === 'object' ? lp.look.p : null) : state.avatarUrl;
+      return typeof u === 'string' && u.indexOf(PHOTO_PUBLIC) === 0 ? u.slice(0, 300) : null;
+    }
     function hxYmd(d) { return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0'); }
     function hxToday() { return hxYmd(new Date()); }
     function hxValidYmd(s) { return /^\d{4}-\d{2}-\d{2}$/.test(String(s || '')) && !isNaN(new Date(s + 'T12:00:00')); }
@@ -11583,7 +11652,7 @@
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {};
       const ws = (info.weights || []).slice().sort((a, b) => a.d < b.d ? -1 : 1), w = ws[ws.length - 1];
-      const bday = p.id === 'me' ? state.bday : info.bday;
+      const bday = hxMeIsAccount(p.id) ? state.bday : info.bday;
       const pid = jsStr(p.id);
       const line = (k, v) => v ? '<div class="hx-kv"><span>' + k + '</span><b>' + esc(v) + '</b></div>' : '';
       let h = '<div style="display:flex;align-items:center;gap:0.8rem;margin-bottom:0.8rem;"><div style="width:64px;height:64px;border-radius:50%;overflow:hidden;border:3px solid var(--brand);background:var(--card);flex-shrink:0;display:flex;align-items:center;justify-content:center;">' + hxPetIcon(p, 64) + '</div>' +
@@ -11631,7 +11700,7 @@
     function copyHealthSummary(petId) {
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
-      const L = [p.name + ' — ' + [p.breed || p.species, hxPetAge(p, p.id === 'me' ? state.bday : info.bday), info.sex].filter(Boolean).join(', ')];
+      const L = [p.name + ' — ' + [p.breed || p.species, hxPetAge(p, hxMeIsAccount(p.id) ? state.bday : info.bday), info.sex].filter(Boolean).join(', ')];
       if (w) L.push('Weight: ' + w.v + ' ' + (info.wu || 'lb') + ' (' + hxDate(w.d) + ')');
       if (info.chip) L.push('Microchip: ' + info.chip + (info.chipCo ? ' (' + info.chipCo + ')' : ''));
       if (info.vetName || info.vetPhone) L.push('Vet: ' + [info.vetName, info.vetPhone].filter(Boolean).join(', '));
@@ -11653,7 +11722,7 @@
       openSheet('✏️ ' + esc(p.name) + '\'s details',
         '<label>Sex</label>' + sel('pi-sex', ['Male', 'Female'], info.sex) +
         '<label>Spayed / neutered</label>' + sel('pi-fixed', ['Yes', 'No'], info.fixed) +
-        (p.id === 'me' ? '' : '<label for="pi-bday">Birthday</label><input type="date" id="pi-bday" value="' + esc(info.bday || '') + '">') +
+        (hxMeIsAccount(p.id) ? '' : '<label for="pi-bday">Birthday</label><input type="date" id="pi-bday" value="' + esc(info.bday || '') + '">') +
         txt('pi-chip', 'Microchip number', info.chip, '15 digits on the paperwork', 30) +
         txt('pi-chipco', 'Registered with', info.chipCo, 'e.g. AKC Reunite, HomeAgain, 24Petwatch', 60) +
         txt('pi-vet', 'Vet or clinic', info.vetName, 'e.g. Happy Paws Animal Hospital') +
@@ -11807,9 +11876,10 @@
     function hxPassportCard(p) {
       const pet = hxPet(p.petId); if (!pet) return null;
       const info = state.petInfo[pet.id] || {}, inc = p.inc || {}, w = hxLastWeight(pet.id);
-      const bday = pet.id === 'me' ? state.bday : info.bday;
+      const bday = hxMeIsAccount(pet.id) ? state.bday : info.bday;
       const c = { v: 1, name: pet.name.slice(0, 40), species: pet.species };
-      if (pet.id === 'me' && typeof state.avatarUrl === 'string' && state.avatarUrl.indexOf(PHOTO_PUBLIC) === 0) c.photo = state.avatarUrl.slice(0, 300);
+      const mePhoto = hxMePhoto(pet.id);
+      if (mePhoto) c.photo = mePhoto;
       if (inc.basics) {
         c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? hxPetAge(pet, bday) : ''; // a pet that passed stops ageing here too c.sex = info.sex || ''; c.fixed = info.fixed || '';
         if (w) c.weight = { v: w.v, u: info.wu || 'lb', d: w.d };
@@ -12031,7 +12101,7 @@
     }
     async function createPetTag(petId) {
       const pet = hxPet(petId); if (!pet || !canSaveToCloud('make a pet ID tag')) return;
-      const photo = pet.id === 'me' && typeof state.avatarUrl === 'string' && state.avatarUrl.indexOf(PHOTO_PUBLIC) === 0 ? state.avatarUrl.slice(0, 300) : null;
+      const photo = hxMePhoto(pet.id);
       for (let i = 0; i < 3; i++) {
         const row = { code: hxTagCode(), user_id: cloudUser.id, pet_id: petId, pet_name: pet.name.slice(0, 40), species: String(pet.species || '').slice(0, 20), breed: String(pet.breed || '').slice(0, 40), photo_url: photo };
         const { error } = await cloud.from('petfi_pet_tags').insert(row);
@@ -13546,7 +13616,7 @@
     // ======================= CLOUD ACCOUNTS =======================
     // Sign-up happens at the end of onboarding; the whole app state is
     // mirrored to the cloud so logging in anywhere brings everything back.
-    let pendingFinish = 'pet'; // which onboarding flow is waiting on the login step
+    let pendingFinish = 'owner'; // which onboarding flow is waiting on the login step (the pet flow is no longer offered)
 
     function goAccount(kind) {
       pendingFinish = kind;
@@ -13831,7 +13901,8 @@
       if (appActive()) toast('Welcome back 🐾'); // not to someone the age check kept out
     }
 
-    function cloudSaveProfile() {
+    // onOk (optional): called once the row is saved (the account conversion notes it)
+    function cloudSaveProfile(onOk) {
       if (!cloud || !cloudUser) return;
       const row = {
         id: cloudUser.id,
@@ -13868,7 +13939,7 @@
         const o = orgInfo(state.org) || { type: 'other', about: '', links: [] };
         row.org = { type: o.type, about: o.about, links: o.links.map(l => ({ label: l.label, url: l.url })) };
       }
-      const done = ({ error }) => { if (error) console.warn('profile save:', error.message); };
+      const done = ({ error }) => { if (error) console.warn('profile save:', error.message); else if (typeof onOk === 'function') onOk(); };
       cloud.from('profiles').upsert(row).then(res => {
         if (res.error && 'org' in row && orgColMissing(res.error)) { dropOrgCol(); delete row.org; return cloud.from('profiles').upsert(row).then(done); }
         done(res);
@@ -13927,6 +13998,7 @@
       cloudSyncedJson = snapJson();
       try { localStorage.setItem('petfi-account', JSON.stringify(state)); } catch (e) {}
       cloudSavePets(); // the adopted copy's pets may not be mirrored yet
+      if (appActive()) setTimeout(migrateAccountModel, 0); // an adopted pet account converts too (after the caller re-renders)
     }
     // What the cloud row is known to hold (savedAt aside). A save whose content
     // matches it is skipped: otherwise two open devices would keep adopting and
@@ -14203,6 +14275,7 @@
         }
         // Made as one of the author's pets: the pet's name, face and voice
         const pet = personaOf(row.author_id, c, row.created_at);
+        if (!postAudienceOk(row.author_id, pet)) return; // "Who do you want to connect with?": made as a pet, or as a person
         if (pet) {
           const lk = petLook(pet);
           p.persona = pet; p.who = pet.name; p.type = 'pet'; p.emoji = null;
@@ -14446,7 +14519,16 @@
       if (photo) return photoAvatar(photo, px);
       return petAvatar(pet.species, pet.breed, px, { v: lk.v || null, a: lk.a || null });
     }
-    function personaWith(authorId) { return 'with ' + authorName(authorId, 'their owner'); }
+    function personaWith(authorId) { return 'with ' + ownerLabel(authorId, 'their owner'); }
+    // An owner's name next to their pet. A converted pet account still carries
+    // its pet's name as the account name until the human picks one, so
+    // "Echo · with Echo" reads "Echo · with Echo's human" instead.
+    function ownerLabel(id, fallback) {
+      const n = authorName(id, fallback);
+      if (cloudUser && id === cloudUser.id) return n; // authorName already says "{pet}'s human" for me
+      const lg = LEGACY_PET_BY_OWNER[id];
+      return lg && lg.owner_id === id && lg.name && String(lg.name).trim().toLowerCase() === String(n).trim().toLowerCase() ? lg.name + '\'s human' : n;
+    }
     // "Beagle · with Jasmine"
     function personaMeta(pet, authorId) { return (pet.breed || pet.species || 'Pet') + ' · ' + personaWith(authorId); }
     // Comments and group posts: same rule, name only (row = the db row, o = the mapped item)
@@ -14548,8 +14630,10 @@
       const passed = !!pet.passed;
       const meta = passed ? 'In loving memory · ' + String(pet.passed).slice(0, 4)
         : [pet.breed || speciesLabel(pet.species), pet.age].filter(Boolean).join(' · ');
-      const ownerName = mine ? (state.displayName || 'You') : (owner.username || 'Petfi member');
-      PET_PAGE = { id: String(pet.id).toLowerCase(), owner: oid, name, rows: [], more: false, busy: false };
+      if (pet.legacy && oid) LEGACY_PET_BY_OWNER[oid] = pet; // a converted pet account's pet (its older posts are its own)
+      const ownerName = mine ? humanLabel() : ownerLabel(oid, owner.username || 'Petfi member');
+      // legacyBefore: the owner's posts with no persona from before this row count as the pet's
+      PET_PAGE = { id: String(pet.id).toLowerCase(), owner: oid, name, rows: [], more: false, busy: false, legacyBefore: pet.legacy && pet.created_at ? pet.created_at : null };
       openSheet(esc(name) + (passed ? ' 🕊️' : '') + (isVerifiedUser(oid) ? ' ' + vbadge('pet') : ''),
         '<div class="pet-page' + (passed ? ' memorial' : '') + '" style="text-align:center;">' +
           '<div class="pp-ava">' + personaAvatar(pet, 96) + '</div>' +
@@ -14579,7 +14663,7 @@
           (local ? '<button class="btn secondary" onclick="petPageManage(\'' + jsStr(local.id) + '\')">⚙️ Manage ' + name + '</button>' : '') +
           '<button class="pill-btn ghost" style="display:block;margin:0.6rem auto 0;" onclick="openShareSheet(\'pet\',\'' + pid + '\')">🔗 Share ' + name + '</button>';
       }
-      const oid = jsStr(owner.id), on = esc(owner.username || 'their owner');
+      const oid = jsStr(owner.id), on = esc(ownerLabel(owner.id, owner.username || 'their owner'));
       return '<p class="sub" style="font-size:0.8rem;text-align:center;margin:0.6rem 0 0.4rem;">Friend requests and messages go to ' + name + '\'s owner, ' + on + '.</p>' +
         friendButtonsHtml(owner, true) +
         '<button class="btn secondary" onclick="openCloudDM(\'' + oid + '\')">💬 Message ' + on + '</button>' +
@@ -14607,21 +14691,28 @@
       const pg = PET_PAGE; if (!pg || pg.busy || !cloud) return;
       pg.busy = true;
       const seq = sheetSeq;
-      let q = cloud.from('posts').select('id, author_id, content, created_at')
-        .eq('author_id', pg.owner).eq('content->>as', pg.id).is('content->>petfiType', null)
-        .order('created_at', { ascending: false }).limit(PET_POSTS_N + 1);
-      if (more && pg.rows.length) q = q.lt('created_at', pg.rows[pg.rows.length - 1].created_at);
-      let res;
-      try { res = await q; } catch (e) { res = { error: e }; }
+      const ms = t => new Date(t).getTime();
+      const cur = more && pg.rows.length ? pg.rows[pg.rows.length - 1].created_at : null;
+      const mine = () => cloud.from('posts').select('id, author_id, content, created_at').eq('author_id', pg.owner).is('content->>petfiType', null);
+      let q = mine().eq('content->>as', pg.id).order('created_at', { ascending: false }).limit(PET_POSTS_N + 1);
+      if (cur) q = q.lt('created_at', cur);
+      // A converted pet account's pet: the owner's posts with no persona from
+      // before the pet's row was made were posted by the pet account itself
+      const before = pg.legacyBefore ? (cur && ms(cur) < ms(pg.legacyBefore) ? cur : pg.legacyBefore) : null;
+      const q2 = before ? mine().is('content->>as', null).lt('created_at', before).order('created_at', { ascending: false }).limit(PET_POSTS_N + 1) : null;
+      let res, res2 = { data: [] };
+      try { [res, res2] = await Promise.all([q, q2 || Promise.resolve({ data: [] })]); } catch (e) { res = { error: e }; }
       pg.busy = false;
       if (PET_PAGE !== pg || sheetSeq !== seq) return;
       const box = document.getElementById('pet-posts'); if (!box) return;
-      if (res.error) {
+      if (res.error || (res2 && res2.error)) {
         if (more) toast('⚠️ Couldn\'t load more posts');
         else box.innerHTML = '<p class="sub" style="font-size:0.85rem;">⚠️ Couldn\'t load posts right now.</p>';
         return;
       }
-      const rows = (res.data || []).filter(r => r && r.author_id === pg.owner && r.content && String(r.content.as || '').toLowerCase() === pg.id);
+      const rows = (res.data || []).filter(r => r && r.author_id === pg.owner && r.content && String(r.content.as || '').toLowerCase() === pg.id)
+        .concat(((res2 && res2.data) || []).filter(r => r && r.author_id === pg.owner && r.content && (r.content.as == null || r.content.as === '') && ms(r.created_at) < ms(pg.legacyBefore)))
+        .sort((a, b) => ms(b.created_at) - ms(a.created_at));
       pg.more = rows.length > PET_POSTS_N;
       pg.rows = pg.rows.concat(rows.slice(0, PET_POSTS_N));
       box.innerHTML = petPostsHtml(pg);
@@ -14741,7 +14832,12 @@
       }
       // 3. Upsert every pet whose row is missing or out of date
       const pets = mirrorablePets();
-      const send = pets.map(p => petRowFor(p, uid)).filter(r => !petRowSame(r, MY_PET_ROWS[r.local_id]));
+      // A converted pet account's pet ('me', legacy): its row says legacy so the
+      // account's older posts stay the pet's. Sent here, never by older versions.
+      const lgMe = legacyMePet();
+      const lgFix = r => !!(lgMe && r.local_id === 'me' && MY_PET_ROWS.me && MY_PET_ROWS.me.legacy !== true);
+      const send = pets.map(p => petRowFor(p, uid)).filter(r => !petRowSame(r, MY_PET_ROWS[r.local_id]) || lgFix(r));
+      if (lgMe) send.forEach(r => { if (r.local_id === 'me') r.legacy = true; });
       // Rows I know exist are UPDATEd (an upsert runs the insert guard first, whose
       // 30-pet cap would refuse every change once a member has 30); new ones are upserted
       const known = send.filter(r => MY_PET_ROWS[r.local_id]), fresh = send.filter(r => !MY_PET_ROWS[r.local_id]);
@@ -14764,6 +14860,11 @@
       }
       // 4. Each pet keeps its row id; my rows go where the feed looks for pets
       Object.keys(MY_PET_ROWS).forEach(k => { const r = MY_PET_ROWS[k]; if (r && r.id) PET_BY_ID[String(r.id).toLowerCase()] = r; });
+      // My legacy pet: the feed draws my older posts as it (re-read once it first appears)
+      const lgRow = MY_PET_ROWS.me && MY_PET_ROWS.me.legacy === true && MY_PET_ROWS.me.id ? MY_PET_ROWS.me : null;
+      let lgNew = false;
+      if (lgRow) { const was = LEGACY_PET_BY_OWNER[uid]; lgNew = !was || was.id !== lgRow.id; LEGACY_PET_BY_OWNER[uid] = lgRow; }
+      if (lgNew && appActive()) { lastPostsFetch = 0; if (state.tab === 'home') loadCloudPosts(true); }
       pets.forEach(p => {
         const r = MY_PET_ROWS[p.id], want = r && r.id ? String(r.id).toLowerCase() : null;
         if (want && p.ppid !== want) { p.ppid = want; dirty = true; }
@@ -14771,7 +14872,11 @@
       });
       if (dirty) {
         saveState({ bg: true }); // a background save: never asks anyone to redo a change
-        if (appActive()) { setTopAvatar(); refreshComposeAs(); if (state.tab === 'profile') rerenderTab(renderProfile); }
+        if (appActive()) {
+          setTopAvatar(); refreshComposeAs();
+          if (state.tab === 'profile') rerenderTab(renderProfile);
+          else if (state.tab === 'home' && switchHintPet()) rerenderTab(renderHome); // the first-pet hint needs the pet on Petfi
+        }
       }
     }
     // A removed pet's row is deleted by the next sync after the Undo window
@@ -14805,7 +14910,7 @@
           look: { v: lk.v || null, a: lk.a || null, e: null, p: safeAvatarUrl(lk.p) }, voice: speciesVoice(sp), avatar: px => myPetAvatar(pet, px) };
       }
       const person = iAmPerson();
-      return { pet: null, id: null, ppid: null, name: state.displayName || 'You', species: person ? '' : (state.species || ''), breed: person ? '' : (state.breed || ''),
+      return { pet: null, id: null, ppid: null, name: humanLabel(), species: person ? '' : (state.species || ''), breed: person ? '' : (state.breed || ''),
         look: { v: state.avatarVariant || null, a: state.accessories || null, e: state.accountType === 'owner' ? ownerEmoji() : null, p: safeAvatarUrl(state.avatarUrl) },
         voice: myVoice(), avatar: px => myAvatar(px) };
     }
@@ -14816,7 +14921,10 @@
       const pets = (state.pets || []).filter(p => p && p.id && !p.passed && p.hidden !== true);
       return pets.length ? pets : null;
     }
-    function humanShortName() { const n = state.displayName || 'Me'; return iAmOrg() ? n : n.split(' ')[0]; }
+    function humanShortName() {
+      if (state.needsHumanName && iAmPerson()) return humanLabel(); // "Echo's human" until they pick a name
+      const n = state.displayName || 'Me'; return iAmOrg() ? n : n.split(' ')[0];
+    }
     // You first, then each pet; fn is the handler called with the pet id (null = you)
     function personaChipsHtml(fn, small, withAdd) {
       const px = small ? 38 : 48, cur = actingPet(), curId = cur ? cur.id : null;
@@ -14834,11 +14942,12 @@
       if (id && !pet) { toast('That pet isn\'t available right now'); return; }
       const next = pet ? pet.id : null;
       if ((state.actingAs || null) !== next) { state.actingAs = next; saveState(); }
+      try { localStorage.removeItem(SWITCH_HINT_KEY); } catch (e) {} // they found the switcher
       if (pet && !pet.ppid) cloudSavePets(true); // not on Petfi yet: try now
       setTopAvatar(); haptic(8);
       if (appActive() && state.tab === 'profile') { rerenderTab(renderProfile); if (!quiet) window.scrollTo(0, 0); }
       else if (appActive() && state.tab === 'home') rerenderTab(renderHome); // comment boxes say who you are
-      const name = pet ? (pet.name || 'your pet') : (state.displayName || 'yourself');
+      const name = pet ? (pet.name || 'your pet') : (state.needsHumanName ? humanLabel() : state.displayName || 'yourself');
       toast(quiet ? 'Posting as ' + name + (pet ? ' 🐾' : '') : 'You\'re now ' + name + (pet ? ' 🐾' : ' 👋'));
     }
     // The composer's "Posting as" row (empty when there is no pet to pick)
@@ -14872,6 +14981,148 @@
     function cmtAsAvatar() { return personaChoices() ? '<span class="cmt-as" aria-hidden="true">' + actor().avatar(30) + '</span>' : ''; }
     function cmtPlaceholder() { return personaChoices() ? 'Comment as ' + actor().name + '…' : 'Add a comment...'; }
     function grpPlaceholder() { return personaChoices() ? 'Post to the group as ' + actor().name + '…' : 'Post to the group...'; }
+
+    // ---- Stage 4: one account per person. Converting an old pet account ----
+    // A pet account (accountType 'pet') becomes an owner account whose first pet
+    // is the old pet, with the id 'me': the id everything of that pet was
+    // already keyed by (meds, vaccines, visits, journal, petInfo, ID tags, health
+    // cards, care teams), so nothing is rewritten. The member keeps acting as the
+    // pet (actingAs 'me'), and the human picks a name later (needsHumanName);
+    // until then the account name stays the pet's, so friends see no rename.
+    // Runs from enterApp and after every adopted cloud copy, only inside the app
+    // with a login and only when pet_profiles answers (personasOn). It is
+    // deterministic: no random ids and no clock (convertedAt is the copy's own
+    // savedAt), so two devices converting the same copy make the same JSON, and
+    // the conversion is a background save, so the device that saves second
+    // adopts the first one's copy quietly (no "redo" toast) and stops there,
+    // because an owner account never converts again. Never touches post rows.
+    // A 1.28 client opening the result sees an owner with a pet whose id is
+    // 'me' (it already handled that); the database keeps it an owner.
+    var MODEL_SENT_KEY = 'petfi-model-sent';  // this device saved the converted account's profile row (kind owner)
+    var SWITCH_HINT_KEY = 'petfi-switch-hint'; // new owner's first pet: "Tap {pet} to post as them", once
+    var nameCardLater = false;                 // "Later" on the name card: hidden until the next launch
+    function legacyMePet() { const p = petById('me'); return p && p.legacy === true ? p : null; }
+    // The human of this account as they appear on their own screen
+    function humanLabel() {
+      if (state.needsHumanName && iAmPerson()) { const lp = petById('me'); return ((lp && lp.name) || 'Your pet') + '\'s human'; }
+      return state.displayName || 'You';
+    }
+    function markModelSent() { try { if (cloudUser) localStorage.setItem(MODEL_SENT_KEY, cloudUser.id); } catch (e) {} }
+    function migrateAccountModel() {
+      if (!cloud || !cloudUser || cloudSavesOff || !appActive() || !state.accountType) return;
+      if (state.ageId && state.ageId !== cloudUser.id) return; // never someone else's copy
+      if (state.accountType !== 'pet') {
+        // Converted here or on another device: the profile row and the legacy pet row follow
+        if (state.legacyPet && state.accountType === 'owner') {
+          let sent = null; try { sent = localStorage.getItem(MODEL_SENT_KEY); } catch (e) {}
+          if (sent !== cloudUser.id) cloudSaveProfile(markModelSent);
+          if (legacyMePet()) cloudSavePets(true);
+        }
+        return;
+      }
+      if (PERSONAS_STATE === 0) { personasProbe().then(on => { if (on) migrateAccountModel(); }); return; }
+      if (!personasOn()) return; // no pet_profiles table: stays a pet account, exactly as before
+      convertPetAccount();
+      saveState({ bg: true });          // a background save: losing to another device adopts its copy quietly
+      cloudSaveProfile(markModelSent);  // kind pet -> owner (the database allows it); the username stays the pet's
+      cloudSavePets(true);              // the 'me' row, with legacy: true (syncPetsOnce)
+      lastPostsFetch = 0;
+      if (appActive()) { setTopAvatar(); openTab(state.tab || 'home'); }
+    }
+    function convertPetAccount() {
+      const s = state;
+      const name = petClean(s.name || s.displayName, 40) || 'My pet';
+      // When: the cloud row this copy was built on (its updated_at as last seen), not the
+      // clock or savedAt (a launch's own background save moves savedAt), so every device
+      // that converts the same row writes the same value
+      const seen = cloudUser && cloudSeenFor === cloudUser.id ? cloudSeenAt : null, t = new Date(seen || 0);
+      const convertedAt = seen && !isNaN(t) ? t.toISOString() : null;
+      // 1. What the old pet account was, so it can be put back by hand
+      const keep = {};
+      ['name', 'displayName', 'species', 'breed', 'bday', 'emoji', 'avatarVariant', 'accessories', 'avatarUrl', 'status', 'shareAvatarSig', 'petsOnly']
+        .forEach(k => { if (s[k] !== undefined) keep[k] = s[k]; });
+      s.legacyPet = Object.assign(keep, { convertedAt });
+      // 2. The pet entry 'me' (look shaped like any other pet's: variant, accessories, photo)
+      const look = {};
+      if (s.avatarVariant && typeof s.avatarVariant === 'object' && !Array.isArray(s.avatarVariant)) look.v = s.avatarVariant;
+      if (s.accessories && typeof s.accessories === 'object' && !Array.isArray(s.accessories) && Object.keys(s.accessories).length) look.a = s.accessories;
+      if (safeAvatarUrl(s.avatarUrl)) look.p = s.avatarUrl;
+      const old = Array.isArray(s.pets) ? s.pets.filter(p => p && typeof p === 'object') : [];
+      const pet = Object.assign({}, old.find(p => p.id === 'me') || {}, { id: 'me', name, species: String(s.species || '').toLowerCase() || 'other', breed: petClean(s.breed, 60), legacy: true });
+      if (s.status) pet.status = petClean(s.status, 200);
+      if (Object.keys(look).length) pet.look = look;
+      // The same animal listed again under pets (an older version allowed it):
+      // dropped when it has nothing of its own; anything with records is kept
+      const own = id => ['meds', 'vaccines', 'visits', 'journal', 'supplies', 'spend', 'passports'].some(k => Array.isArray(s[k]) && s[k].some(x => x && x.petId === id)) ||
+        !!(s.petInfo && s.petInfo[id] && typeof s.petInfo[id] === 'object' && Object.keys(s.petInfo[id]).length) ||
+        (Array.isArray(s.calendar) && s.calendar.some(x => x && x.petId === id));
+      const same = p => String(p.name || '').trim().toLowerCase() === name.toLowerCase();
+      const rest = old.filter(p => p.id !== 'me' && !(same(p) && !own(p.id)));
+      s.pets = [pet].concat(rest);
+      // The pet's birthday moves to its record (state.bday stays for older versions)
+      if (hxValidYmd(s.bday)) {
+        if (!s.petInfo || typeof s.petInfo !== 'object' || Array.isArray(s.petInfo)) s.petInfo = {};
+        const pi = s.petInfo.me = Object.assign({}, s.petInfo.me);
+        if (!pi.bday) pi.bday = s.bday;
+      }
+      // "Show me pets only" keeps meaning pet posts
+      if (!s.audience && s.petsOnly) s.audience = { pets: true, owners: false, verified: false };
+      // 3. The account is the human's now, acting as the pet
+      s.accountType = 'owner';
+      s.actingAs = 'me';
+      s.needsHumanName = true;
+      s.modelV = 2;
+      s.sellerApproved = true;
+      // Keys every state has (DEFAULT_STATE) go back to their defaults rather than away, so this
+      // copy is byte-for-byte what another device gets when it adopts it (resetState + assign)
+      ['species', 'breed', 'avatarVariant', 'accessories', 'avatarUrl', 'status', 'emoji', 'shareAvatarSig'].forEach(k => {
+        if (k in DEFAULT_STATE) s[k] = JSON.parse(JSON.stringify(DEFAULT_STATE[k])); else delete s[k];
+      });
+      track('account_converted', 'pet');
+    }
+    // "What should we call you?" on Home and Me, until they answer (Later hides it until the next launch)
+    function nameCardHtml() {
+      if (!state.needsHumanName || nameCardLater || !iAmPerson()) return '';
+      const lp = petById('me'), pn = esc((lp && lp.name) || 'your pet');
+      return '<div class="note name-card" id="name-card" style="text-align:left;">' +
+        '<div style="font-weight:800;margin-bottom:0.3rem;">👋 What should we call you?</div>' +
+        '<p class="sub" style="font-size:0.85rem;margin:0 0 0.5rem;">You are now the owner of ' + pn + '\'s account. Petfi now has one account per person, with their pets inside it. Nothing was lost: ' + pn + '\'s posts, friends and records are all still here.</p>' +
+        '<label for="hn-name">Your name</label><input id="hn-name" maxlength="40" placeholder="e.g. Jordan" autocomplete="given-name" onkeydown="if(event.key===\'Enter\')saveHumanName()">' +
+        '<div style="display:flex;gap:0.5rem;margin-top:0.6rem;"><button class="btn small" style="flex:1;margin:0;" onclick="saveHumanName()">Save</button>' +
+        '<button class="pill-btn ghost" style="flex:1;" onclick="laterHumanName()">Later</button></div></div>';
+    }
+    function saveHumanName() {
+      const el = document.getElementById('hn-name');
+      const n = petClean(el ? el.value : '', 40);
+      if (!n) { toast('What should we call you?'); if (el) el.focus(); return; } // same rule as the owner sign-up
+      state.displayName = n;
+      delete state.needsHumanName;
+      saveState(); cloudSaveProfile(); // profiles.username follows
+      if (el) el.blur();
+      setTopAvatar();
+      if (appActive()) openTab(state.tab || 'home');
+      toast('Nice to meet you, ' + n.split(' ')[0] + ' 👋');
+    }
+    function laterHumanName() {
+      nameCardLater = true;
+      const c = document.getElementById('name-card'); if (c) c.remove();
+    }
+    // The first pet from sign-up: show where the switcher is, once
+    function switchHintPet() {
+      let id = null; try { id = localStorage.getItem(SWITCH_HINT_KEY); } catch (e) {}
+      if (!id || !personaChoices() || actingPet()) return null;
+      const pt = petById(id);
+      return pt && !pt.passed && pt.hidden !== true ? pt : null;
+    }
+    function switchHintHtml(withChips) {
+      const pt = switchHintPet(); if (!pt) return '';
+      return '<div class="note switch-hint" style="text-align:center;">' + (withChips ? personaChipsHtml('setActingAs', true, false) : '') +
+        '<div style="margin-top:0.3rem;">👆 Tap ' + esc(pt.name || 'your pet') + ' to post as them. <span class="link" role="button" tabindex="0" onclick="dismissSwitchHint()">Got it</span></div></div>';
+    }
+    function dismissSwitchHint() {
+      try { localStorage.removeItem(SWITCH_HINT_KEY); } catch (e) {}
+      document.querySelectorAll('.switch-hint').forEach(e => e.remove());
+    }
 
     // Make sure we hold the public profile of every author we're about to
     // show, so names/avatars come from real rows (one query for all missing).
@@ -15707,14 +15958,21 @@
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem('petfi-account')); } catch (e) {}
       if (!saved || !saved.accountType || !savedIsMine(saved)) { slot.innerHTML = ''; return; }
-      const ava = saved.accountType === 'owner'
+      // An owner acting as one of their pets continues as that pet (a converted pet account does at first)
+      const pets = saved.accountType !== 'pet' && Array.isArray(saved.pets) ? saved.pets : [];
+      const ap = saved.actingAs ? pets.find(p => p && p.id === saved.actingAs && !p.passed && p.hidden !== true) : null;
+      const apLook = ap && ap.look && typeof ap.look === 'object' ? ap.look : {};
+      const lp = saved.needsHumanName ? pets.find(p => p && p.id === 'me') : null;
+      const ava = ap ? (safeAvatarUrl(apLook.p) ? photoAvatar(safeAvatarUrl(apLook.p), 44) : petAvatar(ap.species, ap.breed, 44, { v: apLook.v || null, a: apLook.a || null }))
+        : saved.accountType === 'owner'
         ? '<div class="emo" style="font-size:26px;">🧑</div>'
         : saved.accountType === 'org' ? '<div class="emo" style="font-size:26px;">🏢</div>'
         : petAvatar(saved.species, saved.breed, 44);
+      const name = ap ? (ap.name || 'your pet') : lp ? (lp.name || 'Your pet') + '\'s human' : (saved.displayName || 'you');
       slot.innerHTML =
         '<div class="choice" style="display:flex;align-items:center;gap:0.8rem;padding:1rem 1.2rem;" onclick="resumeSession()">' +
           '<div style="width:46px;height:46px;border-radius:50%;overflow:hidden;background:var(--bg);border:2px solid var(--brand);flex-shrink:0;">' + ava + '</div>' +
-          '<div><h3 style="font-size:1.05rem;margin:0;">Continue as ' + esc(saved.displayName || 'you') + '</h3>' +
+          '<div><h3 style="font-size:1.05rem;margin:0;">Continue as ' + esc(name) + '</h3>' +
           '<p style="margin:0;">Pick up right where you left off</p></div></div>';
     }
     document.querySelectorAll('.min-age').forEach(e => { e.textContent = MIN_AGE; }); // static age text follows MIN_AGE
