@@ -1096,7 +1096,7 @@
       <div style="text-align:center; padding-top:2rem;">
         <div style="font-size:3.5rem;">🐾</div>
         <div class="logo" style="font-size:2.2rem; margin-top:0.5rem;">Pet<span>fi</span></div>
-        <p class="sub" style="margin-top:0.6rem;">The social world for pets<br/>and the people who love them.</p>
+        <p class="sub" style="margin-top:0.6rem;">Everything for pets, farm animals<br/>and the people who care for them.</p>
       </div>
       <p style="text-align:right;margin:0 0 0.2rem;" translate="no"><a href="#" id="lang-link" onclick="setLang(langIsEs() ? 'en' : 'es');return false;" style="color:var(--muted);font-weight:700;text-decoration:none;font-size:0.85rem;">🌐 Español</a></p>
       <div id="lang-ask" class="note" style="display:none;text-align:center;" translate="no">¿Quieres usar Petfi en español?
@@ -1104,13 +1104,13 @@
       <div id="invite-slot"></div>
       <div id="resume-slot"></div>
       <h2 style="text-align:center; margin-top:1.5rem;">Join Petfi</h2>
-      <p class="sub" style="text-align:center;">One account for you, with all your pets inside it.</p>
+      <p class="sub" style="text-align:center;">One account for you, with all your animals inside it.</p>
 
       <!-- The old "I'm a Pet" card is gone (stage 4): every account is a person, pets live inside it -->
       <div class="choice owner" role="button" tabindex="0" onclick="startOwner()">
         <div class="big">🐾</div>
-        <h3>I'm a pet owner</h3>
-        <p>Make your account, then add your pets. Post as yourself or as any of your pets, find a breeding match, and meet other pet people.</p>
+        <h3>I'm an animal lover</h3>
+        <p>For pet owners, farmers and ranchers, future adopters, and anyone here to help. Add your pets or livestock, or skip that and just join. Post as your pets, find a breeding match, report a lost pet, look for your next pet or donate.</p>
       </div>
 
       <p style="text-align:center;margin:0.2rem 0 0;font-size:0.9rem;">
@@ -1268,7 +1268,7 @@
       <button class="back" onclick="show('s-owner-interests')">← Back</button>
       <div class="steps"><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div><div class="dot on" style="background:var(--blue);"></div></div>
       <h1>Who's your pet? 🐾</h1>
-      <p class="sub">Your pet gets their own profile you can post as, plus reminders, a free ID tag and a health record. You can add more pets later.</p>
+      <p class="sub">Your pet gets their own profile you can post as, plus reminders, a free ID tag and a health record. Farm animals count too. You can add more later, and if you don't have a pet right now, just tap Skip for now.</p>
       <label for="owner-pet-name">Pet name</label>
       <input type="text" id="owner-pet-name" maxlength="40" placeholder="e.g. Biscuit" oninput="ownerPetPreview()" />
       <label>Species</label>
@@ -6312,7 +6312,7 @@
       const age = isPet ? petAge(state.bday) : '';
       const meta = isPet ? esc(state.breed || state.species || 'Pet') + (age ? ' · ' + age : '') + ' · Pet profile'
                          : isOrg ? 'Organization · ' + esc(orgTypeLabel(oi.type))
-                         : 'Pet owner' + ((state.pets || []).length ? ' · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : '');
+                         : (state.pets || []).length ? 'Pet owner · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : 'Member';
       // Owners and organizations with pet profiles: who you are right now, then that one's hero
       const actingNow = actingPet();
       let h = nameCardHtml() + (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) + switchHintHtml(false) : '') +
@@ -7221,7 +7221,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.31.0';
+    const APP_VERSION = '1.31.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
