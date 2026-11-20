@@ -1114,7 +1114,7 @@
       </div>
 
       <p style="text-align:center;margin:0.2rem 0 0;font-size:0.9rem;">
-        <a href="#" onclick="startOrg();return false;" style="color:var(--muted);font-weight:600;">Making an account for your organization? Click here to get started</a>
+        <a href="#" onclick="startOrg();return false;" style="color:var(--muted);font-weight:600;">Making an account for your organization or farm? Click here to get started</a>
       </p>
 
       <p style="text-align:center;margin-top:1.2rem;">
@@ -1288,7 +1288,7 @@
     <section class="screen" id="s-org">
       <button class="back" onclick="show('s-welcome')">← Back</button>
       <h1>Your organization 🏢</h1>
-      <p class="sub">For vets, shelters, rescues, groomers, trainers, pet stores and other pet organizations. Members see this on your profile.</p>
+      <p class="sub">For vets, shelters, rescues, groomers, trainers, pet stores, farms and ranches, and other animal organizations. Members see this on your profile.</p>
       <label for="org-name">Organization name</label>
       <input type="text" id="org-name" maxlength="60" placeholder="e.g. Happy Paws Rescue" />
       <label for="org-zip">ZIP code</label>
@@ -2743,7 +2743,9 @@
     // screen (s-orggate) until Petfi's server says it is ID-verified, on every
     // way in, and it never takes part in Mate Match.
     const ORG_TYPES = [['vet', 'Vet clinic'], ['shelter', 'Shelter or rescue'], ['groomer', 'Groomer'], ['trainer', 'Trainer'],
-      ['store', 'Pet store'], ['boarding', 'Boarding or daycare'], ['nonprofit', 'Nonprofit'], ['other', 'Other']];
+      ['store', 'Pet store'], ['boarding', 'Boarding or daycare'], ['nonprofit', 'Nonprofit'], ['farm', 'Farm or ranch'], ['other', 'Other']];
+    // A farm shows a tractor where other organizations show a building
+    function orgEmoji(o) { return (orgInfo(o) || {}).type === 'farm' ? '🚜' : '🏢'; }
     function orgTypeLabel(t) { const f = ORG_TYPES.find(x => x[0] === t); return f ? f[1] : 'Organization'; }
     function iAmOrg() { return state.accountType === 'org'; }
     // A real person runs this account (owner or organization), not a pet
@@ -2799,7 +2801,7 @@
         '<select id="' + p + '-type"><option value="">Choose one</option>' +
           ORG_TYPES.map(t => '<option value="' + t[0] + '"' + (t[0] === o.type ? ' selected' : '') + '>' + esc(t[1]) + '</option>').join('') + '</select>' +
         '<label for="' + p + '-about">Short description <small style="color:var(--muted);font-weight:400;">(optional, up to 300 characters)</small></label>' +
-        '<textarea id="' + p + '-about" maxlength="300" rows="3" placeholder="What you do, who you help, your hours">' + esc(o.about) + '</textarea>' +
+        '<textarea id="' + p + '-about" maxlength="300" rows="3" placeholder="What you do or sell, what you specialize in, your hours">' + esc(o.about) + '</textarea>' +
         '<label>Links <small style="color:var(--muted);font-weight:400;">(optional, up to 3)</small></label>' +
         '<p class="sub" style="font-size:0.75rem;margin:0 0 0.4rem;">Your website, adoption page, booking page or social media. Only secure https:// links.</p>' +
         link(1) + link(2) + link(3);
@@ -2984,7 +2986,7 @@
       const photo = safeAvatarUrl(state.avatarUrl);
       if (photo) return photoAvatar(photo, px);
       if (state.accountType === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + ownerEmoji() + '</div>';
-      if (iAmOrg()) return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">🏢</div>';
+      if (iAmOrg()) return '<div class="emo" style="font-size:' + Math.round(px * 0.6) + 'px;">' + orgEmoji(state.org) + '</div>';
       return petAvatar(state.species, state.breed, px, myLook());
     }
     function entityAvatar(e, px) {
@@ -4629,10 +4631,10 @@
              '<input type="text" id="nearby-zip" inputmode="numeric" aria-label="ZIP code" placeholder="ZIP code" value="' + esc(zip) + '" maxlength="5" style="flex:1;" onkeydown="if(event.key===\'Enter\')applyZip()">' +
              '<button class="btn small" style="margin:0;" onclick="applyZip()">Search</button></div>';
       if (!zip) {
-        h += '<div class="note">Enter your ZIP to see real dog parks, pet stores and vets around you (from OpenStreetMap — no ads).</div>';
+        h += '<div class="note">Enter your ZIP to see real dog parks, pet stores, vets and feed stores around you (from OpenStreetMap — no ads).</div>';
         return h;
       }
-      const real = state.spots && state.spots.zip === zip ? state.spots : null;
+      const real = state.spots && state.spots.zip === zip && state.spots.feed ? state.spots : null; // no feed list = saved before 1.31.3
       if (state.spotsLoading || (!real && !state.spotsFailed)) {
         h += '<div class="note">⏳ Looking up real places near ' + esc(zip) + '…</div>';
         if (!state.spotsLoading) setTimeout(() => applyZip(zip), 0); // first open: fetch automatically
@@ -4643,6 +4645,8 @@
         h += '<div class="sec" style="margin-top:0.4rem;"><h3>🌳 Dog parks</h3></div>' + (real.parks.length ? real.parks.map(spotRow).join('') : none);
         h += '<div class="sec"><h3>🛒 Pet stores</h3></div>' + (real.stores.length ? real.stores.map(spotRow).join('') : none);
         h += '<div class="sec"><h3>🏥 Vets</h3></div>' + (real.vets.length ? real.vets.map(spotRow).join('') : none);
+        h += '<div class="sec"><h3>🌾 Feed &amp; farm stores</h3></div>' + (real.feed.length ? real.feed.map(spotRow).join('') : '<div class="note">None mapped within ~20 miles.</div>') +
+          '<p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0.2rem;">Looking for hay, feed or livestock supplies? <span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('feed store near ' + zip) + '\')">See more feed stores on Maps</span></p>';
         h += '<p class="sub" style="font-size:0.72rem;margin-top:0.6rem;">Places from OpenStreetMap contributors. Missing a spot? <a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noopener" style="color:var(--brand-text);">Add it to the map</a>.</p>';
       }
       return h;
@@ -4659,7 +4663,7 @@
       const photo = safeAvatarUrl((pubExtras(u).look || {}).p);
       if (photo) return photoAvatar(photo, px);
       if (u.kind === 'owner') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">' + safeEmoji((pubExtras(u).look || {}).e) + '</div>';
-      if (u.kind === 'org') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">🏢</div>';
+      if (u.kind === 'org') return '<div class="emo" style="font-size:' + Math.round(px * 0.75) + 'px;">' + orgEmoji(u.org) + '</div>';
       return petAvatar(u.species, u.breed, px, pubExtras(u).look);
     }
     function personMeta(u) {
@@ -4700,7 +4704,8 @@
           'nwr["leisure"="dog_park"](around:16000,' + lat + ',' + lon + ');' +
           'nwr["shop"="pet"](around:16000,' + lat + ',' + lon + ');' +
           'nwr["amenity"="veterinary"](around:16000,' + lat + ',' + lon + ');' +
-          ');out center 60;';
+          FEED_SEL.map(s => s + '(around:32000,' + lat + ',' + lon + ');').join('') +
+          ');out center 150;';
         const data = await (await fetch('https://overpass-api.de/api/interpreter', {
           method: 'POST',
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
@@ -4722,8 +4727,14 @@
       const h = Math.sin(dLat/2)*Math.sin(dLat/2) + Math.cos(toR(lat1)) * Math.cos(toR(lat2)) * Math.sin(dLon/2)*Math.sin(dLon/2);
       return R * 2 * Math.asin(Math.sqrt(h));
     }
+    // Feed and farm stores. OpenStreetMap tags Tractor Supply as a
+    // country_store; local feed stores are agrarian or just carry "Feed" in the name.
+    const FEED_SEL = ['nwr["shop"="country_store"]', 'nwr["shop"="agrarian"]["agrarian"~"feed|livestock"]', 'nwr["shop"]["name"~"feed|saddlery|tack shop",i]'];
+    function isFeedStore(t) {
+      return t.shop === 'country_store' || (t.shop === 'agrarian' && /feed|livestock/.test(t.agrarian || '')) || /feed|saddlery|tack shop/i.test(t.name || '');
+    }
     function groupSpots(elements, lat, lon, zip) {
-      const out = { zip, parks: [], stores: [], vets: [] };
+      const out = { zip, parks: [], stores: [], vets: [], feed: [] };
       elements.forEach(el => {
         const t = el.tags || {}; if (!t.name) return;
         const la = el.lat != null ? el.lat : (el.center && el.center.lat);
@@ -4733,10 +4744,11 @@
         const item = { name: t.name, mi, meta: mi.toFixed(1) + ' mi away',
           url: 'https://www.google.com/maps/search/?api=1&query=' + la + ',' + lo };
         if (t.leisure === 'dog_park') { item.icon = '🌳'; out.parks.push(item); }
-        else if (t.shop === 'pet') { item.icon = '🛒'; out.stores.push(item); }
         else if (t.amenity === 'veterinary') { item.icon = '🏥'; out.vets.push(item); }
+        else if (isFeedStore(t)) { item.icon = '🌾'; out.feed.push(item); }
+        else if (t.shop === 'pet') { item.icon = '🛒'; out.stores.push(item); }
       });
-      ['parks', 'stores', 'vets'].forEach(k => {
+      ['parks', 'stores', 'vets', 'feed'].forEach(k => {
         out[k].sort((a, b) => a.mi - b.mi);
         out[k] = out[k].slice(0, 5);
       });
@@ -4761,7 +4773,7 @@
     // One bar that answers like Google would — but pets only, no ads.
     // "dog wash near me" → real places sorted by distance (OpenStreetMap).
     // "purina cat food"  → Petfi store matches + clean links into pet shops.
-    const SEARCH_SUGGESTIONS = ['dog wash near me', 'purina cat food', 'vet near me', 'dog park nearby', 'orthopedic dog bed', 'cat groomer near me'];
+    const SEARCH_SUGGESTIONS = ['dog wash near me', 'purina cat food', 'vet near me', 'dog park nearby', 'orthopedic dog bed', 'feed store near me'];
     // =====================================================
     //  AFFILIATE CONFIG  ——  THIS IS HOW PETFI EARNS MONEY
     // -----------------------------------------------------
@@ -4888,6 +4900,7 @@
       { re: /park|run|trail|beach/i,                   icon: '🌳', sel: ['nwr["leisure"="dog_park"]'] },
       { re: /board|kennel|daycare|day care|sitter|hotel/i, icon: '🏨', sel: ['nwr["amenity"="animal_boarding"]'] },
       { re: /shelter|adopt|rescue|pound/i,             icon: '🐾', sel: ['nwr["amenity"="animal_shelter"]'] },
+      { re: /feed|hay\b|tack|livestock|farm suppl|tractor/i, icon: '🌾', sel: FEED_SEL },
       { re: /store|shop|suppl|food|treat|toy/i,        icon: '🛒', sel: ['nwr["shop"="pet"]'] },
     ];
 
@@ -5024,6 +5037,7 @@
       if (t.leisure === 'dog_park') return '🌳';
       if (t.amenity === 'animal_boarding') return '🏨';
       if (t.amenity === 'animal_shelter') return '🐾';
+      if (isFeedStore(t)) return '🌾';
       return '🛒';
     }
 
@@ -5767,7 +5781,7 @@
     }
     // ---- Products added from members' requests (petfi_store_extra) ----
     // Admins add them in the app; they show for everyone without a release.
-    const STORE_NAMES = { amazon: 'Amazon', chewy: 'Chewy', petsmart: 'PetSmart', petco: 'Petco', tractor: 'Tractor Supply', other: 'the store' };
+    const STORE_NAMES = { amazon: 'Amazon', chewy: 'Chewy', petsmart: 'PetSmart', petco: 'Petco', tractor: 'Tractor Supply', tuftpaw: 'Tuft + Paw', other: 'the store' };
     function extraRow(r) {
       const name = STORE_NAMES[r.store] || 'Amazon';
       const m = /m\.media-amazon\.com\/images\/I\/([A-Za-z0-9+%-]{6,40})\./.exec(String(r.image_url || ''));
@@ -7221,7 +7235,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.31.2';
+    const APP_VERSION = '1.31.3';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
