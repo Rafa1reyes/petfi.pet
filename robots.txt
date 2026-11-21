@@ -1,4 +1,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://petfi.pet/sitemap.xml
+Sitemap: https://petfi.org/sitemap.xml

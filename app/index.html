@@ -2755,6 +2755,10 @@
     // Not usable until verified (the server's badge, mirrored by checkSuspended / markVerifiedLocally)
     function orgLocked() { return iAmOrg() && !(state.verified && state.verifiedBy); }
     function isOrgId(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.kind === 'org'); }
+    // Farms are the one kind of organization in Mate Match, and only with farm animals
+    function iAmFarm() { return iAmOrg() && (orgInfo(state.org) || {}).type === 'farm'; }
+    function isFarmId(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.kind === 'org' && (orgInfo(p.org) || {}).type === 'farm'); }
+    function noMateOrgId(id) { return isOrgId(id) && !isFarmId(id); }
     // The small 🏢 next to a verified organization's name in lists
     function orgMark(p) { return p && p.kind === 'org' && p.verified ? ' <span title="Organization" aria-label="Organization">🏢</span>' : ''; }
     function orgMarkId(id) {
@@ -5187,7 +5191,7 @@
         (IS_PLAY_APP
           ? 'Unfortunately, Google Play takes 15% of every gift made in this app, because they don\'t have the heart to put animals and people over profit. '
           : 'Unfortunately, both Google Play and Stripe (our website\'s payment processor) take a percentage of every donation, because they don\'t have the heart to put animals and people over profit. ' +
-            'Google Play keeps 15% of gifts made in the Android app. Stripe keeps about 3% (2.9% + 30¢) of gifts made on petfi.pet. ' +
+            'Google Play keeps 15% of gifts made in the Android app. Stripe keeps about 3% (2.9% + 30¢) of gifts made on petfi.org. ' +
             'That\'s why I suggest giving, or setting up your monthly pledge, here on the website: the fee is smaller, so more of your gift reaches the pets and people who need it. ') +
         'Every dollar Petfi actually receives goes to the Pledge fund, and not a single penny goes in my pocket. Gifts are not tax-deductible. <span style="white-space:nowrap;">— Rafael, Petfi\'s founder</span></div>';
     }
@@ -6874,7 +6878,7 @@
         ctx.fillStyle = '#ff7a59'; ctx.font = '800 30px -apple-system, sans-serif';
         ctx.fillText('🐾 Petfi', W / 2, H - 66);
         ctx.fillStyle = '#a99', ctx.font = '500 18px -apple-system, sans-serif';
-        ctx.fillText('petfi.pet', W / 2, H - 42);
+        ctx.fillText('petfi.org', W / 2, H - 42);
         presentCard(canvas);
       };
       // Avatar — drawn into a circle, photo or icon
@@ -6941,7 +6945,7 @@
       canvas.toBlob(blob => {
         const file = new File([blob], 'my-petfi-card.png', { type: 'image/png' });
         if (navigator.canShare && navigator.canShare({ files: [file] })) {
-          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 ' + (cloudUser ? shareProfileLink(cloudUser.id) : 'petfi.pet') }).catch(() => {});
+          navigator.share({ files: [file], title: 'My Petfi', text: 'Meet my pet on Petfi! 🐾 ' + (cloudUser ? shareProfileLink(cloudUser.id) : 'petfi.org') }).catch(() => {});
         } else {
           saveCard(); // desktop: no file share → save instead
         }
@@ -6955,7 +6959,7 @@
     //   ?u=<id>              a member's profile: opens their sheet (signed out: a preview)
     //   ?u=<id>&ref=<me>     someone else's profile, shared by me
     // The ids are only ever profile UUIDs, which are public anyway.
-    const INVITE_URL = 'https://petfi.pet';
+    const INVITE_URL = 'https://petfi.org'; // main address since 2026-11-20
     const APP_URL = 'https://petfi.pet/app/';
     const PLAY_URL = 'https://play.google.com/store/apps/details?id=com.petfi.app';
     const INVITE_TEXT = 'Join me on Petfi 🐾 — the social app for pets and their people!';
@@ -7235,7 +7239,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.31.3';
+    const APP_VERSION = '1.31.4';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7860,7 +7864,7 @@
           (a.ready && a.left > 0 ? '<button class="btn" onclick="openAvatarMaker()">✨ Make my AI avatar</button>' : '') +
           (owner ? '<button class="btn secondary" onclick="closeSheet();openSell()">🛒 Sell something</button>' +
             '<button class="btn secondary" onclick="closeSheet();openOfferService()">🧑‍🔧 Offer a pet service</button>' +
-            (iAmOrg() ? '' : '<button class="btn secondary" onclick="closeSheet();startMateListing()">💘 List an animal in Mate Match</button>')
+            (iAmOrg() && !iAmFarm() ? '' : '<button class="btn secondary" onclick="closeSheet();startMateListing()">💘 List an animal in Mate Match</button>')
             : '<p class="sub" style="font-size:0.8rem;">Selling, services and Mate Match listings open once this account switches to a pet owner account. That happens by itself the next time Petfi opens with a connection.</p>') +
           '<button class="btn secondary" onclick="closeSheet()">Later</button>'), 1800);
       });
@@ -9486,7 +9490,7 @@
     function isClosedListing(m) { return !!(m && m.status === 'closed'); }
     // Sort: nearest first (unknown distance last), then newest
     function visibleMates() {
-      const all = CLOUD_MATES.filter(m => !hiddenUser(m.ownerId) && !isOrgId(m.ownerId) && (m.mine || !isClosedListing(m))).concat(LOCAL_MATES);
+      const all = CLOUD_MATES.filter(m => !hiddenUser(m.ownerId) && !noMateOrgId(m.ownerId) && (m.mine || !isClosedListing(m))).concat(LOCAL_MATES);
       all.forEach(m => { m._d = mateDistance(m); });
       all.sort((a, b) => {
         if (a._d != null && b._d != null && a._d !== b._d) return a._d - b._d;
@@ -9554,8 +9558,8 @@
     // message them. Big type, big buttons, few taps.
     let mateFilter = { group: 'all', species: '', forId: null };
     function renderMate() {
-      if (iAmOrg()) return '<div class="mm-hero"><div class="mm-kicker">💘 Mate Match</div><h2>For individual members</h2>' +
-        '<p>Mate Match is where individual members find breeding partners and meet other pet people. Organization accounts don\'t take part, and organizations aren\'t shown there.</p></div>' +
+      if (iAmOrg() && !iAmFarm()) return '<div class="mm-hero"><div class="mm-kicker">💘 Mate Match</div><h2>For individual members and farms</h2>' +
+        '<p>Mate Match is where individual members and farms find breeding partners. Other organization accounts don\'t take part.</p></div>' +
         '<button class="btn secondary" onclick="openTab(\'nearby\')">📍 See members and places nearby</button>';
       visibleMates();
       const mine = cloudUser ? MATES_VIEW.filter(m => m.mine) : [];
@@ -9858,10 +9862,10 @@
     let brEdit = null;        // the CLOUD_MATES entry being edited, or null when creating
     let brPetId = null;       // the listed pet's pet_profiles id (content.petId), or null
     // Mate Match is for individual members, never organizations
-    function orgNoMate() {
-      if (!iAmOrg()) return false;
+    function orgNoMate(people) {
+      if (!iAmOrg() || (iAmFarm() && !people)) return false;
       openSheet('💘 Mate Match',
-        '<div class="note">Mate Match is for individual members. Organization accounts can\'t list animals or match there.</div>' +
+        '<div class="note">' + (iAmFarm() ? 'A farm account can list its farm animals in Mate Match. Finding a mate for yourself needs a personal account.' : 'Mate Match is for individual members and farms. Other organization accounts can\'t list animals or match there.') + '</div>' +
         '<button class="btn secondary" onclick="closeSheet()">Got it</button>');
       return true;
     }
@@ -9869,7 +9873,7 @@
       if (orgNoMate()) return;
       if (!requireSeller('list an animal for breeding') || !sellGate('mate')) return;
       // Your living pets (a pet that has passed is never listed)
-      const pets = (state.pets || []).filter(p => p && p.id && !p.passed);
+      const pets = (state.pets || []).filter(p => p && p.id && !p.passed && (!iAmFarm() || isLivestock(p.species)));
       if (pets.length) {
         openSheet('Which animal?',
           '<p class="sub" style="font-size:0.95rem;">Pick one of yours and we\'ll fill in what we already know.</p>' +
@@ -9905,7 +9909,7 @@
       const pfLook = !listing && prefill && prefill.look && typeof prefill.look === 'object' ? prefill.look : {};
       if (!listing && safeAvatarUrl(pfLook.p)) brKeptPhotos = safePhotos([pfLook.p]); // the pet's photo, removable like any other
       const src = listing || prefill;
-      const sp0 = src && src.species ? String(src.species).toLowerCase() : 'dog';
+      const sp0 = src && src.species ? String(src.species).toLowerCase() : iAmFarm() ? 'goat' : 'dog';
       brForm = { species: SPECIES_EMO[sp0] ? sp0 : 'other', sex: listing ? String(listing.sex || '') : '', intent: listing ? listingIntent(listing) : 'offering' };
       const tile = s => '<div class="mm-tile' + (brForm.species === s[0] ? ' on' : '') + '" onclick="brPick(\'species\',\'' + s[0] + '\',this)"><span class="e">' + SPECIES_EMO[s[0]] + '</span>' + s[1] + '</div>';
       const segOn = (k, v) => brForm[k] === v ? ' class="on"' : '';
@@ -9914,7 +9918,7 @@
       openSheet(listing ? '✏️ Edit my listing' : '💘 List my animal',
         '<div class="mm-form">' +
         '<div class="mm-step"><span class="n">1</span>What kind of animal?</div>' +
-        '<div class="mm-tiles">' + PET_SPECIES.concat(FARM_SPECIES).map(tile).join('') + '</div>' +
+        '<div class="mm-tiles">' + (iAmFarm() ? FARM_SPECIES : PET_SPECIES.concat(FARM_SPECIES)).map(tile).join('') + '</div>' +
         '<div class="mm-step"><span class="n">2</span>About your animal</div>' +
         '<label for="br-name">Name <small style="color:var(--muted);font-weight:400;">(or herd / kennel name)</small></label><input type="text" id="br-name" placeholder="e.g. Tank">' +
         '<label for="br-breed">Breed</label><input type="text" id="br-breed" placeholder="e.g. Rottweiler · Boer · Angus">' +
@@ -10004,6 +10008,7 @@
       if (!name) missing.push('a name'); if (!breed) missing.push('the breed'); if (!brForm.sex) missing.push('male or female'); if (!age) missing.push('the age'); if (!comp) missing.push('your terms');
       if (missing.length) { toast('Please add ' + missing.join(', ')); return; }
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP code should be 5 digits'); return; }
+      if (iAmFarm() && !isLivestock(brForm.species)) { toast('A farm account lists farm animals and horses in Mate Match'); return; }
       const btn = document.getElementById('br-btn');
       if (btn && btn.disabled) return;
       if (btn) { btn.disabled = true; btn.textContent = editing ? 'Saving…' : 'Publishing…'; }
@@ -10100,7 +10105,7 @@
 
     // ---- Path 2: a mate for ME ----
     function humanMateFlow() {
-      if (orgNoMate()) return;
+      if (orgNoMate(true)) return;
       if (state.accountType !== 'owner') {
         openSheet('💘 Mate Match for people',
           '<div class="note">Finding a mate for <b>you</b> needs a pet owner account. This account is still a pet account from an older version of Petfi; it switches to a pet owner account by itself the next time Petfi opens with a connection.</div>' +
@@ -10849,12 +10854,12 @@
           '<button class="btn blue" id="vf-btn" onclick="continueVerify()">🪪 ' + (row.status === 'failed' ? 'Try the ID check again' : 'Finish my ID check') + '</button>' +
           '<button class="btn secondary" onclick="closeSheet()">Not now</button>';
       } else {
-        const org = iAmOrg(); // organizations sell and offer services too, but never use Mate Match
+        const org = iAmOrg(); // organizations sell and offer services too; only farms use Mate Match
         h += (org
             ? '<p class="sub">The person who runs your organization verifies with a government ID and a quick selfie. Your organization gets a <b>trust badge</b>, so members, buyers and clients know a real, accountable person stands behind it.</p>'
             : '<p class="sub">Verify with a government ID and a quick selfie to earn a <b>trust badge</b> — so buyers and breeders know they\'re dealing with a real, accountable person.</p>') +
           verifyPerksHtml() + verifyStepsHtml() +
-          '<div class="note">🛒 ' + (org ? 'Selling and services come' : 'Selling, services and Mate Match come') + ' with the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand-text);font-weight:700;">Seller &amp; Service Provider Terms</a>: you\'re responsible for anything you sell or provide.</div>' +
+          '<div class="note">🛒 ' + (org && !iAmFarm() ? 'Selling and services come' : 'Selling, services and Mate Match come') + ' with the <a href="#" onclick="event.preventDefault();openSellerTerms()" style="color:var(--brand-text);font-weight:700;">Seller &amp; Service Provider Terms</a>: you\'re responsible for anything you sell or provide.</div>' +
           sellerTermsBox() +
           '<div class="note">💳 <b>One-time ' + esc(price) + '</b>' + (IS_PLAY_APP ? ' through Google Play' : '') + '. Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe. Half of all Petfi profit goes back to animals.</div>' +
           '<p class="sub" style="font-size:0.8rem;">Adults only: an ID that shows you are under 18 closes the account instead of verifying it.</p>' +
@@ -13501,7 +13506,7 @@
             : (qr ? 'Scan to message ' + (lost ? 'the owner' : 'the finder') + ' on Petfi' : 'Message ' + (lost ? 'the owner' : 'the finder') + ' on Petfi')) +
           (qr ? '' : '<div style="font-size:0.6em;font-weight:600;word-break:break-all;">' + esc(lfShareUrl(r).replace(/^https:\/\//, '')) + '</div>') + '</div>' +
           (qr ? '<div class="pqr">' + qr + '</div>' : '') + '</div>' +
-        '<div class="pfoot">Made with Petfi · petfi.pet · free lost and found for pets</div></div>';
+        '<div class="pfoot">Made with Petfi · petfi.org · free lost and found for pets</div></div>';
     }
     async function openLfPoster(id) {
       if (id != null && !(await lfEnsure(id))) return;
