@@ -4290,13 +4290,15 @@
       if (state.tab === 'home') { openTab('home'); const d = document.getElementById('cmts-' + postKey(post)); if (d) d.style.display = 'block'; }
       toast('✏️ Comment updated');
     }
-    // Group posts: their author, or an admin
+    // Group posts: their author, the group's owner, or an admin
     async function deleteGroupPost(i, gid) {
       if (!cloud || !cloudUser) return;
       if (!confirm('Delete this group post for everyone?')) return;
       const g = GROUPS_VIEW[i]; // the group as it was tapped (the list can reload while this saves)
-      const { error } = await cloud.from('group_posts').delete().eq('id', gid);
-      if (error) { toast('⚠️ Could not delete the post'); return; }
+      // Ask for the row back: a delete the server refuses comes back empty, not as an error
+      let res;
+      try { res = await cloud.from('group_posts').delete().eq('id', gid).select('id'); } catch (e) { res = { error: e }; }
+      if (res.error || !res.data || !res.data.length) { toast('⚠️ Could not delete the post'); uiSound('error'); return; }
       if (g && Array.isArray(g.posts)) g.posts = g.posts.filter(x => x.gid !== gid);
       toast('Post deleted 🗑');
       if (g) { const k = GROUPS_VIEW.indexOf(g); if (k >= 0) openGroupDetail(k); }
@@ -8076,7 +8078,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.3';
+    const APP_VERSION = '1.33.4';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -10355,6 +10357,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       { key: 'messages',  label: '💬 New messages',            sub: 'Direct messages from other users' },
       { key: 'barks',     label: '🔊 Barks & meows',           sub: 'When someone says hi' },
       { key: 'friends',   label: '🐾 Friend requests',         sub: 'New requests and acceptances' },
+      { key: 'groups',    label: '👥 Groups',                  sub: 'When someone asks to join your group, and when you are let in' },
       { key: 'likes',     label: '❤️ Likes on my posts',       sub: 'Barks, meows & likes on your posts' },
       { key: 'comments',  label: '💬 Comments on my posts',    sub: 'When someone replies to you' },
       { key: 'reminders', label: '⏰ Care reminders & calendar', sub: 'Feeding times, vet visits, meds, refills…' },
@@ -11510,7 +11513,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         groupRequestsHtml(g, gIdx) +
         '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
           '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + (p.persona && p.persona.id ? '<span style="cursor:pointer;" onclick="openPetSheetById(\'' + jsStr(p.persona.id) + '\')">' + esc(p.who) + '</span>' : esc(p.who)) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + ' <span class="post-sub" style="font-weight:400;">· ' + esc(personaWith(p.authorId)) + '</span>' : '') + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
-            (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin()) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
+            (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin() || g.mine) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
           : '<div class="note">No posts yet — start the conversation! 🐾</div>') + '</div>' +
         (canPost
           ? '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="grp-post-in" type="text" aria-label="' + esc(grpPlaceholder()) + '" placeholder="' + esc(grpPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
