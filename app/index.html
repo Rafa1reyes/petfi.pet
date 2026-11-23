@@ -644,6 +644,17 @@
     .hx-pill.ok { background: #e7f6e9; color: #1f7a3d; }
     .hx-pill.warn { background: #fff1d6; color: #8a5a00; }
     .hx-pill.bad { background: #ffe3e3; color: #b42323; }
+    /* Farm Stuff */
+    .farm-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.75rem 0.85rem; margin-bottom: 0.7rem; }
+    .farm-top { display: flex; align-items: center; gap: 0.7rem; }
+    .farm-top .ricon { width: 44px; height: 44px; border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; flex-shrink: 0; background: var(--bg); }
+    .farm-top .rtitle { font-weight: 700; font-size: 0.92rem; overflow-wrap: anywhere; }
+    .farm-top .rmeta { color: var(--muted); font-size: 0.76rem; }
+    .farm-note { font-size: 0.84rem; margin-top: 0.5rem; }
+    .farm-tags { display: flex; flex-wrap: wrap; gap: 0.3rem; margin-top: 0.45rem; }
+    .farm-tag { background: var(--bg); border: 1px solid var(--line); border-radius: 999px; padding: 0.1rem 0.55rem; font-size: 0.72rem; font-weight: 700; color: var(--muted); }
+    .farm-buy { color: var(--muted); font-size: 0.76rem; margin-top: 0.4rem; }
+    .farm-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-top: 0.6rem; }
     .hx-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.75rem 0.9rem; margin-bottom: 0.7rem; }
     .hx-kv { display: flex; justify-content: space-between; gap: 0.8rem; padding: 0.32rem 0; border-bottom: 1px dashed var(--line); font-size: 0.85rem; }
     .hx-kv:last-child { border-bottom: none; }
@@ -1295,7 +1306,7 @@
       <input type="text" id="org-zip" inputmode="numeric" maxlength="5" placeholder="e.g. 33101" />
       <div id="org-fields"></div>
       <label class="age-ok"><input type="checkbox" id="org-auth" /><span>I am authorized to represent this organization.</span></label>
-      <div class="note">🪪 Every organization account is verified before it goes live. After you create your login, a person who represents the organization verifies their ID. Your ZIP is never shown to other members.</div>
+      <div class="note">🎁 Try Petfi free for 3 days. After that, a person who represents the organization verifies their ID once ($3) to keep the account, sell, and wear the verified badge. Your ZIP is never shown to other members.</div>
       <button class="btn blue" onclick="goOrgAccount()">Continue</button>
     </section>
 
@@ -1308,6 +1319,9 @@
       <input type="email" id="acct-email" placeholder="you@example.com" />
       <label for="acct-pass">Password</label>
       <input type="password" id="acct-pass" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')createLogin()" />
+      <label for="acct-pin">Login PIN <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
+      <input type="text" id="acct-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" spellcheck="false" placeholder="6 digits, or leave empty" style="-webkit-text-security:disc;" />
+      <p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0;">You can create a PIN if you would like to make logging in easier. It's optional: skip it and just use your password, or add one later in Settings.</p>
       <p id="acct-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>
       <label class="age-ok"><input type="checkbox" id="acct-age" aria-describedby="acct-age-err" onchange="if(this.checked)document.getElementById('acct-age-err').textContent=''" /><span>I am <span class="min-age">18</span> or older</span></label>
       <p id="acct-age-err" class="age-err" role="alert"></p>
@@ -1349,6 +1363,7 @@
         <button class="nav-btn" data-tab="home"    onclick="openTab('home')"><span class="ic">🏠</span>Home</button>
         <button class="nav-btn" data-tab="mate"    onclick="openTab('mate')"><span class="ic">💘</span>Mate Match<span class="nbadge" id="mate-nbadge" style="display:none;"></span></button>
         <button class="nav-btn" data-tab="nearby"  onclick="openTab('nearby')"><span class="ic">📍</span>Nearby</button>
+        <button class="nav-btn" data-tab="farm"    onclick="openTab('farm')"><span class="ic">🚜</span>Farm Stuff</button>
         <button class="nav-btn" data-tab="store"   onclick="openTab('store')"><span class="ic">🛒</span>Store</button>
         <button class="nav-btn" data-tab="profile" onclick="openTab('profile')"><span class="ic">👤</span>Me</button>
       </nav>
@@ -2753,7 +2768,29 @@
     function isPersonKind(k) { return k === 'owner' || k === 'org'; }
     function kindLabel(k) { return k === 'org' ? 'Organization' : k === 'owner' ? 'Pet owner' : 'Member'; }
     // Not usable until verified (the server's badge, mirrored by checkSuspended / markVerifiedLocally)
-    function orgLocked() { return iAmOrg() && !(state.verified && state.verifiedBy); }
+    // An organization or farm gets ORG_TRIAL_DAYS free days to look around and
+    // use Petfi before the ID check. The server owns the clock (petfi_org_trial_end,
+    // counted from when the login was created); until it answers there is no trial.
+    const ORG_TRIAL_DAYS = 3;
+    function orgTrialMsLeft() {
+      if (!iAmOrg() || (state.verified && state.verifiedBy)) return 0;
+      const end = Date.parse(state.orgTrialEnd || '');
+      return isFinite(end) ? Math.max(0, end - Date.now()) : 0;
+    }
+    function orgTrialOn() { return orgTrialMsLeft() > 0; }
+    function orgTrialLeftText() {
+      const h = Math.ceil(orgTrialMsLeft() / 3600000);
+      return h > 24 ? Math.ceil(h / 24) + ' days' : h > 1 ? h + ' hours' : 'less than an hour';
+    }
+    function orgTrialOver() { const end = Date.parse(state.orgTrialEnd || ''); return isFinite(end) && end <= Date.now(); }
+    async function orgTrialFetch() {
+      if (!cloud || !cloudUser || !iAmOrg() || state.verified) return;
+      try {
+        const r = await cloud.rpc('petfi_org_trial_end');
+        if (!r.error && r.data && isFinite(Date.parse(r.data)) && state.orgTrialEnd !== r.data) { state.orgTrialEnd = r.data; saveState({ bg: true }); }
+      } catch (e) {}
+    }
+    function orgLocked() { return iAmOrg() && !(state.verified && state.verifiedBy) && !orgTrialOn(); }
     function isOrgId(id) { const p = id && PROFILE_BY_ID[id]; return !!(p && p.kind === 'org'); }
     // Farms are the one kind of organization in Mate Match, and only with farm animals
     function iAmFarm() { return iAmOrg() && (orgInfo(state.org) || {}).type === 'farm'; }
@@ -2859,10 +2896,13 @@
     function orgGateActive() { const s = document.getElementById('s-orggate'); return !!(s && s.classList.contains('active')); }
     function showOrgGate() {
       const box = document.getElementById('orggate-body');
+      const ended = orgTrialOver();
       if (box) box.innerHTML =
-        '<div style="text-align:center;padding-top:1.5rem;"><div style="font-size:3.2rem;">🏢</div>' +
-        '<h1 id="orggate-title" style="margin-top:0.4rem;">One more step: verify ' + esc(state.displayName || 'your organization') + '</h1></div>' +
-        '<p class="sub">Organization accounts open once a real person who represents the organization verifies their ID. It protects members from fake clinics and shelters.</p>' +
+        '<div style="text-align:center;padding-top:1.5rem;"><div style="font-size:3.2rem;">' + (iAmFarm() ? '🚜' : '🏢') + '</div>' +
+        '<h1 id="orggate-title" style="margin-top:0.4rem;">' + (ended ? 'Your ' + ORG_TRIAL_DAYS + '-day free trial has ended' : 'One more step: verify ' + esc(state.displayName || 'your organization')) + '</h1></div>' +
+        (ended ? '<p class="sub">To keep ' + esc(state.displayName || 'your organization') + ' on Petfi, the person who runs it verifies their ID once ($3). Everything you set up is saved and comes back the moment the check passes.</p>'
+               : '<p class="sub">Organization accounts open once a real person who represents the organization verifies their ID. It protects members from fake clinics and shelters.</p>') +
+        (ended ? verifyPerksHtml('What you get for $3') : '') +
         verifyStepsHtml() +
         '<div class="note">Petfi only learns pass or fail and whether you\'re 18 or older; the ID and selfie stay with Stripe.</div>' +
         '<p class="sub" style="font-size:0.85rem;">Until then your profile stays hidden and nothing can be posted.</p>' +
@@ -2882,7 +2922,7 @@
       const btn = manual ? document.getElementById('orggate-check') : null;
       if (btn) btn.disabled = true;
       try { await checkSuspended(); } catch (e) {}
-      if (btn) btn.disabled = false;
+      if (btn && btn.isConnected) btn.disabled = false;
       if (manual && orgGateActive() && orgLocked()) toast('Not verified yet. Finish the ID check, then try again.');
     }
     // The server's badge changed (checkSuspended): in when verified, back to the gate when not
@@ -2890,13 +2930,25 @@
       if (!iAmOrg()) return;
       if (serverVerified && state.verified && !state.verifiedBy) { state.verifiedBy = 'petfi'; saveState({ bg: true }); }
       if (!orgLocked()) { if (orgGateActive()) orgGatePassed(); return; }
-      if (appActive()) { closeSheet(); cloudSaveProfile(); showOrgGate(); toast('Your organization needs to be verified again to keep using Petfi'); } // the save writes visible: false
+      if (appActive()) { closeSheet(); cloudSaveProfile(); showOrgGate(); toast(orgTrialOver() ? 'Your free trial has ended. Verify your ID to keep using Petfi' : 'Your organization needs to be verified again to keep using Petfi'); } // the save writes visible: false
     }
     function orgGatePassed() {
       clearInterval(orgGateTimer); orgGateTimer = null;
       enterApp(); // turns the profile visible the first time (orgShown)
-      if (appActive()) toast('🏢 ' + (state.displayName || 'Your organization') + ' is verified and live on Petfi');
+      if (!appActive()) return;
+      if (orgTrialOn()) toast('🎉 Your ' + ORG_TRIAL_DAYS + '-day free trial has started. Look around!');
+      else toast('🏢 ' + (state.displayName || 'Your organization') + ' is verified and live on Petfi');
     }
+    // The trial card an unverified organization sees on Home and Me
+    function orgTrialCard() {
+      if (!orgTrialOn()) return '';
+      return '<div class="get-verified" style="margin:0 0 0.9rem;">' +
+        '<h4>⏳ Free trial: ' + orgTrialLeftText() + ' left</h4>' +
+        '<p>Look around, post, message members and set up your profile. To stay on Petfi after the trial, the person who runs ' + esc(state.displayName || 'your organization') + ' verifies their ID once ($3). Selling, Mate Match listings' + (iAmFarm() ? ', your Farm Stuff listing' : '') + ' and the ✔︎ badge open with it.</p>' +
+        '<button class="pill-btn" onclick="startVerify()">🪪 Verify now</button></div>';
+    }
+    // The trial can run out while the app is open
+    setInterval(() => { if (iAmOrg() && appActive() && orgLocked()) orgGateSync(false); }, 60000);
     // Organization details on a profile: type, description, plain link rows
     function orgLinksHtml(o) {
       return (o && o.links || []).map(l => {
@@ -2912,6 +2964,50 @@
           (o.about ? '<p class="sub" style="margin:0.35rem 0 0;white-space:pre-line;font-size:0.9rem;">' + esc(o.about) + '</p>'
             : mine ? '<p class="sub" style="margin:0.35rem 0 0;font-size:0.85rem;">Add a short description so members know what you do.</p>' : '') +
         '</div>' + orgLinksHtml(o);
+    }
+    // ---- A seller's shop, on their page: everything they have for sale ----
+    // Their own profile gets two big "add" buttons; other members see the list
+    // on the profile sheet and tap through to the listing.
+    let SHOP_VIEW = [];
+    function shopItems(sellerId) { return LISTINGS.filter(l => l.sellerId === sellerId && (!l.sold || l.mine)); }
+    function openShopItem(i) {
+      const l = SHOP_VIEW[i]; if (!l) return;
+      if (l.cat === 'Services') { SVC_VIEW = [l]; openService(0); return; }
+      let k = STORE_VIEW.indexOf(l);
+      if (k < 0) { STORE_VIEW.push(l); k = STORE_VIEW.length - 1; }
+      openProductDetail(k);
+    }
+    function shopRowsHtml(items) {
+      SHOP_VIEW = items;
+      return items.map((l, i) => {
+        const ph = safePhotos(l.photos)[0], svc = l.cat === 'Services';
+        return '<div class="row" style="cursor:pointer;" role="button" tabindex="0" onclick="openShopItem(' + i + ')">' +
+          '<div class="ricon">' + (ph ? '<img src="' + esc(ph) + '" alt="" loading="lazy" style="width:100%;height:100%;object-fit:cover;">' : svc ? svcType(l.svc).emo : '🛒') + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(l.title) + '</div><div class="rmeta">' + esc([svc ? 'Service' : l.cat, l.price, l.sold ? 'Sold' : ''].filter(Boolean).join(' · ')) + '</div></div><span class="chev">›</span></div>';
+      }).join('');
+    }
+    // My own page: sell in two taps
+    function myShopHtml() {
+      if (!iAmPerson() || !cloudUser) return '';
+      const items = shopItems(cloudUser.id), farm = iAmFarm(), org = iAmOrg();
+      if (!org && !items.length) return ''; // pet owners keep selling from the Store; their shop appears once they list something
+      return '<div class="sec"><h3>🛒 ' + (org ? 'Sell from your page' : 'Your shop') + '</h3></div>' +
+        '<div class="hx-card" style="margin:0 0 0.6rem;text-align:left;">' +
+          '<p class="sub" style="margin:0 0 0.6rem;font-size:0.88rem;">' + (items.length
+            ? 'These show on your page, in the Store and on Nearby. Buyers message you directly.'
+            : (farm ? 'Put your milk, eggs, meat, honey, hay or animals up for sale.' : 'Put your products and services up for sale.') + ' They show on your page, in the Store and on Nearby, and buyers message you directly.' +
+              (state.verified ? '' : ' Selling opens with the one-time ID check ($3).')) + '</p>' +
+          '<div style="display:flex;gap:0.5rem;flex-wrap:wrap;">' +
+            '<button class="btn small" style="margin:0;flex:1;min-width:9rem;" onclick="openSell()">＋ Add a product</button>' +
+            '<button class="btn small secondary" style="margin:0;flex:1;min-width:9rem;" onclick="openOfferService()">＋ Offer a service</button>' +
+          '</div></div>' +
+        shopRowsHtml(items);
+    }
+    // Someone else's page
+    function theirShopHtml(u) {
+      const items = shopItems(u.id);
+      if (!items.length) return '';
+      return '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>🛒 For sale from ' + esc(u.username) + '</h3></div>' + shopRowsHtml(items);
     }
     function openOrgEdit() {
       if (!iAmOrg()) return;
@@ -3119,6 +3215,7 @@
         row('🏠', 'Home', 'Two feeds — 🏡 Local (50 miles, unfiltered) and 🌎 Everyone (nationwide, family-friendly)') +
         row('💘', 'Mate Match', 'Find a breeding partner for your dog, cat, goat, cattle or chickens near you') +
         row('📍', 'Nearby', 'Members and breeding partners near you, plus real dog parks, stores & vets') +
+        row('🚜', 'Farm Stuff', 'Local farms that sell milk, meat, eggs, honey and produce straight to you') +
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
         '<button class="btn" onclick="tourDone()">Let\'s go 🐾</button>');
@@ -3133,7 +3230,7 @@
       navRecord(name);
       document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
       const c = document.getElementById('tab-content');
-      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile, lost: renderLostFound }[name];
+      const r = { home: renderHome, mate: renderMate, nearby: renderNearby, groups: renderGroups, store: renderStore, profile: renderProfile, lost: renderLostFound, farm: renderFarm }[name];
       if (name === 'groups' || name === 'lost') document.querySelector('.nav-btn[data-tab="nearby"]').classList.add('active'); // side rooms off Nearby
       pvidStopAll(); // a video torn out mid-play would keep its sound going
       c.innerHTML = r ? r() : '';
@@ -3175,18 +3272,53 @@
       if (navUnwindTab) { const t = navUnwindTab; navUnwindTab = null; navRecord(t, true); return; }
       if (!appActive()) { onbPop(e.state); return; }
       const st = e.state || {};
-      if (document.body.classList.contains('sheet-open')) {
-        closeSheet();
-        // Stay on this tab: put back the entry Back just stepped off
-        try { history.pushState({ petfiTab: state.tab || 'home' }, ''); } catch (err) {}
-        return;
+      // Stay on this tab: put back the entry Back just stepped off
+      const stay = () => { try { history.pushState({ petfiTab: state.tab || 'home' }, ''); } catch (err) {} navGuardDue = true; };
+      if (navLeaving) { if (st.petfiRoot) history.back(); return; } // on the way out: keep going
+      if (document.body.classList.contains('sheet-open')) { closeSheet(); stay(); return; }
+      if (st.petfiRoot) {
+        // Back past the first tab (website only; the Android app has no such entry).
+        // Members press Back to "go home", so it never drops them off Petfi by
+        // surprise: any other tab goes to Home, My care goes to the feed, and on
+        // the Home feed a second Back within a few seconds leaves.
+        if (state.tab !== 'home' || state.homeTab === 'care') {
+          state.homeTab = 'feed';
+          navFromBack = true;
+          try { openTab('home'); } finally { navFromBack = false; }
+          stay(); return;
+        }
+        if (Date.now() - navLeaveAsked < 4000) {
+          navLeaving = true; setTimeout(() => { if (navLeaving) { navLeaving = false; stay(); } }, 1500); // nowhere to go back to: stay put
+          history.back(); return;
+        }
+        navLeaveAsked = Date.now();
+        toast('Press Back again to leave Petfi');
+        stay(); return;
       }
-      if (st.petfiRoot) { history.back(); return; }   // past the first tab: leave as before
       if (st.petfiTab && st.petfiTab !== state.tab) {
         navFromBack = true;
         try { openTab(st.petfiTab); } finally { navFromBack = false; }
       }
     });
+    // Browsers skip, on Back, a history entry that added another one without a
+    // tap or key press (Chrome's history intervention). The entry under the
+    // first tab is made that way at launch, and again each time the handler
+    // above puts an entry back, so Back from the first tab would leave Petfi
+    // with no chance to stop it. On the next tap or key press the current
+    // entry becomes the new floor and the tab is added on top of it, this time
+    // with a real gesture, so Back lands on the floor and the handler runs.
+    var navGuardDue = true, navLeaving = false, navLeaveAsked = 0; // var: read by handlers that can run early
+    function navGuard() {
+      if (!navGuardDue || IS_PLAY_APP || navFromBack || navUnwindTab || !appActive()) return;
+      try {
+        if (!(history.state || {}).petfiTab) return;
+        navGuardDue = false;
+        history.replaceState({ petfiRoot: 1 }, '');
+        history.pushState({ petfiTab: state.tab || 'home' }, '');
+      } catch (e) {}
+    }
+    document.addEventListener('click', navGuard, true);
+    document.addEventListener('keydown', navGuard, true);
 
     // ---- Shared actions ----
     function openLink(url) {
@@ -3698,6 +3830,7 @@
         '<div class="chip ' + (sub === 'feed' && scope === 'national' ? 'active' : '') + '" onclick="setFeedScope(\'national\')">🌎 Everyone</div>' +
         '<div class="chip ' + (sub === 'care' ? 'active' : '') + '" onclick="setHomeTab(\'care\')">🔒 My care</div></div>';
       if (sub === 'care') return h + renderCare();
+      h += orgTrialCard();
 
       // A new member gets one next step instead of a stack of cards
       const start = startCard();
@@ -4656,6 +4789,179 @@
       }
       return h;
     }
+
+    // ---------- Farm Stuff: local farms that sell to regular people ----------
+    // Three sources, nearest first: farm accounts on Petfi (ID-verified),
+    // Petfi's own starter list (farms.json: public information, each farm
+    // confirmed to sell direct), and farm shops mapped on OpenStreetMap.
+    // The starter list stays until enough farms have their own profiles.
+    const FARM_CATS = [['all', 'All', ''], ['dairy', 'Milk & dairy', '🥛'], ['meat', 'Meat', '🥩'], ['eggs', 'Eggs', '🥚'], ['honey', 'Honey', '🍯'],
+      ['produce', 'Produce', '🥕'], ['upick', 'U-pick', '🍓'], ['animals', 'Live animals', '🐐'], ['other', 'More', '🌻']];
+    const FARM_CAT_OF = { milk: 'dairy', dairy: 'dairy', beef: 'meat', pork: 'meat', lamb: 'meat', goat: 'meat', poultry: 'meat', eggs: 'eggs', honey: 'honey',
+      produce: 'produce', fruit: 'produce', upick: 'upick', 'live animals': 'animals', flowers: 'other', fiber: 'other', hay: 'other', other: 'other' };
+    const FARM_RADIUS_MI = 60, FARM_OSM_M = 48000;
+    let FARM_LIST = null, farmListState = 'idle';   // farms.json
+    let FARM_ACCOUNTS = [], farmAccountsAt = 0;      // verified farm profiles on Petfi
+    let FARM_OSM = null, farmOsmState = 'idle';      // { zip, shops: [], markets: [] }
+    let farmCat = 'all', farmShown = 12;
+    function farmRerender() { if (appActive() && state.tab === 'farm') rerenderTab(renderFarm); }
+    async function ensureFarmList() {
+      if (farmListState === 'ready' || farmListState === 'loading') return;
+      farmListState = 'loading';
+      try {
+        const r = await fetch('farms.json');
+        if (!r.ok) throw new Error('farms.json ' + r.status);
+        const rows = await r.json();
+        if (!Array.isArray(rows)) throw new Error('farms.json shape');
+        FARM_LIST = rows.filter(f => f && f.n && isFinite(f.la) && isFinite(f.lo));
+        farmListState = 'ready';
+      } catch (e) { farmListState = 'failed'; }
+      farmRerender();
+    }
+    async function loadFarmAccounts() {
+      if (!cloud || !cloudUser || Date.now() - farmAccountsAt < 60000) return;
+      farmAccountsAt = Date.now();
+      try {
+        const r = await cloud.from('profiles').select(PROFILE_COLS).eq('kind', 'org').eq('verified', true).eq('org->>type', 'farm').order('created_at', { ascending: false }).limit(60);
+        if (r.error || !Array.isArray(r.data)) return;
+        FARM_ACCOUNTS = r.data.filter(p => p.visible !== false && !p.banned);
+        FARM_ACCOUNTS.forEach(p => { PROFILE_BY_ID[p.id] = p; });
+        farmRerender();
+      } catch (e) {}
+    }
+    // Farm shops and farmers markets around a ZIP, from OpenStreetMap
+    async function loadFarmOsm(zip) {
+      if (farmOsmState === 'loading' || (FARM_OSM && FARM_OSM.zip === zip)) return;
+      farmOsmState = 'loading';
+      try {
+        const geo = await geocodeZip(zip);
+        if (!geo) throw new Error('ZIP not found');
+        const a = '(around:' + FARM_OSM_M + ',' + geo.lat + ',' + geo.lon + ');';
+        const q = '[out:json][timeout:20];(nwr["shop"="farm"]' + a + 'nwr["amenity"="marketplace"]' + a + ');out center 120;';
+        const data = await overpassJson(q);
+        const out = { zip, shops: [], markets: [] };
+        (data.elements || []).forEach(el => {
+          const t = el.tags || {}; if (!t.name) return;
+          const la = el.lat != null ? el.lat : (el.center && el.center.lat), lo = el.lon != null ? el.lon : (el.center && el.center.lon);
+          if (la == null) return;
+          const web = cleanOrgUrl(t.website || t['contact:website'] || '', true);
+          const item = { n: t.name, la, lo, t: t['addr:city'] || '', url: web || '', osm: true,
+            note: t.produce ? 'Sells: ' + String(t.produce).replace(/[;_]/g, m => m === ';' ? ', ' : ' ').slice(0, 90) : '' };
+          (t.shop === 'farm' ? out.shops : out.markets).push(item);
+        });
+        FARM_OSM = out; farmOsmState = 'ready';
+      } catch (e) { farmOsmState = 'failed'; }
+      farmRerender();
+    }
+    function applyFarmZip() {
+      const z = val('farm-zip');
+      if (!/^\d{5}$/.test(z)) { toast('Enter a 5-digit ZIP'); return; }
+      state.zip = z; farmShown = 12; saveState();
+      FARM_OSM = null; farmOsmState = 'idle';
+      openTab('farm');
+    }
+    function setFarmCat(c) { farmCat = c; farmShown = 12; farmRerender(); }
+    function farmMore() { farmShown += 12; farmRerender(); }
+    function farmMatches(f) {
+      if (farmCat === 'all') return true;
+      if (!f.sells) return false; // a mapped farm shop with no product list only shows under All
+      return f.sells.some(s => FARM_CAT_OF[s] === farmCat);
+    }
+    function farmMapUrl(f) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.n + (f.t ? ', ' + f.t : '') + (f.s ? ', ' + f.s : '')); }
+    function farmRow(f) {
+      const tags = (f.sells || []).slice(0, 6).map(s => '<span class="farm-tag">' + esc(s) + '</span>').join('');
+      const where = (f._mi != null ? (f._mi < 1 ? 'under 1 mi' : (f.approx ? 'about ' : '') + Math.round(f._mi) + ' mi') : '') + (f.t ? (f._mi != null ? ' · ' : '') + f.t + (f.s ? ', ' + f.s : '') : '');
+      return '<div class="farm-card">' +
+        '<div class="farm-top"><div class="ricon">' + (f.market ? '🧺' : '🚜') + '</div>' +
+          '<div style="flex:1;min-width:0;"><div class="rtitle">' + esc(f.n) + '</div><div class="rmeta">' + esc(where) + '</div></div></div>' +
+        (f.note ? '<div class="farm-note">' + esc(f.note) + '</div>' : '') +
+        (tags ? '<div class="farm-tags">' + tags + '</div>' : '') +
+        (f.buy && f.buy.length ? '<div class="farm-buy">How to buy: ' + esc(f.buy.join(', ')) + '</div>' : '') +
+        '<div class="farm-actions">' +
+          (f.url ? '<button class="pill-btn" onclick="openLink(\'' + jsStr(f.url) + '\')">Website</button>' : '') +
+          '<button class="pill-btn ghost" onclick="openLink(\'' + jsStr(farmMapUrl(f)) + '\')">📍 Map</button>' +
+          (f.ph ? '<a class="pill-btn ghost" style="text-decoration:none;" href="tel:' + esc(String(f.ph).replace(/[^\d+]/g, '')) + '">📞 Call</a>' : '') +
+        '</div></div>';
+    }
+    function farmAccountRow(p) {
+      const o = orgInfo(p.org) || {};
+      return '<div class="farm-card" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(p.id) + '\')">' +
+        '<div class="farm-top"><div class="u-avatar" style="width:44px;height:44px;flex:0 0 44px;">' + personAvatar(p, 44) + '</div>' +
+          '<div style="flex:1;min-width:0;"><div class="rtitle">' + esc(p.username) + ' ' + vbadge() + '</div><div class="rmeta">Farm on Petfi · ID-verified</div></div>' +
+          '<span class="chev">›</span></div>' +
+        (o.about ? '<div class="farm-note">' + esc(o.about.slice(0, 140)) + '</div>' : '') + '</div>';
+    }
+    function openFarmJoin() {
+      openSheet('🚜 Put your farm on Petfi',
+        '<p class="sub" style="font-size:0.92rem;">Farms and ranches get their own profile here: say what you sell, post updates, message customers, list animals and products, and show up first on Farm Stuff.</p>' +
+        '<div class="hx-card" style="margin:0.6rem 0;"><b>Free for ' + ORG_TRIAL_DAYS + ' days.</b><br><span style="color:var(--muted);font-size:0.88rem;">Look around and try everything. To stay on Petfi after that, the person who runs the farm verifies their ID once ($3). Selling in the Store, Mate Match listings and the Farm Stuff listing open with the verified badge.</span></div>' +
+        (iAmOrg() ? '<button class="btn" onclick="closeSheet();openTab(\'profile\')">Go to my profile</button>'
+          : '<p class="sub" style="font-size:0.85rem;">A farm uses its own login, separate from a personal account. ' + (cloudUser ? 'Log out, then on the first screen tap “Making an account for your organization or farm?”' : 'On the first screen tap “Making an account for your organization or farm?”') + '</p>') +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    function renderFarm() {
+      const zip = state.zip || '';
+      ensureFarmList();
+      let h = '<div class="sec" style="margin-top:0;"><h3>🚜 Farm Stuff</h3></div>' +
+        '<p class="sub" style="font-size:0.88rem;margin:0 0 0.7rem;">Local farms that sell straight to you: milk, meat, eggs, honey, produce and more.</p>';
+      h += '<div style="display:flex;gap:0.5rem;margin-bottom:0.6rem;">' +
+             '<input type="text" id="farm-zip" inputmode="numeric" aria-label="ZIP code" placeholder="ZIP code" value="' + esc(zip) + '" maxlength="5" style="flex:1;" onkeydown="if(event.key===\'Enter\')applyFarmZip()">' +
+             '<button class="btn small" style="margin:0;" onclick="applyFarmZip()">Search</button></div>';
+      h += '<div class="chips chips-sm">' + FARM_CATS.map(c =>
+        '<div class="chip ' + (farmCat === c[0] ? 'active' : '') + '" role="button" onclick="setFarmCat(\'' + c[0] + '\')">' + (c[2] ? c[2] + ' ' : '') + c[1] + '</div>').join('') + '</div>';
+
+      // Farms with their own Petfi profile come first
+      const accts = FARM_ACCOUNTS.filter(p => !hiddenUser(p.id));
+      if (accts.length) h += '<div class="sec"><h3>✔︎ Farms on Petfi</h3></div>' + accts.map(farmAccountRow).join('');
+
+      const geo = zip ? myGeo() : null;
+      if (!zip) {
+        h += '<div class="note">Enter your ZIP to see farms near you.</div>';
+      } else if (!geo) {
+        h += '<div class="note">⏳ Finding farms near ' + esc(zip) + '…</div>';
+        geocodeZip(zip).then(g => { if (g) farmRerender(); else if (state.tab === 'farm') { const n = document.querySelector('#tab-content .note'); if (n) n.textContent = 'We couldn\'t place that ZIP. Check it and search again.'; } });
+      } else {
+        if (!FARM_OSM || FARM_OSM.zip !== zip) { if (farmOsmState !== 'failed') setTimeout(() => loadFarmOsm(zip), 0); }
+        const near = f => { const mi = haversineMi(geo.lat, geo.lon, f.la, f.lo); return Object.assign({}, f, { _mi: mi }); };
+        const seen = {};
+        const key = f => String(f.n).toLowerCase().replace(/[^a-z0-9]/g, '');
+        let farms = (FARM_LIST || []).map(near).filter(f => f._mi <= FARM_RADIUS_MI);
+        farms.forEach(f => { seen[key(f)] = 1; });
+        const osmOn = FARM_OSM && FARM_OSM.zip === zip;
+        if (osmOn) farms = farms.concat(FARM_OSM.shops.map(near).filter(f => !seen[key(f)] && (seen[key(f)] = 1)));
+        farms = farms.filter(farmMatches).sort((a, b) => a._mi - b._mi);
+        h += '<div class="sec"><h3>🥛 Farms that sell to the public</h3></div>';
+        if (farms.length) {
+          h += farms.slice(0, farmShown).map(farmRow).join('');
+          if (farms.length > farmShown) h += '<button class="btn secondary" onclick="farmMore()">Show more farms (' + (farms.length - farmShown) + ')</button>';
+        } else if (farmListState === 'loading' || farmListState === 'idle' || farmOsmState === 'loading') {
+          h += '<div class="note">⏳ Looking up farms near ' + esc(zip) + '…</div>';
+        } else {
+          h += '<div class="note">' + (farmCat === 'all' ? 'We don\'t have a farm listed within ' + FARM_RADIUS_MI + ' miles of ' + esc(zip) + ' yet.' : 'Nothing listed for that near ' + esc(zip) + ' yet. Try “All”.') +
+            ' <span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('farm stand near ' + zip) + '\')">Search farm stands on Google Maps</span></div>';
+        }
+        if (farmCat === 'all' && osmOn && FARM_OSM.markets.length) {
+          h += '<div class="sec"><h3>🧺 Farmers markets</h3></div>' +
+            FARM_OSM.markets.map(near).sort((a, b) => a._mi - b._mi).slice(0, 6).map(f => farmRow(Object.assign(f, { market: true }))).join('');
+        }
+        if (farmOsmState === 'failed' && !osmOn) h += '<p class="sub" style="font-size:0.78rem;">📡 The map service didn\'t answer, so mapped farm shops and markets are missing. <span class="link" onclick="farmOsmState=\'idle\';farmRerender()">Try again</span></p>';
+        h += '<p class="sub" style="font-size:0.8rem;margin:0.5rem 0 0.2rem;"><span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('farms that sell to the public near ' + zip) + '\')">See more farms on Google Maps</span></p>';
+      }
+
+      // More for farm people, already in Petfi
+      h += '<div class="sec"><h3>🐄 More for farm animals</h3></div>' +
+        '<div class="mm-banner" style="border-color:var(--line);" onclick="setStoreCat(\'Farm\')"><div class="i">🌾</div><div><b>Feed &amp; farm supplies</b><small>Best sellers for chickens, goats, horses and cattle</small></div><span class="chev">›</span></div>' +
+        '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Livestock breeding partners</b><small>Goats, cattle, horses, sheep and more in Mate Match</small></div><span class="chev">›</span></div>' +
+        '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'nearby\')"><div class="i">📍</div><div><b>Feed stores near you</b><small>On Nearby, under Places near you</small></div><span class="chev">›</span></div>';
+
+      if (!iAmFarm()) h += '<div class="get-verified" style="background:linear-gradient(135deg,#fdf3d7,#f8e6b0);border-color:#ecd58a;cursor:pointer;margin-top:0.8rem;" onclick="openFarmJoin()">' +
+        '<h4>🚜 Own a farm or ranch?</h4>' +
+        '<p style="color:#7a5a12;">Put it on Petfi and reach people near you who want to buy local. Free for ' + ORG_TRIAL_DAYS + ' days.</p>' +
+        '<button class="pill-btn" style="background:#b8860b;" onclick="event.stopPropagation();openFarmJoin()">How it works</button></div>';
+
+      h += '<p class="sub" style="font-size:0.72rem;margin-top:0.8rem;">Farms without a ✔︎ are listed from public information and OpenStreetMap. Petfi hasn\'t checked them and isn\'t connected to them, so call ahead for hours and what\'s in season. Wrong or missing farm? <span class="link" onclick="openFeedback()">Tell us</span>.</p>';
+      return h;
+    }
     // Public extras stored in the profile's jsonb column (handles the old
     // format where it was just the picks array)
     function pubExtras(u) {
@@ -4673,7 +4979,7 @@
     }
     function personMeta(u) {
       // Privacy: never show another user's ZIP code
-      if (u.kind === 'org') return orgTypeLabel((orgInfo(u.org) || {}).type);
+      if (u.kind === 'org') return orgTypeLabel((orgInfo(u.org) || {}).type) + (u.verified ? '' : ' · not verified yet');
       return u.kind === 'owner' ? 'Owner' : (u.breed || u.species || 'Pet');
     }
     async function refreshPeople() {
@@ -4711,11 +5017,7 @@
           'nwr["amenity"="veterinary"](around:16000,' + lat + ',' + lon + ');' +
           FEED_SEL.map(s => s + '(around:32000,' + lat + ',' + lon + ');').join('') +
           ');out center 150;';
-        const data = await (await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(q),
-        })).json();
+        const data = await overpassJson(q);
         state.spots = groupSpots(data.elements || [], lat, lon, z);
         if (typeof zipArg !== 'string') toast('📍 Real places loaded for ' + z);
       } catch (e) {
@@ -4725,6 +5027,24 @@
       state.spotsLoading = false; spotsInFlight = false;
       saveState();
       if (state.tab === 'nearby') openTab('nearby');
+    }
+    // OpenStreetMap's query service is free and sometimes slow or busy: give each
+    // server 9 seconds, then try the next one; the one that answered goes first next time
+    let OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+    async function overpassJson(q) {
+      let last = null;
+      for (const url of OVERPASS.slice()) {
+        const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 9000);
+        try {
+          const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: ac.signal });
+          if (!r.ok) throw new Error('map service ' + r.status);
+          const j = await r.json();
+          if (!j || !Array.isArray(j.elements)) throw new Error('map service answer');
+          OVERPASS = [url].concat(OVERPASS.filter(u => u !== url));
+          return j;
+        } catch (e) { last = e; } finally { clearTimeout(timer); }
+      }
+      throw last || new Error('map service');
     }
     function haversineMi(lat1, lon1, lat2, lon2) {
       const R = 3958.8, toR = x => x * Math.PI / 180;
@@ -6334,7 +6654,7 @@
                          : (state.pets || []).length ? 'Pet owner · ' + state.pets.length + (state.pets.length === 1 ? ' pet' : ' pets') : 'Member';
       // Owners and organizations with pet profiles: who you are right now, then that one's hero
       const actingNow = actingPet();
-      let h = nameCardHtml() + (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) + switchHintHtml(false) : '') +
+      let h = orgTrialCard() + nameCardHtml() + (iAmPerson() && personasOn() ? personaChipsHtml('setActingAs', false, true) + switchHintHtml(false) : '') +
         (actingNow ? petHeroHtml(actingNow) : '<div class="prof-hero">' +
         // One quiet way in for anyone who isn't verified yet, pet or owner account
         (state.verified ? '' : '<button class="prof-verify" onclick="startVerify()">🪪 Become a verified member</button>') +
@@ -6370,6 +6690,7 @@
 
       // Organization details (type, description, links), edited from here
       if (isOrg) h += orgProfileHtml(oi, true);
+      h += myShopHtml(); // products and services, straight from the page
       // Pets (owners)
       if (!isPet) {
         // An organization's animals (added from My care) show here once it has any
@@ -6452,7 +6773,9 @@
       h += '<div class="sec"><h3>🛟 Help & support</h3></div>';
       h += '<div class="settings-card">' +
         '<div class="link-row" onclick="inviteFriends()"><span class="li">💌</span><div>Invite friends<small>Petfi is more fun with your pack</small></div><span class="chev">›</span></div>' +
-        '<div class="link-row" onclick="openHelp()"><span class="li">❓</span><div>Help &amp; FAQ</div><span class="chev">›</span></div>' +
+        '<div class="link-row" onclick="openHelp()"><span class="li">❓</span><div>Help<small>Common problems, step by step</small></div><span class="chev">›</span></div>' +
+        '<div class="link-row" onclick="openAskDev()"><span class="li">🙋</span><div>Ask the developer<small>Questions, help, or something you want added</small></div><span class="chev">›</span></div>' +
+        (isAdmin() ? '<div class="link-row" onclick="openDevInbox()"><span class="li">📥</span><div>Questions &amp; feedback<small>What members wrote to the developer (admin)</small></div><span class="chev">›</span></div>' : '') +
         '<div class="link-row" onclick="openFeedback()"><span class="li">💌</span><div>Send feedback<small>Ideas, bugs, anything</small></div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openReport(\'general\',\'a problem\')"><span class="li">🚩</span><div>Report a problem</div><span class="chev">›</span></div>' +
         '<div class="link-row" onclick="openTab(\'groups\')"><span class="li">👥</span><div>Groups<small>Breed clubs, walk crews, local packs</small></div><span class="chev">›</span></div>' +
@@ -7240,7 +7563,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.32.0';
+    const APP_VERSION = '1.33.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7348,8 +7671,81 @@
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
+    // Plain step-by-step answers to the things people get stuck on most.
+    // Each one says exactly where to tap; written for someone new to apps.
+    function helpBasicsHtml() {
+      const q = (s, a) => '<details><summary>' + s + '</summary><p>' + a + '</p></details>';
+      return '<div class="sec" style="margin-top:0.2rem;"><h3>🧭 Common problems</h3></div><div class="faq">' +
+        q('🏠 How do I get back to the main page?', 'Tap <b>🏠 Home</b> in the row of buttons at the bottom of the screen (on a computer it\'s on the left side). That row is always there: Home, Mate Match, Nearby, Farm Stuff, Store and Me. Your phone\'s Back button also takes you back to Home.') +
+        q('🔑 I can\'t log in or I forgot my password', '1. On the first screen tap <b>Log in</b>.<br>2. Check your email is spelled right, with no space at the end.<br>3. If you set a 6-digit PIN, tap <b>Log in with my PIN</b> and type your email and PIN.<br>4. Still stuck? Tap <b>Forgot your password?</b>. If no email arrives in a few minutes, write to <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a> from the email you signed up with and we\'ll get you back in.') +
+        q('🔢 What is the login PIN? Do I need one?', 'No, it\'s optional. A PIN is 6 digits you choose so you can log in without typing your password. To turn it on: tap <b>👤 Me</b>, scroll to <b>Account &amp; security</b>, then <b>Login PIN</b>. Keep your password too.') +
+        q('🐶 How do I add my pet?', 'Tap <b>👤 Me</b> at the bottom, then <b>＋ Add a pet</b>. Pick the kind of animal, type the name, and tap save. You can add as many pets as you have.') +
+        q('📷 How do I post a photo?', '1. Tap <b>🏠 Home</b>.<br>2. Tap the box at the top that asks what\'s on your mind.<br>3. Tap <b>📷 Add photos</b> and choose a picture from your phone.<br>4. Tap <b>Post</b>.') +
+        q('🖼️ How do I change my picture?', 'Tap <b>👤 Me</b>, then <b>📷 Use a photo</b> under your name, and choose a picture. To go back to the drawn icon, tap <b>↺ Back to my icon</b>.') +
+        q('💬 How do I send someone a message?', 'Tap their name or picture to open their page, then tap <b>💬 Message</b>. Your conversations are under the <b>💬</b> button at the top of the screen.') +
+        q('🔍 How do I find a groomer, vet or pet store near me?', 'Tap the <b>🔍</b> at the top and type what you need, like “dog groomer near me”. Or tap <b>📍 Nearby</b> at the bottom and enter your ZIP code to see parks, stores and vets around you.') +
+        q('🚜 How do I find farms that sell milk, eggs or meat?', 'Tap <b>🚜 Farm Stuff</b> at the bottom, type your ZIP code and tap <b>Search</b>. Tap a farm\'s <b>Website</b> or <b>📍 Map</b> button for directions and hours.') +
+        q('🔔 I\'m not getting notifications', 'Tap <b>👤 Me</b>, scroll to <b>Settings</b>, then tap <b>🔔 Notification settings</b> and turn them on. If your phone asks whether Petfi may send notifications, tap <b>Allow</b>. If you said no before, open your phone\'s Settings, find Petfi (or your browser) under Notifications, and switch it on.') +
+        q('📱 How do I put Petfi on my phone\'s home screen?', '<b>Android:</b> get the Petfi app from Google Play. <b>iPhone:</b> open petfi.org in Safari, tap the Share button (the square with an arrow), then <b>Add to Home Screen</b>. After that Petfi opens like any other app.') +
+        q('🔎 The words are too small', 'On a phone, open your phone\'s <b>Settings</b>, then <b>Display</b>, then <b>Font size</b>, and make it bigger: Petfi follows it. On a computer, hold <b>Ctrl</b> and press <b>+</b>.') +
+        q('🌙 The screen is too bright or too dark', 'Tap <b>👤 Me</b>, scroll to <b>Settings</b>, and switch <b>🌙 Dark mode</b> on or off.') +
+        q('🧊 Something is stuck or looks broken', 'Close Petfi completely and open it again. On a computer, press the refresh button (the circular arrow). Nothing you saved is lost. If it keeps happening, tap <b>Ask the developer</b> below and tell us what you were doing.') +
+        q('🚪 How do I log out?', 'Tap <b>👤 Me</b>, scroll to <b>Account &amp; security</b>, then <b>Log out</b>. On a shared computer choose <b>Log out and forget me on this device</b>.') +
+        '</div>';
+    }
+    // "Have a question? Ask the developer": questions, feature requests and
+    // help go to the same inbox as feedback; the developer answers in Messages.
+    function askDevCardHtml() {
+      return '<div class="get-verified" style="cursor:pointer;margin:0.6rem 0;" onclick="openAskDev()">' +
+        '<h4>🙋 Have a question? Ask the developer</h4>' +
+        '<p>Need help, or want something added to Petfi? Write to the person who builds it. Every message gets read.</p>' +
+        '<button class="pill-btn" onclick="event.stopPropagation();openAskDev()">Write a message</button></div>';
+    }
+    function openAskDev(kind) {
+      const opts = [['❓ I have a question', 'q'], ['🛟 I need help with something', 'help'], ['💡 Please add something to Petfi', 'idea'], ['🐛 Something is broken', 'bug']];
+      openSheet('🙋 Ask the developer',
+        '<p class="sub" style="font-size:0.9rem;">Ask anything, ask for help, or ask for something new in Petfi. ' + (cloudUser ? 'The answer comes to your Petfi messages (the 💬 at the top).' : 'Your email app will open so we can write back.') + '</p>' +
+        '<label for="fb-type">What is it about?</label>' +
+        '<select id="fb-type">' + opts.map(o => '<option value="' + esc(o[0]) + '"' + (o[1] === kind ? ' selected' : '') + '>' + esc(o[0]) + '</option>').join('') + '</select>' +
+        '<label for="fb-text">Your message</label>' +
+        '<textarea id="fb-text" maxlength="2000" placeholder="Write it the way you\'d say it. There are no wrong questions." style="width:100%;min-height:130px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;"></textarea>' +
+        '<button class="btn" onclick="submitFeedback(true)">Send 💌</button>' +
+        '<button class="btn secondary" onclick="closeSheet();openHelp()">Look at common problems first</button>');
+    }
+    // Admin: the inbox for those messages (Me › Questions & feedback)
+    async function openDevInbox() {
+      if (!isAdmin()) return;
+      openSheet('🙋 Questions & feedback', '<div class="note">⏳ Loading…</div>');
+      const seq = sheetSeq;
+      const r = await cloud.from('feedback').select('id, user_id, content, created_at').order('created_at', { ascending: false }).limit(60).then(x => x, e => ({ error: e }));
+      if (seq !== sheetSeq) return;
+      const rows = r.data || [];
+      if (r.error || !rows.length) {
+        openSheet('🙋 Questions & feedback', '<div class="note">' + (r.error ? '⚠️ ' + esc(r.error.message || 'Could not load') : 'No messages yet. (If members have written and nothing shows, the inbox still needs petfi-ask-developer-2026-11-22.sql.)') + '</div><button class="btn secondary" onclick="closeSheet()">Close</button>');
+        return;
+      }
+      await ensureProfiles(rows.map(x => x.user_id));
+      if (seq !== sheetSeq) return;
+      openSheet('🙋 Questions & feedback', rows.map(x => {
+        const c = x.content || {}, name = authorName(x.user_id, c.from);
+        return '<div class="hx-card" style="text-align:left;"><div style="font-weight:800;">' + esc(c.type || 'Message') + '</div>' +
+          '<div style="color:var(--muted);font-size:0.76rem;">' + esc(name) + ' · ' + timeAgo(x.created_at) + (c.version ? ' · v' + esc(c.version) : '') + '</div>' +
+          '<p style="white-space:pre-wrap;margin:0.4rem 0;" translate="no">' + esc(c.text || '') + '</p>' +
+          '<div style="display:flex;gap:0.4rem;"><button class="pill-btn" onclick="closeSheet();openCloudDMWithProfile(\'' + jsStr(x.user_id) + '\',\'' + jsStr(name) + '\')">💬 Reply</button>' +
+          '<button class="pill-btn ghost" onclick="devInboxDone(' + Number(x.id) + ', this)">✓ Done</button></div></div>';
+      }).join('') + '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    async function devInboxDone(id, btn) {
+      if (!isAdmin()) return;
+      const r = await cloud.from('feedback').delete().eq('id', id).then(x => x, e => ({ error: e }));
+      if (r.error) { toast('⚠️ Couldn\'t remove it'); return; }
+      const card = btn && btn.closest('.hx-card'); if (card) card.remove();
+    }
+
     function openHelp() {
-      openSheet('❓ Help & FAQ',
+      openSheet('❓ Help',
+        helpBasicsHtml() + askDevCardHtml() +
+        '<div class="sec"><h3>📖 How Petfi works</h3></div>' +
         '<div class="faq" style="margin-top:0.4rem;">' +
         '<details><summary>🐾 Can my pet have its own profile?</summary><p>Yes. Petfi has one account per person, with your pets inside it. Each pet gets its own profile with an animated icon or a photo. On your Me page, tap a pet to post, comment and say hi as them, and tap yourself to switch back. Accounts are for adults ' + MIN_AGE + ' and older. If you had a pet account before, it is now your account, with your pet inside it and nothing lost.</p></details>' +
         '<details><summary>🪪 Is there a verified badge?</summary><p>A blue ✔︎ next to a name means <b>Petfi has confirmed who that member is</b> — it is granted by Petfi, never self-served. Owners verify from their profile with a government ID and a quick selfie (one-time $3; in the Android app the charge goes through Google Play). The check runs on Stripe Identity\'s own page: Petfi never sees the ID or selfie, only pass or fail and whether the person is 18 or older. A failed check can be retried at no extra charge.</p></details>' +
@@ -7368,8 +7764,9 @@
         '<details><summary>🔒 Who can see my stuff?</summary><p>Posts and your profile card are visible to Petfi members. Your reminders, calendar, and mate picks are private by default. You can hide yourself from Nearby and limit messages to friends in Settings.</p></details>' +
         '<details><summary>🚫 Someone\'s bothering me</summary><p>Open their profile and tap <b>Block</b> — they can\'t message you or see you nearby anymore. Use <b>Report</b> for anything that breaks the rules; reports are anonymous and we review them.</p></details>' +
         '<details><summary>🗑 How do I delete my account?</summary><p>Me tab → <b>Account &amp; security</b> → Delete my account. Everything you\'ve posted and saved is permanently erased.</p></details>' +
+        '<details><summary>🚜 What is Farm Stuff?</summary><p>A page of local farms that sell straight to regular people: milk, meat, eggs, honey, produce and more. Farms with a blue ✔︎ have their own Petfi page and passed the ID check. The others are listed from public information to get you started; call ahead for hours. Farms and organizations can try Petfi free for 3 days, then verify once to stay.</p></details>' +
         '</div>' +
-        '<button class="btn" onclick="closeSheet();openFeedback()">💌 Still stuck? Send us a message</button>' +
+        '<button class="btn" onclick="closeSheet();openAskDev(\'help\')">🙋 Still stuck? Ask the developer</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
 
@@ -7401,16 +7798,16 @@
         '<textarea id="fb-text" placeholder="The more detail, the better…" style="width:100%;min-height:110px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:1rem;"></textarea>' +
         '<button class="btn" onclick="submitFeedback()">Send it 💌</button>');
     }
-    async function submitFeedback() {
-      const type = val('fb-type'), text = val('fb-text');
-      if (!text) { toast('Tell us a little more first 💌'); return; }
+    async function submitFeedback(ask) {
+      const type = val('fb-type'), text = val('fb-text').slice(0, 2000);
+      if (!text) { toast(ask ? 'Write your question first 💌' : 'Tell us a little more first 💌'); return; }
       const entry = { type, text, from: state.displayName || 'Anonymous', version: APP_VERSION };
       if (cloud && cloudUser) {
         const { error } = await cloud.from('feedback').insert({ user_id: cloudUser.id, content: entry });
         if (!error) {
           openSheet('💛 Thank you!',
             '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">💌🐾</div>' +
-            '<p class="sub" style="margin-top:0.6rem;">Your feedback is in. It genuinely shapes what we build next.</p></div>' +
+            '<p class="sub" style="margin-top:0.6rem;">' + (ask ? 'Your message is on its way to the developer. The answer comes to your Petfi messages: watch the 💬 at the top of the screen.' : 'Your feedback is in. It genuinely shapes what we build next.') + '</p></div>' +
             '<button class="btn" onclick="closeSheet()">Done</button>');
           return;
         }
@@ -7518,6 +7915,7 @@
       if (!data) return;
       if (ban) { data.banned = !!(ban.banned || data.banned); data.ban_reason = ban.ban_reason || null; }
       // The server decides who is verified; mirror it locally so the badge shows
+      await orgTrialFetch(); // an unverified organization: how long its free trial runs
       if (!!data.verified !== !!state.verified) { state.verified = !!data.verified; state.verifiedBy = data.verified ? 'petfi' : null; saveState({ bg: true }); if (appActive() && state.tab === 'profile') rerenderTab(renderProfile); }
       if (!data.banned) { orgGateSync(!!data.verified); return; } // an organization: into the app, or back to the verify screen
 
@@ -7879,7 +8277,7 @@
       if (!id || (cloudUser && id === cloudUser.id)) return false;
       if (isBlocked(id) || isBannedUser(id) || BLOCKED_ME[id]) return true;
       const p = PROFILE_BY_ID[id];
-      if (p && p.kind === 'org' && !p.verified) return true; // an organization appears only once verified
+      if (p && p.kind === 'org' && !p.verified && p.visible === false) return true; // an unverified organization shows only during its free trial (the server hides it after)
       return !!(p && !audienceShows(p));
     }
     // "Who do you want to connect with?": Pet pals, Owners & businesses,
@@ -10776,7 +11174,8 @@
       // Farms list farm animals and horses in Mate Match (1.31.4); other organizations don't
       const pet = state.accountType === 'pet', org = iAmOrg(), farm = iAmFarm();
       return [
-        org ? ['🏢', 'Your organization goes live', 'your profile, posts, messages and listings open as soon as the check passes'] : null,
+        org ? ['🏢', 'Your organization stays on Petfi', 'your profile, posts and messages keep going after the free trial, and listings open as soon as the check passes'] : null,
+        farm ? ['🚜', 'Your farm on Farm Stuff', 'listed first, with the verified badge, for people looking to buy local'] : null,
         ['✔︎', 'Trust badge', 'on your profile and everything you post, sell or list'],
         pet ? null : ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
         pet ? null : ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
@@ -15052,6 +15451,8 @@
       ageErr.textContent = '';
       if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return; }
       if (pass.length < 6) { err.textContent = 'Password needs at least 6 characters.'; err.style.display = 'block'; return; }
+      const newPin = val('acct-pin'); // optional
+      if (newPin && !/^\d{6}$/.test(newPin)) { err.textContent = 'The PIN is optional, but if you want one it needs exactly 6 digits. Or leave it empty.'; err.style.display = 'block'; return; }
       if (!ageBox.checked) { ageErr.textContent = 'Please confirm you\'re ' + MIN_AGE + ' or older — Petfi accounts are for adults only.'; ageBox.focus(); return; }
       btn.disabled = true; btn.textContent = 'Creating your account…';
       const { data, error } = await cloud.auth.signUp({ email: email, password: pass });
@@ -15087,8 +15488,19 @@
       cloudSaveProfile();
       syncCloud();
       confetti();
-      toast(pendingFinish === 'org' && !appActive() ? 'Account created. One more step: verify your organization' : 'Account created — you\'re in 🐾');
+      toast(pendingFinish === 'org' && !appActive() ? 'Account created. Getting your free trial ready…' : 'Account created — you\'re in 🐾');
       track('account_created', pendingFinish);
+      // The optional PIN from the sign-up form. They were offered one here, so the
+      // "Want a login PIN?" sheet does not ask again; a PIN the server turns down
+      // (too easy to guess) never blocks the new account.
+      state.pinOffered = true; saveState({ bg: true });
+      const pinBox = document.getElementById('acct-pin'); if (pinBox) pinBox.value = '';
+      if (newPin) {
+        let pinErr = null;
+        try { ({ error: pinErr } = await cloud.rpc('petfi_set_login_pin', { p_pin: newPin })); } catch (e) { pinErr = e; }
+        if (!pinErr) { rememberLogin(true); track('pin_set', 'signup'); setTimeout(() => toast('🔢 Your login PIN is on'), 2500); }
+        else setTimeout(() => toast(/pin_weak/.test(String(pinErr.message || '')) ? 'That PIN was too easy to guess, so it wasn\'t saved. Pick another in Settings › Account.' : 'Your PIN wasn\'t saved. You can set one in Settings › Account.'), 2500);
+      }
     }
 
     // ---- Remembered login (1.32.0): this device knows who logged in last ----
@@ -17025,6 +17437,7 @@
             ? '<div class="prof-meta" style="margin-top:0.4rem;">🐾 Pets: ' + x.pets.map(q => esc(q.n) + (q.b || q.s ? ' (' + esc(q.b || q.s) + ')' : '')).join(', ') + '</div>' : '') +
         '</div>' +
         (oi ? orgProfileHtml(oi, false) : '') +
+        '<div id="ps-shop" data-owner="' + esc(u.id) + '">' + theirShopHtml(u) + '</div>' +
         (heldByThem.length
           ? '<div class="sec" style="margin:0.9rem 0 0.4rem;"><h3>👑 Currently holding</h3></div>' +
             heldByThem.map(c => '<div class="fav-item" style="cursor:default;"><span class="fi">🏳️</span>' +
@@ -17047,6 +17460,14 @@
           '<button class="pill-btn ghost" style="flex:1;" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block</button>' +
         '</div>');
+      // Their shop: top up the listings, then fill in place
+      if (isPersonKind(u.kind)) {
+        const seq0 = sheetSeq;
+        loadListings().then(() => {
+          const el = document.getElementById('ps-shop');
+          if (seq0 === sheetSeq && el && el.getAttribute('data-owner') === u.id) el.innerHTML = theirShopHtml(u);
+        }, () => {});
+      }
       // Their pets: one query (cached), filled in place when it lands
       if (personasOn() && isPersonKind(u.kind)) {
         const seq = sheetSeq;
@@ -17639,6 +18060,7 @@
         photos: safePhotos(r.content && r.content.photos), bg: safeBg(r.content && r.content.bg), emo: '🐾',
       }));
       if (appActive() && state.tab === 'store') rerenderTab(renderStore);
+      else if (appActive() && state.tab === 'profile' && !document.body.classList.contains('sheet-open')) rerenderTab(renderProfile); // "Sell from your page"
     }
 
     // ======================= CLOUD SYNC ENGINE =======================
@@ -17779,6 +18201,7 @@
       else if (name === 'mate') { loadMatesAndAds(); ensureMyGeo(); }
       else if (name === 'nearby') { loadPeople(); loadTerritory(); loadMatesAndAds(); loadTags(); lfRefresh(); }
       else if (name === 'store') loadListings();
+      else if (name === 'farm') { loadFarmAccounts(); ensureMyGeo(); }
       else if (name === 'profile') { loadTerritory(); lfRefresh(); }
       else if (name === 'lost') { loadTags(); lfRefresh(); lfLoadBoard(); }
     }
