@@ -3024,6 +3024,7 @@
       // Organizations: verified no matter what, on every way in
       if (orgLocked()) { showOrgGate(); return; }
       if (iAmOrg() && !state.orgShown) { state.orgShown = true; state.visible = true; saveState({ bg: true }); setTimeout(cloudSaveProfile, 0); }
+      if (cloudUser) { rememberLogin(); askPersistentStorage(); setTimeout(pinOfferCheck, 6000); } // greet them next time; offer the optional PIN once
       trackOpen('app');
       if (!state.favorites) state.favorites = DEFAULT_FAVS.map(f => Object.assign({}, f));
       if (!state.favsCleaned) {
@@ -7239,7 +7240,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.31.5';
+    const APP_VERSION = '1.32.0';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8039,8 +8040,9 @@
           ? '<div class="row"><div class="ricon">✉️</div><div class="rmain"><div class="rtitle">Signed in as</div><div class="rmeta">' + esc(email) + '</div></div></div>'
           : '<div class="note">You\'re using Petfi on this device only. Create a login from the welcome screen to save your account in the cloud.</div>') +
         '<div class="settings-card" style="margin-top:0.6rem;">' +
-          (email ? '<div class="link-row" onclick="openChangePassword()"><span class="li">🔑</span>Change password<span class="chev">›</span></div>' : '') +
-          '<div class="link-row" onclick="closeSheet();logOut()"><span class="li">↺</span>Log out<span class="chev">›</span></div>' +
+          (email ? '<div class="link-row" onclick="openChangePassword()"><span class="li">🔑</span>Change password<span class="chev">›</span></div>' +
+            '<div class="link-row" onclick="openPinSettings()"><span class="li">🔢</span>Login PIN<span class="chev">›</span></div>' : '') +
+          '<div class="link-row" onclick="openLogOutChoice()"><span class="li">↺</span>Log out<span class="chev">›</span></div>' +
           '<div class="link-row danger" onclick="openDeleteAccount()"><span class="li">🗑</span>Delete my account<span class="chev">›</span></div>' +
         '</div>');
     }
@@ -8061,7 +8063,10 @@
       btn.disabled = true; btn.textContent = 'Saving…';
       const { error } = await cloud.auth.updateUser({ password: p1 });
       if (error) { btn.disabled = false; btn.textContent = 'Save new password'; return fail(error.message); }
-      closeSheet(); toast('Password updated 🔑');
+      // The server drops a login PIN when the password changes (petfi_pin_drop_on_password)
+      const hadPin = !!(readLastLogin() || {}).pin;
+      rememberLogin(false);
+      closeSheet(); toast(hadPin ? 'Password updated 🔑 Your login PIN was turned off; set a new one in Settings › Account.' : 'Password updated 🔑');
     }
     function openDeleteAccount() {
       openSheet('🗑 Delete your account?',
@@ -8073,6 +8078,7 @@
     }
     async function reallyDeleteAccount() {
       if (val('da-confirm').toUpperCase() !== 'DELETE') { toast('Type DELETE to confirm'); return; }
+      forgetLastLogin(); // no "welcome back" for an account that is being erased
       openSheet('🗑 Deleting…', '<p class="sub" style="text-align:center;padding:1rem 0;">Erasing your data from the cloud…</p>');
       const failed = [];
       let serverDone = false;
@@ -8104,6 +8110,8 @@
           if (error && error.context && typeof error.context.json === 'function') { try { why = (await error.context.json()).error; } catch (e) {} }
           if (why === 'monthly_gift') { notDeleted(); return; }
         } catch (e) {}
+        // The fallback can't delete the login itself, so at least turn its PIN off
+        if (!serverDone) { try { await cloud.rpc('petfi_clear_login_pin'); } catch (e) {} }
         const wipes = serverDone ? [] : [
           ['post_likes', 'user_id'], ['post_comments', 'author_id'], ['posts', 'author_id'],
           ['listings', 'seller_id'], ['mate_listings', 'owner_id'], ['ads', 'owner_id'],
@@ -15068,7 +15076,7 @@
         openSheet('📬 Confirm your email',
           '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">📬</div>' +
           '<p class="sub" style="margin-top:0.6rem;">We sent a confirmation link to <b>' + esc(email) + '</b>. Tap it, then come back and log in — your profile will be waiting, exactly as you set it up.</p></div>' +
-          '<button class="btn" onclick="closeSheet();openLogin()">I confirmed — log in</button>' +
+          '<button class="btn" onclick="closeSheet();openLogin({ email: \'' + jsStr(email) + '\', password: true })">I confirmed — log in</button>' +
           '<button class="btn secondary" id="resend-btn" onclick="resendConfirm(\'' + jsStr(email) + '\')">Send the link again</button>');
         return;
       }
@@ -15083,14 +15091,278 @@
       track('account_created', pendingFinish);
     }
 
-    function openLogin() {
+    // ---- Remembered login (1.32.0): this device knows who logged in last ----
+    // Kept on log out, so the welcome screen can greet them and, if they set a
+    // login PIN, ask only for the PIN. "Not you?" and deleting the account forget it.
+    // Only the email, the display name and whether a PIN is on: never a secret.
+    const LAST_LOGIN_KEY = 'petfi-last-login';
+    // Emailed login codes need a real email sender. Until custom SMTP is set up in
+    // Supabase (Auth > Emails > SMTP), the built-in sender only reaches the Supabase
+    // team's own addresses, so every "Email me a code" button stays hidden.
+    // Turn on after SMTP works (PETFI-LOGIN-PIN-STATE.md).
+    const EMAIL_CODES_ON = false;
+    function readLastLogin() {
+      try {
+        const r = JSON.parse(localStorage.getItem(LAST_LOGIN_KEY));
+        return r && typeof r.email === 'string' && /^\S+@\S+\.\S+$/.test(r.email) ? r : null;
+      } catch (e) { return null; }
+    }
+    // pin: true/false when known, undefined to keep what this device already knew
+    function rememberLogin(pin) {
+      if (!cloudUser || !cloudUser.email) return;
+      const mail = String(cloudUser.email).trim().toLowerCase();
+      const cur = readLastLogin(), same = !!(cur && cur.email === mail);
+      const rec = { email: mail, name: String(state.displayName || (same && cur.name) || '').slice(0, 40), pin: pin === undefined ? !!(same && cur.pin) : !!pin };
+      try { localStorage.setItem(LAST_LOGIN_KEY, JSON.stringify(rec)); } catch (e) {}
+    }
+    function forgetLastLogin() { try { localStorage.removeItem(LAST_LOGIN_KEY); } catch (e) {} }
+    function notMe() { forgetLastLogin(); renderResume(); openLogin({ fresh: true }); }
+    // Ask the browser to keep Petfi's storage (and so the login) under storage pressure.
+    // Chrome decides quietly; Firefox would show a prompt, so it is skipped there.
+    function askPersistentStorage() {
+      try {
+        if (navigator.storage && navigator.storage.persist && !/Firefox\//.test(navigator.userAgent || ''))
+          navigator.storage.persisted().then(p => { if (!p) navigator.storage.persist().catch(() => {}); }).catch(() => {});
+      } catch (e) {}
+    }
+    const LINK_STYLE = 'color:var(--muted);font-size:0.85rem;';
+    // A PIN box is a text field with masked digits, not type=password: a password
+    // field next to the email makes browsers offer to save the PIN as the password.
+    const PIN_FIELD = 'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" spellcheck="false" placeholder="6 digits" ' +
+      'style="letter-spacing:0.4em;font-size:1.3rem;text-align:center;-webkit-text-security:disc;"';
+    // Log out from Settings: on a shared computer, the member can also make this device forget them
+    function openLogOutChoice() {
+      const last = readLastLogin();
+      if (!last) { closeSheet(); logOut(); return; }
+      openSheet('↺ Log out',
+        '<p class="sub">' + (last.pin ? 'This device remembers you, so next time it can greet you and ask only for your PIN.'
+          : 'This device remembers you, so next time your email is already filled in.') + '</p>' +
+        '<button class="btn" onclick="closeSheet();logOut()">Log out</button>' +
+        '<button class="btn secondary" onclick="closeSheet();forgetLastLogin();logOut()">Log out and forget me on this device</button>' +
+        '<p class="sub" style="font-size:0.78rem;text-align:center;">On a shared or public computer, choose "forget me".</p>');
+    }
+
+    // opts: { email, password: true (skip the PIN), fresh: true (ignore the remembered login) }
+    function openLogin(opts) {
       if (!cloud) { toast('No internet connection right now'); return; }
-      openSheet('Log in',
-        '<label for="li-email">Email</label><input id="li-email" type="email" placeholder="you@example.com">' +
-        '<label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Your password" onkeydown="if(event.key===\'Enter\')doLogin()">' +
+      opts = opts || {};
+      const last = opts.fresh ? null : readLastLogin();
+      const email = String(opts.email || (last ? last.email : '')).trim();
+      const known = !!(last && email && last.email === email.toLowerCase());
+      // This device remembers a login with a PIN: welcome back, straight to the PIN
+      if (!opts.password && known && last.pin) { openPinLogin(email); return; }
+      openSheet(known && last.name ? '👋 Welcome back' : 'Log in',
+        (known && last.name ? '<p class="sub">Welcome back, <b>' + esc(last.name) + '</b>!</p>' : '') +
+        '<label for="li-email">Email</label><input id="li-email" type="email" placeholder="you@example.com" autocomplete="username" value="' + esc(email) + '">' +
+        '<label for="li-pass">Password</label><input id="li-pass" type="password" placeholder="Your password" autocomplete="current-password" onkeydown="if(event.key===\'Enter\')doLogin()">' +
         '<p id="li-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
         '<button class="btn" id="li-btn" onclick="doLogin()">Log in</button>' +
-        '<p style="text-align:center;margin-top:0.8rem;"><a href="#" onclick="openForgotPassword();return false;" style="color:var(--muted);font-size:0.85rem;">Forgot your password?</a></p>');
+        (EMAIL_CODES_ON ? '<button class="btn secondary" onclick="openCodeLogin(val(\'li-email\'))">📧 Email me a login code</button>' : '') +
+        '<button class="btn secondary" onclick="openPinLogin(val(\'li-email\'))">🔢 Log in with my PIN</button>' +
+        '<p style="text-align:center;margin-top:0.8rem;"><a href="#" onclick="openForgotPassword();return false;" style="' + LINK_STYLE + '">Forgot your password?</a>' +
+        (known ? ' · <a href="#" onclick="notMe();return false;" style="' + LINK_STYLE + '">Not you?</a>' : '') + '</p>');
+    }
+
+    // ---- Log in with email + PIN (petfi-pin-login checks it; 5 wrong tries lock it) ----
+    function openPinLogin(email) {
+      if (!cloud) { toast('No internet connection right now'); return; }
+      email = String(email || '').trim();
+      const last = readLastLogin();
+      const name = last && email && last.email === email.toLowerCase() ? last.name : '';
+      openSheet(name ? '👋 Welcome back' : '🔢 Log in with your PIN',
+        (name ? '<p class="sub">Welcome back, <b>' + esc(name) + '</b>! Enter your PIN to continue.</p>'
+              : '<p class="sub">Use the 6-digit PIN you set up in Settings.</p>') +
+        '<label for="pl-email">Email</label><input id="pl-email" type="email" placeholder="you@example.com" autocomplete="username" value="' + esc(email) + '">' +
+        '<label for="pl-pin">PIN</label><input id="pl-pin" ' + PIN_FIELD + ' autocomplete="off" onkeydown="if(event.key===\'Enter\')doPinLogin()">' +
+        '<p id="pl-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
+        '<button class="btn" id="pl-btn" onclick="doPinLogin()">Log in</button>' +
+        '<p style="text-align:center;margin-top:0.8rem;">' +
+          '<a href="#" onclick="openLogin({ email: val(\'pl-email\'), password: true });return false;" style="' + LINK_STYLE + '">Use my password</a>' +
+          (EMAIL_CODES_ON ? ' · <a href="#" onclick="openCodeLogin(val(\'pl-email\'));return false;" style="' + LINK_STYLE + '">Email me a code</a>' : '') +
+          (name ? ' · <a href="#" onclick="notMe();return false;" style="' + LINK_STYLE + '">Not you?</a>' : '') + '</p>' +
+        '<p class="sub" style="font-size:0.78rem;text-align:center;">' + (EMAIL_CODES_ON
+          ? 'Forgot your PIN? Log in with your password or an emailed code, then set a new one in Settings › Account.'
+          : 'Forgot your PIN? Log in with your password, then set a new one in Settings › Account.') + '</p>');
+      setTimeout(() => { const f = document.getElementById(email ? 'pl-pin' : 'pl-email'); if (f) f.focus(); }, 60);
+    }
+    async function doPinLogin() {
+      const email = val('pl-email'), pin = val('pl-pin');
+      const err = document.getElementById('pl-err'), btn = document.getElementById('pl-btn');
+      const fail = m => { btn.disabled = false; btn.textContent = 'Log in'; err.textContent = m; err.style.display = 'block'; };
+      err.style.display = 'none';
+      if (!/^\S+@\S+\.\S+$/.test(email)) return fail('Enter the email you log in with.');
+      if (!/^\d{6}$/.test(pin)) return fail('Your PIN is 6 digits.');
+      btn.disabled = true; btn.textContent = 'Logging in…';
+      let status = 0, body = {};
+      try {
+        const r = await fetch(SUPA_URL + '/functions/v1/petfi-pin-login', {
+          method: 'POST', headers: { 'content-type': 'application/json', apikey: SUPA_KEY }, body: JSON.stringify({ email: email, pin: pin }) });
+        status = r.status; body = await r.json().catch(() => ({}));
+      } catch (e) {}
+      if (status !== 200 || !body.token_hash) {
+        return fail(status === 401 ? (EMAIL_CODES_ON ? 'That email and PIN don\'t match. After 5 wrong tries the PIN locks; then log in with your password or an emailed code.'
+            : 'That email and PIN don\'t match. After 5 wrong tries the PIN locks; then log in with your password.')
+          : status === 429 ? (EMAIL_CODES_ON ? 'Too many tries. Wait an hour, or log in with your password or an emailed code.' : 'Too many tries. Wait an hour, or log in with your password.')
+          : status === 0 ? 'No connection right now — check your internet and try again.'
+          : 'Something went wrong on our side. Try again, or log in with your password.');
+      }
+      const { data, error } = await cloud.auth.verifyOtp({ token_hash: body.token_hash, type: body.type || 'magiclink' });
+      if (error || !data || !data.user) return fail('Something went wrong on our side. Try again, or log in with your password.');
+      await finishLogin(data.user, email, { btn: btn, err: err, label: 'Log in', pin: true });
+    }
+
+    // ---- Log in with a code sent by email (Supabase's email OTP; no password needed) ----
+    function openCodeLogin(email) {
+      if (!cloud) { toast('No internet connection right now'); return; }
+      openSheet('📧 Log in with an email code',
+        '<p class="sub">We\'ll email you a code. Type it here and you\'re in, no password needed.</p>' +
+        '<label for="cl-email">Email</label><input id="cl-email" type="email" placeholder="you@example.com" autocomplete="username" value="' + esc(String(email || '').trim()) + '" onkeydown="if(event.key===\'Enter\')sendLoginCode()">' +
+        '<p id="cl-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
+        '<button class="btn" id="cl-btn" onclick="sendLoginCode()">📧 Email me a code</button>' +
+        '<p style="text-align:center;margin-top:0.8rem;"><a href="#" onclick="openLogin({ email: val(\'cl-email\'), password: true });return false;" style="' + LINK_STYLE + '">Use my password</a></p>');
+    }
+    // null when the code went out (or the email has no account: same answer), else what to tell them
+    async function requestLoginCode(email) {
+      let error = null;
+      try { ({ error } = await cloud.auth.signInWithOtp({ email: email, options: { shouldCreateUser: false } })); }
+      catch (e) { return 'No connection right now — check your internet and try again.'; }
+      if (!error) return null;
+      const msg = String(error.message || ''), code = String(error.code || '');
+      // An email with no account gets the same answer as one with an account
+      if (code === 'otp_disabled' || code === 'user_not_found' || /signups? not allowed|user not found/i.test(msg)) return null;
+      if (code === 'over_email_send_rate_limit' || error.status === 429 || /security purposes|rate limit/i.test(msg)) return 'We just sent a code. Wait a minute, then try again.';
+      if (/fetch|network/i.test(msg) || error.name === 'AuthRetryableFetchError') return 'No connection right now — check your internet and try again.';
+      return 'Couldn\'t send a code right now. Try again in a minute.';
+    }
+    async function sendLoginCode() {
+      const email = val('cl-email');
+      const err = document.getElementById('cl-err'), btn = document.getElementById('cl-btn');
+      err.style.display = 'none';
+      if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Enter the email you log in with.'; err.style.display = 'block'; return; }
+      btn.disabled = true; btn.textContent = 'Sending…';
+      const problem = await requestLoginCode(email);
+      if (problem) { btn.disabled = false; btn.textContent = '📧 Email me a code'; err.textContent = problem; err.style.display = 'block'; return; }
+      openSheet('📧 Check your email',
+        '<p class="sub">If <b>' + esc(email) + '</b> has a Petfi account, a login code is on its way. It can take a minute; check spam too.</p>' +
+        '<input type="hidden" id="cl-email" value="' + esc(email) + '">' +
+        '<label for="cl-code">Code</label><input id="cl-code" inputmode="numeric" pattern="[0-9]*" maxlength="10" autocomplete="one-time-code" placeholder="Code from the email" style="letter-spacing:0.3em;font-size:1.3rem;text-align:center;" onkeydown="if(event.key===\'Enter\')verifyLoginCode()">' +
+        '<p id="cl-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
+        '<button class="btn" id="cl-btn" onclick="verifyLoginCode()">Log in</button>' +
+        '<p style="text-align:center;margin-top:0.8rem;"><a href="#" onclick="resendLoginCode();return false;" style="' + LINK_STYLE + '">Send a new code</a> · ' +
+        '<a href="#" onclick="openLogin({ email: val(\'cl-email\'), password: true });return false;" style="' + LINK_STYLE + '">Use my password</a></p>');
+      setTimeout(() => { const f = document.getElementById('cl-code'); if (f) f.focus(); }, 60);
+    }
+    async function resendLoginCode() {
+      const problem = await requestLoginCode(val('cl-email'));
+      toast(problem ? '⚠️ ' + problem : '📧 New code sent');
+    }
+    async function verifyLoginCode() {
+      const email = val('cl-email'), token = val('cl-code').replace(/\s/g, '');
+      const err = document.getElementById('cl-err'), btn = document.getElementById('cl-btn');
+      const fail = m => { btn.disabled = false; btn.textContent = 'Log in'; err.textContent = m; err.style.display = 'block'; };
+      err.style.display = 'none';
+      if (!/^\d{6,10}$/.test(token)) return fail('Type the code from the email.');
+      btn.disabled = true; btn.textContent = 'Logging in…';
+      let data = null, error = null;
+      try { ({ data, error } = await cloud.auth.verifyOtp({ email: email, token: token, type: 'email' })); }
+      catch (e) { return fail('No connection right now — check your internet and try again.'); }
+      if (error || !data || !data.user) {
+        return fail(/fetch|network/i.test(String((error && error.message) || '')) ? 'No connection right now — check your internet and try again.'
+          : 'That code is wrong or has expired. Use the newest email, or send a new code.');
+      }
+      await finishLogin(data.user, email, { btn: btn, err: err, label: 'Log in' });
+    }
+
+    // ---- Login PIN settings (Settings › Account) ----
+    // {set, locked} for the signed-in member, or null; also refreshes this device's memory of it
+    async function refreshPinHint() {
+      if (!cloud || !cloudUser || typeof cloud.rpc !== 'function') return null;
+      try {
+        const { data, error } = await cloud.rpc('petfi_login_pin_status');
+        if (error || !data || typeof data !== 'object') return null;
+        rememberLogin(!!data.set && !data.locked);
+        return data;
+      } catch (e) { return null; }
+    }
+    async function openPinSettings() {
+      if (!cloud || !cloudUser) { toast('Log in first'); return; }
+      openSheet('🔢 Login PIN', '<div class="note">⏳ One moment…</div>');
+      const mySeq = sheetSeq;
+      const st = await refreshPinHint();
+      if (sheetSeq !== mySeq) return;
+      if (!st) {
+        openSheet('🔢 Login PIN', '<div class="note">⚠️ Couldn\'t check your PIN right now. Check your connection and try again.</div><button class="btn secondary" onclick="closeSheet()">Close</button>');
+        return;
+      }
+      openSheet('🔢 Login PIN',
+        '<p class="sub">' + (EMAIL_CODES_ON
+          ? 'A 6-digit PIN lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password or an emailed code instead. Changing your password turns the PIN off.'
+          : 'A 6-digit PIN lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password instead. Changing your password turns the PIN off.') + '</p>' +
+        '<p class="sub" style="font-size:0.8rem;">Keep your password too: it\'s how you get back in if the PIN locks.</p>' +
+        (st.set && st.locked ? '<div class="note">🔒 Your PIN is locked after too many wrong tries. Set a new one to turn it back on.</div>'
+          : st.set ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Your PIN is on.</div>' : '') +
+        '<button class="btn" onclick="openSetPin()">' + (st.set ? 'Set a new PIN' : 'Set up a PIN') + '</button>' +
+        (st.set ? '<button class="btn secondary" onclick="clearLoginPin()">Turn off my PIN</button>' : '') +
+        '<button class="btn secondary" onclick="closeSheet()">Close</button>');
+    }
+    function openSetPin() {
+      const pinInput = (id, extra) => '<input id="' + id + '" ' + PIN_FIELD + ' autocomplete="off"' + (extra || '') + '>';
+      openSheet('🔢 Set your PIN',
+        '<label for="sp-pin">New PIN</label>' + pinInput('sp-pin') +
+        '<label for="sp-pin2">Type the PIN again</label>' + pinInput('sp-pin2', ' onkeydown="if(event.key===\'Enter\')saveLoginPin()"') +
+        '<p class="sub" style="font-size:0.8rem;">Skip dates, repeats and runs like 123456, and don\'t reuse your bank card PIN.</p>' +
+        '<p id="sp-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
+        '<button class="btn" id="sp-btn" onclick="saveLoginPin()">Save PIN</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Cancel</button>');
+      setTimeout(() => { const f = document.getElementById('sp-pin'); if (f) f.focus(); }, 60);
+    }
+    async function saveLoginPin() {
+      const p1 = val('sp-pin'), p2 = val('sp-pin2');
+      const err = document.getElementById('sp-err'), btn = document.getElementById('sp-btn');
+      const fail = m => { btn.disabled = false; btn.textContent = 'Save PIN'; err.textContent = m; err.style.display = 'block'; };
+      err.style.display = 'none';
+      if (!/^\d{6}$/.test(p1)) return fail('Your PIN needs exactly 6 digits.');
+      if (p1 !== p2) return fail('Those don\'t match — try again.');
+      if (!cloud || !cloudUser) return fail('Log in first.');
+      btn.disabled = true; btn.textContent = 'Saving…';
+      let error = null;
+      try { ({ error } = await cloud.rpc('petfi_set_login_pin', { p_pin: p1 })); }
+      catch (e) { return fail('No connection right now — try again.'); }
+      if (error) {
+        const m = String(error.message || '');
+        return fail(/pin_weak/.test(m) ? 'That PIN is too easy to guess. Avoid dates, repeats and straight runs.'
+          : /pin_format/.test(m) ? 'Your PIN needs exactly 6 digits.'
+          : /fetch|network/i.test(m) ? 'No connection right now — try again.'
+          : 'Couldn\'t save your PIN right now. Try again in a minute.');
+      }
+      rememberLogin(true);
+      openSheet('🔢 PIN saved',
+        '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Your PIN is on. Next time, log in with your email and PIN. On this device, Petfi will greet you and ask only for the PIN.</div>' +
+        '<button class="btn secondary" onclick="closeSheet()">Done</button>');
+    }
+    async function clearLoginPin() {
+      if (!confirm('Turn off your login PIN?')) return;
+      let error = null;
+      try { ({ error } = await cloud.rpc('petfi_clear_login_pin')); } catch (e) { error = e; }
+      if (error) { toast('⚠️ Couldn\'t turn off your PIN — try again'); return; }
+      rememberLogin(false);
+      closeSheet(); toast('Login PIN turned off');
+    }
+    // Once per account, a few seconds into the app: offer the optional PIN
+    let pinOfferTries = 0;
+    async function pinOfferCheck() {
+      if (!cloud || !cloudUser || state.pinOffered || pinOfferTries >= 3) return;
+      pinOfferTries++;
+      const st = await refreshPinHint();
+      if (!st || st.set || state.pinOffered || !cloudUser) return;
+      // Not over another sheet or outside the app: try again later (at most 3 times per visit)
+      if (!appActive() || document.body.classList.contains('sheet-open')) { setTimeout(pinOfferCheck, 60000); return; }
+      state.pinOffered = true; saveState({ bg: true });
+      openSheet('🔢 Want a login PIN?',
+        '<p class="sub">Optional: set a 6-digit PIN, and next time you can log in with your email and PIN instead of typing your password. On this device, Petfi will greet you and ask only for the PIN. Keep your password too: it\'s how you get back in if the PIN locks.</p>' +
+        '<button class="btn" onclick="openSetPin()">Set up a PIN</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Not now</button>' +
+        '<p class="sub" style="font-size:0.78rem;text-align:center;">You can set one any time in Settings › Account.</p>');
     }
 
     // ---- Password reset: email link → set a new password ----
@@ -15156,8 +15428,7 @@
           pausedUid = cloudUser.id;
           liveDisconnect();
           cloudUser = null;
-          openLogin();
-          const e = document.getElementById('li-email'); if (e && state.lastEmail) e.value = state.lastEmail;
+          openLogin({ email: state.lastEmail }); // a remembered PIN opens the PIN sheet
           toast('Please log in again to continue');
         }
       });
@@ -15173,6 +15444,7 @@
         btn.disabled = false; btn.textContent = 'Save new password';
         err.textContent = error.message; err.style.display = 'block'; return;
       }
+      rememberLogin(false); // the new password dropped any login PIN on the server
       await finishPasswordReset();
     }
     async function finishPasswordReset() {
@@ -15219,13 +15491,19 @@
         err.style.display = 'block';
         return;
       }
-      cloudUser = data.user;
+      await finishLogin(data.user, email, { btn: btn, err: err, label: 'Log in' });
+    }
+    // After any way in (password, emailed code, PIN): load this login's saved
+    // world onto a clean slate and walk them in. ui = { btn, err, label, pin }
+    async function finishLogin(user, email, ui) {
+      const btn = ui.btn, err = ui.err;
+      cloudUser = user;
       // Pull the saved app state down from the cloud (onto a CLEAN slate)
       const { data: row, error: rowErr } = await cloud.from('account_data').select('data, updated_at').eq('id', cloudUser.id).maybeSingle();
       if (rowErr) {
         // A flaky connection must never send an existing member back through
         // onboarding (which would overwrite their real account).
-        btn.disabled = false; btn.textContent = 'Log in';
+        btn.disabled = false; btn.textContent = ui.label;
         err.textContent = 'Logged in, but your account didn\'t load — check your connection and try again.'; err.style.display = 'block';
         return;
       }
@@ -15240,6 +15518,8 @@
       if (!unsaved) noteSeen(cloudUser.id, row ? row.updated_at : null);
       state.lastEmail = email;
       state.ageId = cloudUser.id; // this device's age answer follows the saved copy
+      rememberLogin(ui.pin ? true : undefined); refreshPinHint(); // the welcome-back greeting next time
+      askPersistentStorage();
       closeSheet();
       if (!state.accountType) {
         // The sign-up they just confirmed by e-mail: pick up exactly where they left off
@@ -17589,8 +17869,7 @@
         if (data && data.session) cloudUser = data.session.user;
       }
       if (cloud && !cloudUser) {
-        openLogin();
-        const e = document.getElementById('li-email'); if (e && saved.lastEmail) e.value = saved.lastEmail;
+        openLogin({ email: saved.lastEmail }); // a remembered PIN opens the PIN sheet
         toast('Please log in again to continue');
         return;
       }
@@ -17614,7 +17893,16 @@
       if (!slot) return;
       let saved = null;
       try { saved = JSON.parse(localStorage.getItem('petfi-account')); } catch (e) {}
-      if (!saved || !saved.accountType || !savedIsMine(saved)) { slot.innerHTML = ''; return; }
+      if (!saved || !saved.accountType || !savedIsMine(saved)) {
+        // Logged out, but this device remembers who it was: greet them (a PIN, if set, is all they need)
+        const last = cloud && !cloudUser ? readLastLogin() : null;
+        slot.innerHTML = !last ? '' :
+          '<div class="choice" style="display:flex;align-items:center;gap:0.8rem;padding:1rem 1.2rem;" onclick="openLogin()">' +
+            '<div style="width:46px;height:46px;border-radius:50%;background:var(--bg);border:2px solid var(--brand);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:26px;">👋</div>' +
+            '<div><h3 style="font-size:1.05rem;margin:0;">' + (last.name ? 'Welcome back, ' + esc(last.name) : 'Welcome back') + '</h3>' +
+            '<p style="margin:0;">' + (last.pin ? 'Log in with your PIN' : 'Tap to log in') + '</p></div></div>';
+        return;
+      }
       // An owner acting as one of their pets continues as that pet (a converted pet account does at first)
       const pets = saved.accountType !== 'pet' && Array.isArray(saved.pets) ? saved.pets : [];
       const ap = saved.actingAs ? pets.find(p => p && p.id === saved.actingAs && !p.passed && p.hidden !== true) : null;
