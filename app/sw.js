@@ -5,7 +5,7 @@
 // responses are cached, so an error page can never replace the app shell.
 // Third-party calls (Supabase, OpenStreetMap, Amazon, the Supabase CDN)
 // are left entirely to the browser.
-const CACHE = 'petfi-v56';
+const CACHE = 'petfi-v57';
 const SHELL = [
   './', './index.html', './manifest.webmanifest', './petfi-icon.svg', './store.json', './farms.json',
   './brand/petfi-wordmark-sm.webp', './brand/petfi-wordmark-sm.png',

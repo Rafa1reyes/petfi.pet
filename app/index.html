@@ -440,6 +440,8 @@
     /* ---- Category chips ---- */
     .chips { display: flex; gap: 0.5rem; overflow-x: auto; margin: 0 -1.1rem 1rem; padding: 0 1.1rem; scrollbar-width: none; }
     .chips::-webkit-scrollbar { display: none; }
+    /* Computers: wrap so every chip can be clicked with a mouse (phones keep the swipe row) */
+    @media (min-width: 700px) { .chips { flex-wrap: wrap; overflow-x: visible; row-gap: 0.45rem; } }
     .chip { white-space: nowrap; background: var(--card); border: 2px solid var(--line); border-radius: 999px; padding: 0.4rem 0.9rem; font-size: 0.82rem; font-weight: 700; cursor: pointer; }
     .chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
 
@@ -1252,7 +1254,7 @@
       <label for="owner-age">Age <small style="color:var(--muted);font-weight:400;">(<span class="min-age">18</span> or older)</small></label>
       <input type="number" id="owner-age" inputmode="numeric" placeholder="e.g. 34" />
 
-      <div class="note">🔒 Your ZIP and age are never shown to other members. ID verification is coming later — nothing is uploaded today.</div>
+      <div class="note">🔒 Your ZIP and age are never shown to other members. ID verification is a one-time $3 check, and it's optional for pet owners. Nothing is uploaded during sign-up.</div>
       <button class="btn blue" onclick="goOwnerInterests()">Continue</button>
     </section>
 
@@ -1322,10 +1324,12 @@
       <p class="sub">Last step! With an email and password your account lives in the cloud — log in from any phone or computer.</p>
       <label for="acct-email">Email</label>
       <input type="email" id="acct-email" placeholder="you@example.com" />
+      <div id="acct-email-err" class="age-err" role="alert" style="display:none;margin:0.3rem 0 0;"></div>
       <label for="acct-pass">Password</label>
       <input type="password" id="acct-pass" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')createLogin()" />
+      <p id="acct-pass-err" class="age-err" role="alert" style="display:none;margin:0.3rem 0 0;"></p>
       <label for="acct-pin">Login PIN <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
-      <input type="text" id="acct-pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" spellcheck="false" placeholder="4 to 8 digits, or leave empty" style="-webkit-text-security:disc;" />
+      <input type="text" id="acct-pin" inputmode="numeric" pattern="[0-9]*" maxlength="9" oninput="const e=document.getElementById('acct-err');if(this.value.length>8){e.textContent='A PIN can be at most 8 digits.';e.style.display='block';}else if(e.textContent==='A PIN can be at most 8 digits.')e.style.display='none';" autocomplete="off" spellcheck="false" placeholder="4 to 8 digits, or leave empty" style="-webkit-text-security:disc;" />
       <p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0;">You can create a PIN if you would like to make logging in easier. It's optional: skip it and just use your password, or add one later in Settings.</p>
       <p id="acct-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>
       <label class="age-ok"><input type="checkbox" id="acct-age" aria-describedby="acct-age-err" onchange="if(this.checked)document.getElementById('acct-age-err').textContent=''" /><span>I am <span class="min-age">18</span> or older</span></label>
@@ -2522,12 +2526,46 @@
     // the app rewinds these entries first (navRecord), so in-app history ends up
     // exactly as before.
     var onbDoc = '', onbFromBack = false, navUnwindTab = null; // var: show() may run before this line
+    // ---- Back with a sheet open on the screens before the app (welcome, sign-up, age, verify) ----
+    // In the app the tab entries catch Back. Before it there may be no Petfi entry under the
+    // screen, so Back would leave the site: a sheet opened there gets its own history entry,
+    // Back closes just the sheet, and closing it any other way steps back over that entry
+    // (history work that comes meanwhile waits for that step: sheetAfterPop).
+    var sheetHist = false, sheetPopping = false, sheetAfterPop = [];
+    function sheetHistPush() {
+      if (sheetHist || appActive() || !document.body.classList.contains('sheet-open')) return;
+      if (sheetPopping) { sheetAfterPop.push(sheetHistPush); return; }
+      try {
+        const scr = (document.querySelector('.screen.active') || {}).id || 's-welcome';
+        if (!onbDoc) onbDoc = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+        const st = history.state || {};
+        let d = onbDepth(st);
+        if (d < 0) { history.replaceState(Object.assign({}, st, { petfiOnb: scr, petfiOnbDepth: 0, petfiOnbDoc: onbDoc }), ''); d = 0; }
+        history.pushState({ petfiOnb: scr, petfiOnbPrev: scr, petfiOnbDepth: d + 1, petfiOnbDoc: onbDoc, petfiSheet: 1 }, '');
+        sheetHist = true;
+      } catch (e) {}
+    }
+    function sheetHistPop() {
+      if (!sheetHist) return;
+      sheetHist = false;
+      if (!(history.state || {}).petfiSheet) return;
+      sheetPopping = true;
+      setTimeout(sheetPopDone, 1500); // in case the step back never reports
+      try { history.back(); } catch (e) { sheetPopDone(); }
+    }
+    function sheetPopDone() {
+      if (!sheetPopping) return;
+      sheetPopping = false;
+      const q = sheetAfterPop; sheetAfterPop = [];
+      q.forEach(f => { try { f(); } catch (e) {} });
+    }
     function onbDepth(st) {
       st = st || {};
       return onbDoc && st.petfiOnbDoc === onbDoc && typeof st.petfiOnbDepth === 'number' ? st.petfiOnbDepth : -1;
     }
     function onbRecord(from, id) {
-      if (onbFromBack || !from || from === id || id === 's-app' || from === 's-app' || id === 's-agecheck' || id === 's-orggate' || from === 's-orggate') return;
+      if (onbFromBack || !from || from === id || id === 's-app' || from === 's-app' || id === 's-agecheck' || from === 's-agecheck' || id === 's-orggate' || from === 's-orggate') return;
+      if (sheetPopping) { sheetAfterPop.push(() => onbRecord(from, id)); return; } // after the closed sheet's entry is gone
       try {
         if (!onbDoc) onbDoc = Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
         const st = history.state || {};
@@ -2540,7 +2578,7 @@
     }
     // Back (browser or phone) while an onboarding screen is up
     function onbPop(st) {
-      if (onbDepth(st) < 0 || !document.getElementById(st.petfiOnb)) return; // not one of ours: as before
+      if (onbDepth(st) < 0 || !document.getElementById(st.petfiOnb) || st.petfiOnb === 's-agecheck') return; // not one of ours: as before
       if (document.body.classList.contains('sheet-open')) closeSheet();
       const cur = document.querySelector('.screen.active');
       if (cur && (cur.id === st.petfiOnb || cur.id === 's-orggate')) return; // the verify screen never steps back into sign-up
@@ -2689,8 +2727,10 @@
       if (!name) { toast('What should we call you?'); return; }
       const zip = val('owner-zip');
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP should be 5 digits'); return; }
-      const age = parseInt(val('owner-age'), 10);
-      if (age && age < MIN_AGE) { toast('Petfi is for adults ' + MIN_AGE + ' and older'); return; }
+      const ageTxt = val('owner-age'), age = Number(ageTxt);
+      if (!ageTxt) { toast('Please enter your age'); return; }
+      if (!/^\d+$/.test(ageTxt) || age > 120) { toast('Please enter your age as a whole number, like 34'); return; }
+      if (age < MIN_AGE) { toast('Petfi is for adults ' + MIN_AGE + ' and older'); return; }
       show('s-owner-interests');
     }
 
@@ -2899,9 +2939,10 @@
     // ---- The verify screen: an unverified organization sees only this ----
     let orgGateTimer = null;
     function orgGateActive() { const s = document.getElementById('s-orggate'); return !!(s && s.classList.contains('active')); }
-    function showOrgGate() {
+    var orgGateEndedShown = null; // which version of the verify screen is drawn (trial ended or not)
+    function showOrgGate(redraw) { // redraw: only bring the text up to date
       const box = document.getElementById('orggate-body');
-      const ended = orgTrialOver();
+      const ended = orgGateEndedShown = orgTrialOver();
       if (box) box.innerHTML =
         '<div style="text-align:center;padding-top:1.5rem;"><div style="font-size:3.2rem;">' + (iAmFarm() ? '🚜' : '🏢') + '</div>' +
         '<h1 id="orggate-title" style="margin-top:0.4rem;">' + (ended ? 'Your ' + ORG_TRIAL_DAYS + '-day free trial has ended' : 'One more step: verify ' + esc(state.displayName || 'your organization')) + '</h1></div>' +
@@ -2916,6 +2957,7 @@
         '<button class="btn secondary" onclick="logOut()">Log out</button>' +
         '<button class="btn secondary" style="color:#c0392b;" onclick="openDeleteAccount()">Delete this account</button>';
       applyTheme();
+      if (redraw) return;
       if (!orgGateActive()) show('s-orggate');
       clearInterval(orgGateTimer);
       orgGateTimer = setInterval(() => { if (orgGateActive()) orgGateCheck(false); else { clearInterval(orgGateTimer); orgGateTimer = null; } }, 30000);
@@ -2935,6 +2977,7 @@
       if (!iAmOrg()) return;
       if (serverVerified && state.verified && !state.verifiedBy) { state.verifiedBy = 'petfi'; saveState({ bg: true }); }
       if (!orgLocked()) { if (orgGateActive()) orgGatePassed(); return; }
+      if (orgGateActive() && orgTrialOver() !== orgGateEndedShown) showOrgGate(true); // the server just said the trial ended
       if (appActive()) { closeSheet(); cloudSaveProfile(); showOrgGate(); toast(orgTrialOver() ? 'Your free trial has ended. Verify your ID to keep using Petfi' : 'Your organization needs to be verified again to keep using Petfi'); } // the save writes visible: false
     }
     function orgGatePassed() {
@@ -3253,9 +3296,14 @@
     // Back closes a sheet there too and otherwise steps out of the site as
     // before. (The Android app skips it: there Back from Home closes the app.)
     var navFromBack = false; // var: openTab may run before this line does
+    // Tab entries carry this page load's id: after a reload the old ones count as
+    // the floor (petfiRoot), so Back from Home acts as on a fresh visit
+    var navDoc = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    function navForeign(st) { return !!(st && st.petfiTab && st.petfiDoc && st.petfiDoc !== navDoc); }
     function navRecord(name, plain) {
       if (navFromBack) return;
       if (navUnwindTab) { navUnwindTab = name; return; } // still rewinding sign-up entries
+      if (sheetPopping) { sheetAfterPop.push(() => navRecord(name, plain)); return; } // a closed sheet's entry is still going
       try {
         const st = history.state || {};
         const d = plain ? -1 : onbDepth(st);
@@ -3268,20 +3316,30 @@
           return;
         }
         if (st.petfiTab === name) return;
-        if (st.petfiTab || st.petfiRoot) { history.pushState({ petfiTab: name }, ''); return; }
+        if (st.petfiTab || st.petfiRoot) { history.pushState({ petfiTab: name, petfiDoc: navDoc }, ''); return; }
         if (!IS_PLAY_APP) history.replaceState({ petfiRoot: 1 }, '');
-        history[IS_PLAY_APP ? 'replaceState' : 'pushState']({ petfiTab: name }, '');
+        history[IS_PLAY_APP ? 'replaceState' : 'pushState']({ petfiTab: name, petfiDoc: navDoc }, '');
       } catch (e) {}
     }
     window.addEventListener('popstate', e => {
+      if (sheetPopping) { sheetPopDone(); return; } // our own step back over a closed sheet's entry
       if (navUnwindTab) { const t = navUnwindTab; navUnwindTab = null; navRecord(t, true); return; }
-      if (!appActive()) { onbPop(e.state); return; }
+      const sheetUp = document.body.classList.contains('sheet-open');
+      if (sheetUp && sheetHist) { sheetHist = false; closeSheet(); return; } // Back closes the sheet, nothing else
+      if (!appActive()) {
+        // A sheet without its own entry (opened in the app): close it and step forward again
+        if (sheetUp) { closeSheet(); sheetPopping = true; setTimeout(sheetPopDone, 1500); try { history.go(1); } catch (err) { sheetPopDone(); } return; }
+        if (navLeaving) { history.back(); return; } // on the way out: keep going
+        // The verify screen: the same "Press Back again" rule as Home
+        if (orgGateActive()) { navAskLeave(() => { try { history.pushState({ petfiGate: 1 }, ''); } catch (err) {} }); return; }
+        onbPop(e.state); return;
+      }
       const st = e.state || {};
       // Stay on this tab: put back the entry Back just stepped off
-      const stay = () => { try { history.pushState({ petfiTab: state.tab || 'home' }, ''); } catch (err) {} navGuardDue = true; };
-      if (navLeaving) { if (st.petfiRoot) history.back(); return; } // on the way out: keep going
-      if (document.body.classList.contains('sheet-open')) { closeSheet(); stay(); return; }
-      if (st.petfiRoot) {
+      const stay = () => { try { history.pushState({ petfiTab: state.tab || 'home', petfiDoc: navDoc }, ''); } catch (err) {} navGuardDue = true; };
+      if (navLeaving) { if (st.petfiRoot || navForeign(st)) history.back(); return; } // on the way out: keep going
+      if (sheetUp) { closeSheet(); stay(); return; }
+      if (st.petfiRoot || navForeign(st)) {
         // Back past the first tab (website only; the Android app has no such entry).
         // Members press Back to "go home", so it never drops them off Petfi by
         // surprise: any other tab goes to Home, My care goes to the feed, and on
@@ -3292,13 +3350,7 @@
           try { openTab('home'); } finally { navFromBack = false; }
           stay(); return;
         }
-        if (Date.now() - navLeaveAsked < 4000) {
-          navLeaving = true; setTimeout(() => { if (navLeaving) { navLeaving = false; stay(); } }, 1500); // nowhere to go back to: stay put
-          history.back(); return;
-        }
-        navLeaveAsked = Date.now();
-        toast('Press Back again to leave Petfi');
-        stay(); return;
+        navAskLeave(stay); return;
       }
       if (st.petfiTab && st.petfiTab !== state.tab) {
         navFromBack = true;
@@ -3313,13 +3365,23 @@
     // entry becomes the new floor and the tab is added on top of it, this time
     // with a real gesture, so Back lands on the floor and the handler runs.
     var navGuardDue = true, navLeaving = false, navLeaveAsked = 0; // var: read by handlers that can run early
+    // First Back: "Press Back again"; a second one within 4 s leaves. stay() puts back the entry Back stepped off.
+    function navAskLeave(stay) {
+      if (Date.now() - navLeaveAsked < 4000) {
+        navLeaving = true; setTimeout(() => { if (navLeaving) { navLeaving = false; stay(); } }, 3000); // nowhere to go back to: stay put
+        history.back(); return;
+      }
+      navLeaveAsked = Date.now();
+      toast('Press Back again to leave Petfi');
+      stay();
+    }
     function navGuard() {
       if (!navGuardDue || IS_PLAY_APP || navFromBack || navUnwindTab || !appActive()) return;
       try {
         if (!(history.state || {}).petfiTab) return;
         navGuardDue = false;
         history.replaceState({ petfiRoot: 1 }, '');
-        history.pushState({ petfiTab: state.tab || 'home' }, '');
+        history.pushState({ petfiTab: state.tab || 'home', petfiDoc: navDoc }, '');
       } catch (e) {}
     }
     document.addEventListener('click', navGuard, true);
@@ -3690,8 +3752,9 @@
       if (VOICE_PLAYERS[v]) playVoice(v); else uiSound('send');
     }
     // Buttons label themselves with the SENDER's voice — that's what lands.
-    function sayHiLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Say hi (' + v + ')'; }
-    function sayHiLabelAs(as) { const v = speciesVoice(greetSpeciesAs(as)); return v === 'like' ? '👋 Say hi' : '🔊 Say hi (' + v + ')'; }
+    // Plain words: the visitor's own animal sound in the label read as if it were the other animal's
+    function sayHiLabel() { return '👋 Say hi'; }
+    function sayHiLabelAs(as) { return '👋 Say hi'; }
     function sendVoiceLabelAs(as) { const v = speciesVoice(greetSpeciesAs(as)); return v === 'like' ? '👋 Say hi' : '🔊 Send a ' + v; }
     function sendVoiceLabel() { const v = myVoice(); return v === 'like' ? '👋 Say hi' : '🔊 Send a ' + v; }
     function reactSound(kind) {
@@ -3817,7 +3880,7 @@
       const x = s[0];
       return '<div class="start-card"><div class="sc-top"><b>Getting started</b><span class="sc-x" role="button" tabindex="0" aria-label="Hide getting started" onclick="state.startHidden=true;saveState();openTab(\'home\')">✕</span></div>' +
         '<div class="sc-step" role="button" tabindex="0" onclick="track(\'start_step\',\'' + x.k + '\');' + x.go + '"><span class="sc-emo">' + x.emo + '</span><div><b>' + esc(x.t) + '</b><small>' + esc(x.sub) + '</small></div><span class="chev">›</span></div>' +
-        '<div class="sc-foot">' + (s.length > 1 ? (s.length - 1) + ' more after this' : 'Last one!') + ' · <span role="button" tabindex="0" onclick="startSkip(\'' + x.k + '\')">Skip</span></div></div>';
+        '<div class="sc-foot">' + (s.length > 1 ? (s.length - 1) + ' more after this' : 'Last one!') + ' · <span role="button" tabindex="0" style="display:inline-block;min-width:44px;min-height:32px;line-height:32px;text-align:center;cursor:pointer;" onclick="startSkip(\'' + x.k + '\')">Skip</span></div></div>';
     }
     function startSkip(k) { state.startSkip = (state.startSkip || []).concat([k]); saveState(); openTab('home'); }
     function startInvite() { state.invitedAt = Date.now(); saveState(); inviteFriends(); }
@@ -3901,7 +3964,7 @@
     async function refreshFeed() {
       toast('Refreshing your feed…');
       await loadCloudPosts(true);
-      toast('Feed is up to date ✓');
+      toast(feedLoadFailed ? '⚠️ The feed didn\'t refresh. Check your connection and try again.' : 'Feed is up to date ✓');
     }
     // Placeholder cards that shimmer while real rows are on their way
     function skeletons(n, withPhoto) {
@@ -3913,7 +3976,14 @@
       return h;
     }
 
+    // A post's stable key (its cloud id, or the pending key of a post still saving).
+    // Feed buttons carry the key and look the post up when tapped, so a background
+    // reload that reorders FEED can never send a like or comment to another post.
+    let postKeySeq = 0;
+    function postKey(p) { return !p ? '' : p.cloudId ? 'c' + Number(p.cloudId) : p.pendingKey ? String(p.pendingKey).replace(/[^\w-]/g, '') : (p._k || (p._k = 'l' + (++postKeySeq))); }
+    function fi(k) { return FEED.findIndex(p => postKey(p) === k || (p.pendingKey && p.pendingKey === k) || (p.pk && p.pk === k)); }
     function feedCard(p, i, pinned) {
+      const fk = postKey(p); i = 'fi(\'' + fk + '\')'; // every onclick below resolves the post at tap time
       let photo = '';
       // Real uploaded photos: one shows big, more become a neat grid
       const urls = safePhotos(p.photoUrls);
@@ -3962,7 +4032,7 @@
       const pinTool = isAdmin() && p.cloudId && postScope(p) === 'national'
         ? '<span class="post-tool" title="Pin to the top of Everyone (admin)" onclick="openPinPost(' + i + ')">📌</span>' : '';
       const fresh = p.fresh; if (fresh) setTimeout(() => { p.fresh = false; }, 1500);
-      return '<div class="post' + (fresh ? ' post-new' : '') + '">' +
+      return '<div class="post' + (fresh ? ' post-new' : '') + '" data-pk="' + fk + '">' +
         (pinned ? '<div class="post-pin">📌 Pinned</div>' : '') +
         '<div class="post-head">' +
           '<div class="post-ava" onclick="viewProfileOf(' + i + ')">' + entityAvatar(p, 42) + '</div>' +
@@ -3975,8 +4045,8 @@
           '<button onclick="toggleCmts(' + i + ')">💬 ' + (nCmts || 'Comment') + '</button>' +
           '<button onclick="sharePost(' + i + ')">↗️ Share</button>' +
         '</div>' +
-        '<div class="cmts" id="cmts-' + i + '">' + cmts +
-          '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="cmt-in-' + i + '" type="text" aria-label="' + esc(cmtPlaceholder()) + '" placeholder="' + esc(cmtPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')addComment(' + i + ')">' +
+        '<div class="cmts" id="cmts-' + fk + '">' + cmts +
+          '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="cmt-in-' + fk + '" type="text" aria-label="' + esc(cmtPlaceholder()) + '" placeholder="' + esc(cmtPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')addComment(' + i + ')">' +
           '<button class="pill-btn" onclick="addComment(' + i + ')">Send</button></div>' +
         '</div></div>';
     }
@@ -4130,13 +4200,19 @@
       reallyDeletePost(cloudId);
     }
     // Comments: their author, or an admin
-    async function deleteComment(cid) {
+    function deleteComment(cid) {
       if (!cloud || !cloudUser) return;
-      if (!confirm('Delete this comment for everyone?')) return;
+      openSheet('Delete this comment?',
+        '<p class="sub">It disappears for everyone. This can\'t be undone.</p>' +
+        '<button class="btn" onclick="reallyDeleteComment(' + Number(cid) + ')">🗑 Yes, delete it</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Keep it</button>');
+    }
+    async function reallyDeleteComment(cid) {
+      closeSheet();
       const { error } = await cloud.from('post_comments').delete().eq('id', cid);
       if (error) { toast('⚠️ Could not delete the comment'); return; }
       FEED.forEach(p => { if (Array.isArray(p.comments)) p.comments = p.comments.filter(c => c.cid !== cid); });
-      if (state.tab === 'home') openTab('home');
+      if (state.tab === 'home') rerenderTab(renderHome); // typed drafts and open comments stay
       toast('Comment deleted 🗑');
     }
     // ---- Edit your own post or comment: only the text changes. The row's
@@ -4211,18 +4287,19 @@
       if (r.fail) { editFailToast(r); return; }
       FEED.forEach(p => { (p.comments || []).forEach(x => { if (x.cid === cid) { x.text = t; x.edited = true; } }); });
       closeSheet();
-      if (state.tab === 'home') { openTab('home'); const d = document.getElementById('cmts-' + FEED.indexOf(post)); if (d) d.style.display = 'block'; }
+      if (state.tab === 'home') { openTab('home'); const d = document.getElementById('cmts-' + postKey(post)); if (d) d.style.display = 'block'; }
       toast('✏️ Comment updated');
     }
     // Group posts: their author, or an admin
     async function deleteGroupPost(i, gid) {
       if (!cloud || !cloudUser) return;
       if (!confirm('Delete this group post for everyone?')) return;
+      const g = GROUPS_VIEW[i]; // the group as it was tapped (the list can reload while this saves)
       const { error } = await cloud.from('group_posts').delete().eq('id', gid);
       if (error) { toast('⚠️ Could not delete the post'); return; }
-      const g = GROUPS_VIEW[i]; if (g && Array.isArray(g.posts)) g.posts = g.posts.filter(x => x.gid !== gid);
+      if (g && Array.isArray(g.posts)) g.posts = g.posts.filter(x => x.gid !== gid);
       toast('Post deleted 🗑');
-      if (g) openGroupDetail(i);
+      if (g) { const k = GROUPS_VIEW.indexOf(g); if (k >= 0) openGroupDetail(k); }
     }
     // Best effort: a deleted video shouldn't sit in the bucket forever. The row
     // is already gone, so a storage error changes nothing the user can see.
@@ -4273,13 +4350,39 @@
       } catch (e) { console.warn('listing photos clean-up:', e && e.message); }
     }
     function toggleCmts(i) {
-      const d = document.getElementById('cmts-' + i);
+      const d = document.getElementById('cmts-' + postKey(FEED[i])); if (!d) return;
       d.style.display = d.style.display === 'block' ? 'none' : 'block';
     }
+    // Redraw one feed card in place (its comments stay open), e.g. so a new
+    // comment or post gets its edit and delete buttons straight away
+    function redrawPostCard(p, oldKey) {
+      const el = document.querySelector('#tab-content .post[data-pk="' + (oldKey || postKey(p)) + '"]');
+      if (!el || FEED.indexOf(p) < 0) return;
+      const open = (el.querySelector('.cmts') || {}).style && el.querySelector('.cmts').style.display === 'block';
+      const ae = document.activeElement, typing = ae && el.contains(ae) && ae.tagName === 'INPUT' ? ae.value : null;
+      const box = document.createElement('div');
+      box.innerHTML = feedCard(p, FEED.indexOf(p), !!el.querySelector('.post-pin'));
+      const card = box.firstChild; if (!card) return;
+      el.replaceWith(card);
+      const k = postKey(p), d = document.getElementById('cmts-' + k);
+      if (open && d) d.style.display = 'block';
+      if (typing !== null) { const inp = document.getElementById('cmt-in-' + k); if (inp) { inp.value = typing; inp.focus(); } }
+    }
+    // From the bell: show that post in its feed with its comments open
+    function openPostById(id) {
+      const p = FEED.find(x => x.cloudId === id);
+      if (!p) { toast('That post isn\'t in your feed anymore'); return; }
+      state.homeTab = 'feed'; state.feedScope = postScope(p); openTab('home');
+      setTimeout(() => {
+        const el = document.querySelector('#tab-content .post[data-pk="c' + Number(id) + '"]'); if (!el) return;
+        el.scrollIntoView({ block: 'center' });
+        const d = document.getElementById('cmts-c' + Number(id)); if (d) d.style.display = 'block';
+      }, 60);
+    }
     async function addComment(i) {
-      const inp = document.getElementById('cmt-in-' + i);
-      const t = inp.value.trim(); if (!t) return;
       const p = FEED[i]; if (!p) return;
+      const k = postKey(p), inp = document.getElementById('cmt-in-' + k); if (!inp) return;
+      const t = inp.value.trim(); if (!t) return;
       if (postScope(p) === 'national') { const bad = pgOffender(t); if (bad) { toast('🌎 “' + bad + '” can\'t go in the Everyone feed — reword it'); uiSound('error'); return; } }
       if (!p.comments) p.comments = [];
       // Acting as a pet: the comment is the pet's (content.as), and says so right away
@@ -4287,7 +4390,7 @@
       if (as.pet && p.cloudId && cloud && cloudUser && !personaReady(as)) return;
       const persona = as.pet && as.ppid ? personaRowFor(as) : null;
       const who = persona ? as.name : (state.displayName || 'You');
-      const d = document.getElementById('cmts-' + i);
+      const d = document.getElementById('cmts-' + k);
       const row = d.querySelector('.cmt-input-row');
       const div = document.createElement('div');
       div.className = 'cmt';
@@ -4305,8 +4408,7 @@
       const mine = cRow && cRow.id ? { who, text: t, authorId: cloudUser.id, cid: cRow.id } : { who, text: t };
       if (persona) { mine.persona = persona; mine.authorId = cloudUser.id; }
       p.comments.push(mine);
-      const btn = document.querySelector('#cmts-' + i) && document.querySelector('#cmts-' + i).previousElementSibling && document.querySelector('#cmts-' + i).previousElementSibling.children[1];
-      if (btn) btn.textContent = '💬 ' + p.comments.length;
+      redrawPostCard(p); // the new comment gets its edit and delete buttons now
       if (p.authorId) livePing(p.authorId, { type: 'comment', post: p.cloudId });
       toast('Comment added 💬');
     }
@@ -4715,7 +4817,7 @@
     }
 
     function renderNearby() {
-      const zip = state.zip || '';
+      const zip = nearbyPendingZip || state.zip || '';
       let h = cloudUser && lfOn() ? lfNearbySection() : lostNearSection(); // a missing pet nearby beats everything else here
       h += adoptSection();       // shelter pets near this ZIP (once the RescueGroups key is in)
       h += servicesSection('nearby'); // walkers, sitters, groomers… from ID-verified members
@@ -4778,6 +4880,8 @@
       if (state.spotsLoading || (!real && !state.spotsFailed)) {
         h += searchingHtml('Looking up real places near ' + esc(zip) + '… this can take up to 20 seconds.');
         if (!state.spotsLoading) setTimeout(() => applyZip(zip), 0); // first open: fetch automatically
+      } else if (!real && state.spotsBadZip === zip) {
+        h += '<div class="note">We couldn\'t find ZIP ' + esc(zip) + '. Type your ZIP code above and tap Search.</div>';
       } else if (!real) {
         h += '<div class="note">📡 Couldn\'t reach the map service just now. <span class="link" onclick="applyZip()">Try again</span></div>';
       } else {
@@ -4806,6 +4910,10 @@
     let FARM_ACCOUNTS = [], farmAccountsAt = 0;      // verified farm profiles on Petfi
     let FARM_OSM = null, farmOsmState = 'idle';      // { zip, shops: [], markets: [] }
     let farmCat = 'all', farmShown = 12;
+    const FARM_MARKET_RE = /farm|grower|certified|greenmarket|harvest|produce|mercado agr|march[eé] fermier/i;
+    const FARM_NOT_MARKET_RE = /flea|swap|cargo|freight|trucking|logistics|super ?market|grocery|groceries|natural market|food ?(4|for) ?less|liquor|deli\b|antique|thrift|auction|outlet|mall\b|craft fair|furniture|auto|storage/i;
+    let FARM_ACCOUNT_MI = null;   // { farm id: miles } within FARM_RADIUS_MI of my ZIP, from petfi_members_near; null = unknown
+    let farmPendingZip = '';      // a ZIP typed on Farm Stuff, while it's being looked up
     function farmRerender() { if (appActive() && state.tab === 'farm') rerenderTab(renderFarm); }
     async function ensureFarmList() {
       if (farmListState === 'ready' || farmListState === 'loading') return;
@@ -4828,9 +4936,20 @@
         if (r.error || !Array.isArray(r.data)) return;
         FARM_ACCOUNTS = r.data.filter(p => p.visible !== false && !p.banned);
         FARM_ACCOUNTS.forEach(p => { PROFILE_BY_ID[p.id] = p; });
+        // How far each farm is: the same private, whole-mile distances as Members near you
+        FARM_ACCOUNT_MI = null;
+        if (state.zip && FARM_ACCOUNTS.length) {
+          await syncMyLocation();
+          const n = await cloud.rpc('petfi_members_near', { radius_mi: FARM_RADIUS_MI, lim: 200 });
+          if (!n.error && Array.isArray(n.data)) { FARM_ACCOUNT_MI = {}; n.data.forEach(x => { if (x && x.id) FARM_ACCOUNT_MI[x.id] = Number(x.miles); }); }
+        }
         farmRerender();
       } catch (e) {}
     }
+    // A farm account's own words say it sells this (it has no product list yet)
+    const FARM_ACCT_WORDS = { dairy: /milk|dairy|cheese|butter|yogurt|cream/i, meat: /beef|pork|lamb|meat|poultry|sausage|bacon|goat meat/i, eggs: /egg/i, honey: /honey/i,
+      produce: /produce|vegetable|veggie|fruit|berr|apple|peach|tomato/i, upick: /u-?pick|pick your own/i, animals: /live animal|chicks|piglets|kids for sale|calves|lambs for sale|puppies/i, other: /flower|wool|fiber|hay|straw|soap|plants/i };
+    function farmAcctMatches(p) { if (farmCat === 'all') return true; const re = FARM_ACCT_WORDS[farmCat]; return !!(re && re.test((orgInfo(p.org) || {}).about || '')); }
     // Farm shops and farmers markets around a ZIP, from OpenStreetMap
     async function loadFarmOsm(zip) {
       if (farmOsmState === 'loading' || (FARM_OSM && FARM_OSM.zip === zip)) return;
@@ -4848,9 +4967,12 @@
           const la = el.lat != null ? el.lat : (el.center && el.center.lat), lo = el.lon != null ? el.lon : (el.center && el.center.lon);
           if (la == null) return;
           const web = cleanOrgUrl(t.website || t['contact:website'] || '', true);
-          const item = { n: t.name, la, lo, t: t['addr:city'] || '', url: web || '', osm: true,
+          const item = { n: t.name, la, lo, t: t['addr:city'] || '', near: t['addr:city'] ? '' : geo.area || '', url: web || '', osm: true,
             note: t.produce ? 'Sells: ' + String(t.produce).replace(/[;_]/g, m => m === ';' ? ', ' : ' ').slice(0, 90) : '' };
-          (t.shop === 'farm' ? out.shops : out.markets).push(item);
+          // Farmers markets only: a marketplace must look like one (flea markets, swap meets, freight and grocery stores are dropped)
+          const fm = FARM_MARKET_RE.test(t.name) && !FARM_NOT_MARKET_RE.test(t.name);
+          if (t.shop === 'farm' && !/farmers'?\s*market/i.test(t.name)) out.shops.push(item);
+          else if (fm || (t.produce && !FARM_NOT_MARKET_RE.test(t.name))) out.markets.push(item);
         });
         FARM_OSM = out; farmOsmState = 'ready';
       } catch (e) { farmOsmState = 'failed'; }
@@ -4859,9 +4981,18 @@
     function applyFarmZip() {
       const z = val('farm-zip');
       if (!/^\d{5}$/.test(z)) { toast('Enter a 5-digit ZIP'); return; }
-      state.zip = z; farmShown = 12; saveState();
-      FARM_OSM = null; farmOsmState = 'idle';
-      openTab('farm');
+      if (farmPendingZip) return;
+      // A ZIP only becomes the member's ZIP once it is found
+      farmPendingZip = z; farmRerender();
+      geocodeZip(z).then(g => {
+        farmPendingZip = '';
+        if (!g) { toast('We couldn\'t find ZIP ' + z + '. Check the number and try again.'); farmRerender(); return; }
+        const changed = z !== state.zip;
+        state.zip = z; farmShown = 12; saveState();
+        FARM_OSM = null; farmOsmState = 'idle';
+        if (changed) { farmAccountsAt = 0; loadFarmAccounts(); lastPeopleFetch = 0; }
+        openTab('farm');
+      });
     }
     function setFarmCat(c) { farmCat = c; farmShown = 12; farmRerender(); }
     function farmMore() { farmShown += 12; farmRerender(); }
@@ -4870,7 +5001,7 @@
       if (!f.sells) return false; // a mapped farm shop with no product list only shows under All
       return f.sells.some(s => FARM_CAT_OF[s] === farmCat);
     }
-    function farmMapUrl(f) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.n + (f.t ? ', ' + f.t : '') + (f.s ? ', ' + f.s : '')); }
+    function farmMapUrl(f) { return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(f.n + (f.t ? ', ' + f.t : f.near ? ' near ' + f.near : '') + (f.s ? ', ' + f.s : '')); }
     function farmRow(f) {
       const tags = (f.sells || []).slice(0, 6).map(s => '<span class="farm-tag">' + esc(s) + '</span>').join('');
       const where = (f._mi != null ? (f._mi < 1 ? 'under 1 mi' : (f.approx ? 'about ' : '') + Math.round(f._mi) + ' mi') : '') + (f.t ? (f._mi != null ? ' · ' : '') + f.t + (f.s ? ', ' + f.s : '') : '');
@@ -4886,11 +5017,17 @@
           (f.ph ? '<a class="pill-btn ghost" style="text-decoration:none;" href="tel:' + esc(String(f.ph).replace(/[^\d+]/g, '')) + '">📞 Call</a>' : '') +
         '</div></div>';
     }
-    function farmAccountRow(p) {
+    // Farm Stuff's shortcut lands on the feed-store list (or Places near you while it loads)
+    function scrollToFeedStores() {
+      const hs = [...document.querySelectorAll('#tab-content .sec h3')];
+      const h = hs.find(x => /Feed &|Feed &amp;/.test(x.textContent)) || hs.find(x => /Places near you/.test(x.textContent));
+      if (h) h.scrollIntoView({ block: 'start' });
+    }
+    function farmAccountRow(p, mi) {
       const o = orgInfo(p.org) || {};
       return '<div class="farm-card" style="cursor:pointer;" onclick="openPersonSheetById(\'' + jsStr(p.id) + '\')">' +
         '<div class="farm-top"><div class="u-avatar" style="width:44px;height:44px;flex:0 0 44px;">' + personAvatar(p, 44) + '</div>' +
-          '<div style="flex:1;min-width:0;"><div class="rtitle">' + esc(p.username) + ' ' + vbadge() + '</div><div class="rmeta">Farm on Petfi · ID-verified</div></div>' +
+          '<div style="flex:1;min-width:0;"><div class="rtitle">' + esc(p.username) + ' ' + vbadge() + '</div><div class="rmeta">' + (mi != null ? (mi < 2 ? 'under 2 mi' : 'about ' + mi + ' mi') + ' · ' : '') + 'Farm on Petfi · ID-verified</div></div>' +
           '<span class="chev">›</span></div>' +
         (o.about ? '<div class="farm-note">' + esc(o.about.slice(0, 140)) + '</div>' : '') + '</div>';
     }
@@ -4903,7 +5040,7 @@
         '<button class="btn secondary" onclick="closeSheet()">Close</button>');
     }
     function renderFarm() {
-      const zip = state.zip || '';
+      const zip = farmPendingZip || state.zip || '';
       ensureFarmList();
       let h = '<div class="sec" style="margin-top:0;"><h3>🚜 Farm Stuff</h3></div>' +
         '<p class="sub" style="font-size:0.88rem;margin:0 0 0.7rem;">Local farms that sell straight to you: milk, meat, eggs, honey, produce and more.</p>';
@@ -4913,18 +5050,25 @@
       h += '<div class="chips chips-sm">' + FARM_CATS.map(c =>
         '<div class="chip ' + (farmCat === c[0] ? 'active' : '') + '" role="button" onclick="setFarmCat(\'' + c[0] + '\')">' + (c[2] ? c[2] + ' ' : '') + c[1] + '</div>').join('') + '</div>';
 
-      // Farms with their own Petfi profile come first
-      const accts = FARM_ACCOUNTS.filter(p => !hiddenUser(p.id));
-      if (accts.length) h += '<div class="sec"><h3>✔︎ Farms on Petfi</h3></div>' + accts.map(farmAccountRow).join('');
+      // Farms with their own Petfi profile come first, when we know they're within range;
+      // without a distance they're listed further down as "anywhere", never as local
+      const accts = FARM_ACCOUNTS.filter(p => !hiddenUser(p.id) && farmAcctMatches(p));
+      const acctMi = !farmPendingZip && zip ? FARM_ACCOUNT_MI : null;
+      const nearAccts = acctMi ? accts.filter(p => isFinite(acctMi[p.id]) && acctMi[p.id] <= FARM_RADIUS_MI).sort((a, b) => acctMi[a.id] - acctMi[b.id]) : [];
+      if (nearAccts.length) h += '<div class="sec"><h3>✔︎ Farms on Petfi near you</h3></div>' + nearAccts.map(p => farmAccountRow(p, acctMi[p.id])).join('');
 
-      const geo = zip ? myGeo() : null;
-      if (!zip) {
+      const geo = zip && !farmPendingZip ? myGeo() : null;
+      if (farmPendingZip) {
+        h += searchingHtml('Finding farms near ' + esc(farmPendingZip) + '…');
+      } else if (!zip) {
         h += '<div class="note">Enter your ZIP to see farms near you.</div>';
       } else if (!geo) {
         h += searchingHtml('Finding farms near ' + esc(zip) + '…');
         geocodeZip(zip).then(g => { if (g) farmRerender(); else if (state.tab === 'farm') { const n = document.querySelector('#tab-content .note'); if (n) n.textContent = 'We couldn\'t place that ZIP. Check it and search again.'; } });
       } else {
-        if (!FARM_OSM || FARM_OSM.zip !== zip) { if (farmOsmState !== 'failed') setTimeout(() => loadFarmOsm(zip), 0); }
+        // A map lookup about to start counts as running: the spinner shows, never "no farms"
+        const osmPending = (!FARM_OSM || FARM_OSM.zip !== zip) && farmOsmState !== 'failed';
+        if (osmPending) setTimeout(() => loadFarmOsm(zip), 0);
         const near = f => { const mi = haversineMi(geo.lat, geo.lon, f.la, f.lo); return Object.assign({}, f, { _mi: mi }); };
         const seen = {};
         const key = f => String(f.n).toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -4937,7 +5081,7 @@
         if (farms.length) {
           h += farms.slice(0, farmShown).map(farmRow).join('');
           if (farms.length > farmShown) h += '<button class="btn secondary" onclick="farmMore()">Show more farms (' + (farms.length - farmShown) + ')</button>';
-        } else if (farmListState === 'loading' || farmListState === 'idle' || farmOsmState === 'loading') {
+        } else if (farmListState === 'loading' || farmListState === 'idle' || farmOsmState === 'loading' || osmPending) {
           h += searchingHtml('Looking up farms near ' + esc(zip) + '…');
         } else {
           h += '<div class="note">' + (farmCat === 'all' ? 'We don\'t have a farm listed within ' + FARM_RADIUS_MI + ' miles of ' + esc(zip) + ' yet.' : 'Nothing listed for that near ' + esc(zip) + ' yet. Try “All”.') +
@@ -4947,16 +5091,18 @@
           h += '<div class="sec"><h3>🧺 Farmers markets</h3></div>' +
             FARM_OSM.markets.map(near).sort((a, b) => a._mi - b._mi).slice(0, 6).map(f => farmRow(Object.assign(f, { market: true }))).join('');
         }
-        if (farmOsmState === 'loading') h += searchingHtml('Checking the map for more farm stands and farmers markets…');
+        if ((farmOsmState === 'loading' || osmPending) && farms.length) h += searchingHtml('Checking the map for more farm stands and farmers markets…');
         if (farmOsmState === 'failed' && !osmOn) h += '<p class="sub" style="font-size:0.78rem;">📡 The map service didn\'t answer, so mapped farm shops and markets are missing. <span class="link" onclick="farmOsmState=\'idle\';farmRerender()">Try again</span></p>';
         h += '<p class="sub" style="font-size:0.8rem;margin:0.5rem 0 0.2rem;"><span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('farms that sell to the public near ' + zip) + '\')">See more farms on Google Maps</span></p>';
       }
+      if (!acctMi && accts.length && !farmPendingZip) h += '<div class="sec"><h3>✔︎ Farms on Petfi, anywhere</h3></div>' +
+        '<p class="sub" style="font-size:0.8rem;margin:-0.2rem 0 0.5rem;">' + (zip ? 'We couldn\'t work out how far these are from you.' : 'Add your ZIP above to see which are near you.') + '</p>' + accts.map(p => farmAccountRow(p)).join('');
 
       // More for farm people, already in Petfi
       h += '<div class="sec"><h3>🐄 More for farm animals</h3></div>' +
         '<div class="mm-banner" style="border-color:var(--line);" onclick="setStoreCat(\'Farm\')"><div class="i">🌾</div><div><b>Feed &amp; farm supplies</b><small>Best sellers for chickens, goats, horses and cattle</small></div><span class="chev">›</span></div>' +
         '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'mate\')"><div class="i">💘</div><div><b>Livestock breeding partners</b><small>Goats, cattle, horses, sheep and more in Mate Match</small></div><span class="chev">›</span></div>' +
-        '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'nearby\')"><div class="i">📍</div><div><b>Feed stores near you</b><small>On Nearby, under Places near you</small></div><span class="chev">›</span></div>';
+        '<div class="mm-banner" style="border-color:var(--line);" onclick="openTab(\'nearby\');setTimeout(scrollToFeedStores,60)"><div class="i">📍</div><div><b>Feed stores near you</b><small>On Nearby, under Places near you</small></div><span class="chev">›</span></div>';
 
       if (!iAmFarm()) h += '<div class="get-verified" style="background:linear-gradient(135deg,#fdf3d7,#f8e6b0);border-color:#ecd58a;cursor:pointer;margin-top:0.8rem;" onclick="openFarmJoin()">' +
         '<h4>🚜 Own a farm or ranch?</h4>' +
@@ -4996,24 +5142,35 @@
         '<div class="ricon">' + (s.icon || spotEmoji(s.name)) + '</div>' +
         '<div class="rmain"><div class="rtitle">' + esc(s.name) + '</div><div class="rmeta">' + esc(s.meta) + '</div></div>' +
         '<div class="raction" style="display:flex;gap:0.35rem;">' +
-          '<button class="pill-btn ghost" title="Save to favorites" onclick="addFavFromSpot(\'' + jsStr(s.name) + '\')">⭐</button>' +
+          '<button class="pill-btn ghost" title="Save to favorites" onclick="addFavFromSpot(\'' + jsStr(s.name) + '\',\'' + jsStr(s.url) + '\')">⭐</button>' +
           '<button class="pill-btn" onclick="openLink(\'' + jsStr(s.url) + '\')">Open</button>' +
         '</div></div>';
     }
     function spotEmoji(name) { const n = String(name || '').toLowerCase(); return n.includes('vet') || n.includes('care') ? '🏥' : n.includes('park') || n.includes('run') || n.includes('green') ? '🌳' : '🛒'; }
     // Real lookup: ZIP → coordinates (Nominatim), then pet places
     // within ~10 miles (Overpass). Runs automatically for a saved ZIP.
-    let spotsInFlight = false;
+    let spotsInFlight = false, nearbyPendingZip = '';
     async function applyZip(zipArg) {
       const z = typeof zipArg === 'string' ? zipArg : val('nearby-zip');
       if (!/^\d{5}$/.test(z)) { toast('Enter a 5-digit ZIP'); return; }
       if (spotsInFlight) return;
       spotsInFlight = true;
-      state.zip = z; state.spotsLoading = true; state.spotsFailed = false; saveState();
+      // A ZIP only becomes the member's ZIP once it is found
+      const zipChanged = z !== state.zip;
+      nearbyPendingZip = z; state.spotsLoading = true; state.spotsFailed = false;
       if (state.tab === 'nearby') openTab('nearby');
       try {
         const geo = await geocodeZip(z);
-        if (!geo) throw new Error('ZIP not found');
+        nearbyPendingZip = '';
+        if (!geo) {
+          state.spotsLoading = false; spotsInFlight = false;
+          if (!zipChanged) { state.spotsFailed = true; state.spotsBadZip = z; } // the saved ZIP itself: stop retrying it
+          toast('We couldn\'t find ZIP ' + z + '. Check the number and try again.');
+          if (state.tab === 'nearby') openTab('nearby');
+          return;
+        }
+        state.zip = z; state.spotsBadZip = ''; saveState();
+        if (zipChanged) { loadPeople(true); farmAccountsAt = 0; } // members (and farms) near the new ZIP
         const lat = geo.lat, lon = geo.lon;
         const q = '[out:json][timeout:20];(' +
           'nwr["leisure"="dog_park"](around:16000,' + lat + ',' + lon + ');' +
@@ -5027,6 +5184,7 @@
         state.spots = groupSpots(data.elements || [], lat, lon, z);
         if (typeof zipArg !== 'string') toast('📍 Real places loaded for ' + z);
       } catch (e) {
+        nearbyPendingZip = '';
         state.spots = null; state.spotsFailed = true;
         toast('📡 Map service unavailable right now');
       }
@@ -5107,6 +5265,7 @@
             if (k.tag && !(x.category === k.tag[0] && x.type === k.tag[1])) return;
             if (k.shop && x.category !== 'shop') return;
             if (k.name && !k.name.test(x.name)) return;
+            if (k.ok && !k.ok(x)) return;
             if (haversineMi(alt.lat, alt.lon, +x.lat, +x.lon) > km * 0.62 * 1.15) return;
             const id = x.name.toLowerCase() + '|' + (+x.lat).toFixed(3) + '|' + (+x.lon).toFixed(3);
             if (seen[id]) return; seen[id] = 1;
@@ -5159,7 +5318,7 @@
         if (la == null) return;
         const mi = haversineMi(lat, lon, la, lo);
         const item = { name: t.name, mi, meta: mi.toFixed(1) + ' mi away',
-          url: 'https://www.google.com/maps/search/?api=1&query=' + la + ',' + lo };
+          url: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t.name + ', ' + (t['addr:city'] || ((GEO_CACHE[zip] || {}).area) || zip)) };
         if (t.leisure === 'dog_park') { item.icon = '🌳'; out.parks.push(item); }
         else if (t.amenity === 'veterinary') { item.icon = '🏥'; out.vets.push(item); }
         else if (isFeedStore(t)) { item.icon = '🌾'; out.feed.push(item); }
@@ -5178,10 +5337,12 @@
       toast(!cloud ? '📡 You\'re offline — connect to ' + what + ', so nothing gets lost' : '🔑 Create a free login to ' + what + ' — it\'s saved to your account');
       return false;
     }
-    function addFavFromSpot(name) {
+    function addFavFromSpot(name, url) {
       const cat = /vet|care/i.test(name) ? 'vet' : /park|run|green/i.test(name) ? 'park' : 'store';
       state.favorites = state.favorites || [];
-      state.favorites.push({ cat, label: name, url: 'https://www.google.com/maps/search/' + encodeURIComponent(name) });
+      url = /^https:\/\/www\.google\.com\/maps\//.test(url || '') ? url : 'https://www.google.com/maps/search/' + encodeURIComponent(name);
+      if (state.favorites.some(f => f.label === name && f.url === url)) { toast(name + ' is already in your favorites ⭐'); return; }
+      state.favorites.push({ cat, label: name, url });
       saveState(); cloudSaveProfile();
       toast('Added ' + name + ' to favorites ⭐');
     }
@@ -5311,12 +5472,14 @@
     ];
     function directBrandFor(name) { return DIRECT_BRANDS.find(b => b.re.test(String(name || '')) && affOn(b.key)) || null; }
     // What kind of place is the user after? Maps words → map categories.
+    // A name that is plainly about animals ("Posh Paws Grooming", not "Roosters Men's Grooming")
+    const PETISH_RE = /(pets?|dogs?|doggie|doggy|cats?|paws?|pups?|pupp(y|ies)|canine|k9|mutts?|fur|furry|bark|woof|tails?|animal|kennels?)/i;
     const PLACE_TYPES = [
-      { re: /groom|wash|bath|spa/i,                    icon: '🛁', sel: ['nwr["shop"="pet_grooming"]', 'nwr["amenity"="dog_wash"]', 'nwr["shop"]["name"~"groom",i]'],
-        nom: [{ q: 'pet grooming', tag: ['shop', 'pet_grooming'] }, { q: 'grooming', shop: true, name: /groom/i, as: { shop: 'pet_grooming' } }, { q: 'dog wash', name: /wash|groom/i, as: { amenity: 'dog_wash' } }] },
+      { re: /groom|wash|bath|spa/i,                    icon: '🛁', sel: ['nwr["shop"="pet_grooming"]', 'nwr["amenity"="dog_wash"]', 'nwr["shop"~"^pet"]["name"~"groom",i]'],
+        nom: [{ q: 'pet grooming', tag: ['shop', 'pet_grooming'] }, { q: 'grooming', shop: true, name: /groom/i, ok: x => /^pet/.test(x.type) || PETISH_RE.test(x.name), as: { shop: 'pet_grooming' } }, { q: 'dog wash', name: /wash|groom/i, ok: x => PETISH_RE.test(x.name), as: { amenity: 'dog_wash' } }] },
       { re: /vet|clinic|hospital|emergenc/i,           icon: '🏥', sel: ['nwr["amenity"="veterinary"]'], nom: [{ q: 'veterinary', tag: ['amenity', 'veterinary'] }] },
       { re: /park|run|trail|beach/i,                   icon: '🌳', sel: ['nwr["leisure"="dog_park"]'], nom: [{ q: 'dog park', tag: ['leisure', 'dog_park'] }] },
-      { re: /board|kennel|daycare|day care|sitter|hotel/i, icon: '🏨', sel: ['nwr["amenity"="animal_boarding"]'], nom: [{ q: 'animal boarding', tag: ['amenity', 'animal_boarding'] }, { q: 'kennel', name: /kennel|board|daycare|pet (hotel|resort)/i, as: { amenity: 'animal_boarding' } }] },
+      { re: /board|kennel|daycare|day care|sitter|hotel/i, icon: '🏨', sel: ['nwr["amenity"="animal_boarding"]'], nom: [{ q: 'animal boarding', tag: ['amenity', 'animal_boarding'] }, { q: 'kennel', name: /kennel|board|daycare|pet (hotel|resort)/i, ok: x => PETISH_RE.test(x.name), as: { amenity: 'animal_boarding' } }] },
       { re: /shelter|adopt|rescue|pound/i,             icon: '🐾', sel: ['nwr["amenity"="animal_shelter"]'], nom: [{ q: 'animal shelter', tag: ['amenity', 'animal_shelter'] }] },
       { re: /feed|hay\b|tack|livestock|farm suppl|tractor/i, icon: '🌾', sel: FEED_SEL, nom: [{ q: 'feed store', km: 32, shop: true }, { q: 'Tractor Supply', km: 32, shop: true, as: { shop: 'country_store' } }] },
       { re: /store|shop|suppl|food|treat|toy/i,        icon: '🛒', sel: ['nwr["shop"="pet"]'], nom: [{ q: 'pet shop', tag: ['shop', 'pet'] }] },
@@ -5614,6 +5777,9 @@
 
       // 3) Clean links into the big pet shops (affiliate tags slot in later)
       const webQ = /\b(dog|cat|pet|pupp|kitten|bird|rabbit|hamster|reptile|fish|aquarium|paw)\b/i.test(q) ? q : q + ' pet';
+      // A question about a place to go ("groomer near me") gets no shopping links
+      const placeOnly = serviceTypes.length && !fi.kinds.length && !fi.words.filter(w => !/groom|vet|park|board|kennel|shelter|clinic|hospital|daycare|sitter|wash/.test(w)).length;
+      if (!placeOnly) {
       h += '<div class="sec"><h3>🌐 Shop the web <small style="color:var(--muted);font-weight:400;font-size:0.7rem;">straight to pet stores — no ads</small></h3></div>';
       h += '<div class="nearby">' + retailersFor(FARM_RE.test(q)).map(r =>
         '<div class="user-card" style="cursor:pointer;" onclick="openStoreLink(\'' + r.key + '\',\'' + jsStr(r.url(webQ, 'search')) + '\')">' +
@@ -5623,6 +5789,7 @@
         '</div>').join('') + '</div>' +
         '<p class="sub" style="font-size:0.72rem;margin-top:0.4rem;">Some of these are paid links: Petfi may earn a commission, at no cost to you.</p>' +
         '<p class="sub" style="font-size:0.82rem;margin-top:0.5rem;">🔎 Want it in the Petfi store? <span class="link" onclick="openStoreRequest(\'' + jsStr(q.slice(0, 120)) + '\')">Ask us to add it</span></p>';
+      }
 
       box.innerHTML = h;
       if (placesJob) {
@@ -6479,7 +6646,7 @@
     function inCat(p, c) {
       if (c === 'All') return true;
       if (c === 'Members') return !p.affiliate;
-      if (!p.affiliate) return true; // member listings show under every animal chip
+      if (!p.affiliate) return p.pet === c; // a member listing shows under the animal it's for (and All / Members)
       return (p.cats && p.cats.indexOf(c) >= 0) || p.cat === c;
     }
     function inType(p, t) {
@@ -6705,7 +6872,10 @@
         '<div class="sf-row"><span class="sf-label">For</span><div class="chips chips-sm">' + STORE_CATS.map(c =>
           '<div class="chip ' + (state.storeCat === c ? 'active' : '') + '" onclick="setStoreCat(\'' + c + '\')">' + (CAT_EMO[c] ? CAT_EMO[c] + ' ' : '') + c + '</div>').join('') + '</div></div>';
       if (state.storeCat !== 'Members') {
-        h += '<div class="sf-row"><span class="sf-label">Type</span><div class="chips chips-sm">' + STORE_TYPES.map(t =>
+        // Only the types that have something for this animal (once the catalog is in)
+        const hasType = t => t === 'Any' || catalogState !== 'ready' || state.storeCat === 'All' || members.concat(AFFILIATE_PRODUCTS).some(p => p.cat !== 'Services' && inCat(p, state.storeCat) && inType(p, t));
+        if (!hasType(state.storeType)) state.storeType = 'Any';
+        h += '<div class="sf-row"><span class="sf-label">Type</span><div class="chips chips-sm">' + STORE_TYPES.filter(hasType).map(t =>
           '<div class="chip ' + (state.storeType === t ? 'active' : '') + '" onclick="setStoreType(\'' + t + '\')">' + (TYPE_EMO[t] ? TYPE_EMO[t] + ' ' : '') + t + '</div>').join('') + '</div></div>';
       }
       h += '<div class="sf-row"><span class="sf-label">Sort</span><select class="sf-sort" aria-label="Sort" onchange="setStoreSort(this.value)">' + Object.keys(STORE_SORTS).map(k =>
@@ -6716,13 +6886,14 @@
       STORE_VIEW = members.concat(AFFILIATE_PRODUCTS);
       const items = sortStore(STORE_VIEW.filter(p => p.cat !== 'Services' && inCat(p, state.storeCat) && (state.storeCat === 'Members' || inType(p, state.storeType)) && underCap(p, state.storeMax)));
       const nBest = items.filter(p => p.affiliate).length;
+      const nMem = members.filter(p => p.cat !== 'Services').length; // the cards below (services are listed above)
       if (state.storeCat === 'All' || state.storeCat === 'Members') {
-        h += members.length
-          ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + members.length + ' listing' + (members.length === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy.' + (state.storeCat === 'All' ? ' Then Amazon\'s best-selling pet products, most popular first.' : '') + '</p>'
+        h += nMem
+          ? '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🐾 <b>' + nMem + ' listing' + (nMem === 1 ? '' : 's') + ' from Petfi members</b> — message the seller to buy.' + (state.storeCat === 'All' ? ' Then Amazon\'s best-selling pet products, most popular first.' : '') + '</p>'
           : (state.storeCat === 'Members'
             ? '<div class="note" style="margin-bottom:0.8rem;">🐾 No member listings yet — <span class="link" onclick="openSell()">be the first to sell something</span>.</div>'
             : '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 Amazon\'s best-selling pet products, most popular first. <span class="link" onclick="openSell()">Sell your own</span> and it shows up here too.</p>');
-      } else {
+      } else if (nBest) {
         h += '<p class="sub" style="font-size:0.78rem;margin:0.2rem 0 0.8rem;">🔥 ' + nBest + ' best seller' + (nBest === 1 ? '' : 's') + ' for ' + esc({ aquatic: 'fish & aquariums', 'small pets': 'small pets', farm: 'farm animals' }[state.storeCat.toLowerCase()] || state.storeCat.toLowerCase() + 's') + (state.storeType !== 'Any' ? ' · ' + esc(state.storeType === 'DNA' ? 'DNA' : state.storeType.toLowerCase()) : '') + ', most popular first.</p>';
       }
       // 🧬 needs a sentence of context — nobody shops for a cheek swab by name
@@ -6738,7 +6909,7 @@
       else if (!items.length) h += '<div class="note">Nothing in this combination yet — try another type.</div>';
       const limit = storeShown || STORE_PAGE;
       h += '<div class="store-grid">' + items.slice(0, limit).map(prodCard).join('') + '</div>';
-      if (items.length > limit) h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="storeShown=' + (limit + STORE_PAGE) + ';openTab(\'store\')">Show more (' + (items.length - limit) + ' left)</button>';
+      if (items.length > limit) h += '<button class="btn secondary" style="margin-top:0.8rem;" onclick="storeShown=' + (limit + STORE_PAGE) + ';rerenderTab(renderStore)">Show more (' + (items.length - limit) + ' left)</button>';
       // FTC affiliate disclosure — required because these links pay Petfi
       h += '<p class="sub" style="font-size:0.72rem;margin:0.8rem 0 0;">🔗 Shop links go to Amazon and other pet stores and are affiliate links — Petfi may earn a commission at no extra cost to you. Prices and ratings are shown on Amazon, not here — the price there is what you pay. <a href="#" onclick="openAffiliateInfo();return false;" style="color:var(--brand-text);font-weight:600;">Learn more</a></p>';
       h += '<p class="sub" style="font-size:0.82rem;margin:0.8rem 0 0;text-align:center;">🔎 Don\'t see what you need? <span class="link" onclick="openStoreRequest()">Ask us to add it</span></p>';
@@ -6929,9 +7100,10 @@
         h += '<p class="sub" style="margin-bottom:0.8rem;">Find your people (and their pets).</p>';
       }
       h += GROUPS_VIEW.map((g, i) => {
-        const requested = g.cloudId && (state.groupRequests || {})['c:' + g.cloudId];
+        const requested = g.cloudId && (g.requested || (state.groupRequests || {})['c:' + g.cloudId]);
         const label = g.joined ? 'Joined' : requested ? 'Requested ⏳' : g.isPrivate ? 'Request' : 'Join';
         const cls = g.joined ? 'done' : requested ? 'ghost' : '';
+        i = gi.k(g, i); // taps find the group by its id, even if the list reloads meanwhile
         return '<div class="row">' +
           '<div class="ricon" style="background:' + safeBg(g.color, '#fff1ec') + ';cursor:pointer;" onclick="openGroupDetail(' + i + ')">' + esc(g.emo) + '</div>' +
           '<div class="rmain" style="cursor:pointer;" onclick="openGroupDetail(' + i + ')"><div class="rtitle">' + esc(g.title) + (g.cloudId ? '' : ' <small>(this device)</small>') + '</div><div class="rmeta">' + esc(g.meta) + '</div></div>' +
@@ -6940,8 +7112,24 @@
       }).join('');
       return h;
     }
-    async function joinCloudGroup(i) {
+    // A group's stable key: 'c' + its cloud id, or 'l' + its place for groups kept on this device
+    function gi(k) {
+      k = String(k);
+      GROUPS_VIEW = CLOUD_GROUPS.concat(LOCAL_GROUPS); // the latest copy of every group (also from the bell before Groups was opened)
+      return k[0] === 'c' ? GROUPS_VIEW.findIndex(g => g.cloudId && 'c' + g.cloudId === k) : CLOUD_GROUPS.length + Number(k.slice(1));
+    }
+    gi.k = (g, i) => 'gi(\'' + (g && g.cloudId ? 'c' + Number(g.cloudId) : 'l' + LOCAL_GROUPS.indexOf(g)) + '\')';
+    // Leaving asks first: a private group needs the owner's yes to get back in
+    function leaveGroupAsk(i) {
+      const g = GROUPS_VIEW[i]; if (!g || !g.joined) return;
+      openSheet('Leave ' + esc(g.title) + '?',
+        '<p class="sub">' + (g.isPrivate ? 'This is a private group. To come back, you will have to ask the owner again.' : 'You can join again any time.') + '</p>' +
+        '<button class="btn" onclick="closeSheet();joinCloudGroup(' + gi.k(g, i) + ',true)">Yes, leave the group</button>' +
+        '<button class="btn secondary" onclick="closeSheet()">Stay in the group</button>');
+    }
+    async function joinCloudGroup(i, sure) {
       const g = GROUPS_VIEW[i]; if (!g) return;
+      if (g.joined && !sure) { leaveGroupAsk(i); return; }
       if (!g.cloudId) { g.joined = !g.joined; g.members += g.joined ? 1 : -1; g.meta = groupMeta(g); openTab('groups'); return; }
       if (!cloudUser) { toast('Log in to join groups'); return; }
       if (g.joinBusy) return; g.joinBusy = true;
@@ -6954,7 +7142,7 @@
         // Private: a join request the owner approves on the group page
         if (g.requested) { toast('Request already sent ⏳'); g.joinBusy = false; return; }
         const { error } = await cloud.from('group_requests').insert({ group_id: g.cloudId, user_id: cloudUser.id });
-        if (!error || /duplicate/i.test(error.message)) { g.requested = true; livePing(g.creatorId, { type: 'group' }); toast('🔒 Request sent — the owner approves it from the group page'); }
+        if (!error || /duplicate/i.test(error.message)) { g.requested = true; livePing(g.creatorId, { type: 'group' }); toast('🔒 Request sent. The group\'s owner will decide.'); }
         else toast('⚠️ Couldn\'t send the request');
       } else {
         const { error } = await cloud.from('group_members').insert({ group_id: g.cloudId, user_id: cloudUser.id });
@@ -7114,7 +7302,7 @@
       h += '<div class="sec"><h3>👤 Account</h3></div>';
       h += '<div class="settings-card" style="margin-bottom:1rem;">' +
         '<div class="link-row" onclick="openAccountSettings()"><span class="li">⚙️</span><div>Account &amp; security<small>' + (cloudUser ? esc(cloudUser.email) : 'This device only') + '</small></div><span class="chev">›</span></div>' +
-        '<div class="link-row" onclick="logOut()"><span class="li">↺</span><div>Log out / start over</div><span class="chev">›</span></div>' +
+        '<div class="link-row" onclick="openLogOutChoice()"><span class="li">↺</span><div>Log out</div><span class="chev">›</span></div>' +
       '</div>';
       return h;
     }
@@ -7882,12 +8070,13 @@
       TOUR_DONE = true;
       closeSheet();
       const id = INVITE_OPEN_AFTER_TOUR; INVITE_OPEN_AFTER_TOUR = null;
+      if (pinNotice && !id) { setTimeout(pinNoticeShow, 250); return; } // a PIN from sign-up that wasn't saved
       if (id) setTimeout(() => openPersonSheetById(id), 250);
       else setTimeout(askPushAfterTour, 400);
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.2';
+    const APP_VERSION = '1.33.3';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8003,7 +8192,7 @@
         q('🏠 How do I get back to the main page?', 'Tap <b>🏠 Home</b> in the row of buttons at the bottom of the screen (on a computer it\'s on the left side). That row is always there: Home, Mate Match, Nearby, Farm Stuff, Store and Me. Your phone\'s Back button also takes you back to Home.') +
         q('🔑 I can\'t log in or I forgot my password', '1. On the first screen tap <b>Log in</b>.<br>2. Check your email is spelled right, with no space at the end.<br>3. If you set a PIN, tap <b>Log in with my PIN</b> and type your email and PIN.<br>4. Still stuck? Tap <b>Forgot your password?</b>. If no email arrives in a few minutes, write to <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a> from the email you signed up with and we\'ll get you back in.') +
         q('🔢 What is the login PIN? Do I need one?', 'No, it\'s optional. A PIN is 4 to 8 digits you choose so you can log in without typing your password. To turn it on: tap <b>👤 Me</b>, scroll to <b>Account &amp; security</b>, then <b>Login PIN</b>. Keep your password too.') +
-        q('🐶 How do I add my pet?', 'Tap <b>👤 Me</b> at the bottom, then <b>＋ Add a pet</b>. Pick the kind of animal, type the name, and tap save. You can add as many pets as you have.') +
+        q('🐶 How do I add my pet?', 'Tap <b>👤 Me</b> at the bottom, then <b>＋ Add pet</b> at the top (or <b>+ Add</b> next to My pets). Type the name, pick the kind of animal, and tap <b>Add pet</b>. You can add as many pets as you have.') +
         q('📷 How do I post a photo?', '1. Tap <b>🏠 Home</b>.<br>2. Tap the box at the top that asks what\'s on your mind.<br>3. Tap <b>📷 Add photos</b> and choose a picture from your phone.<br>4. Tap <b>Post</b>.') +
         q('🖼️ How do I change my picture?', 'Tap <b>👤 Me</b>, then <b>📷 Use a photo</b> under your name, and choose a picture. To go back to the drawn icon, tap <b>↺ Back to my icon</b>.') +
         q('💬 How do I send someone a message?', 'Tap their name or picture to open their page, then tap <b>💬 Message</b>. Your conversations are under the <b>💬</b> button at the top of the screen.') +
@@ -8153,13 +8342,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       openSheet('🚩 Report ' + esc(label),
         '<p class="sub" style="font-size:0.85rem;">Reports are anonymous — ' + esc(label) + ' won\'t know it was you.</p>' +
         '<label for="rp-reason">What\'s wrong?</label>' +
-        '<select id="rp-reason">' + REPORT_REASONS.map(r => '<option value="' + esc(r) + '">' + r + '</option>').join('') + '</select>' +
+        '<select id="rp-reason"><option value="" selected disabled>Choose a reason…</option>' + REPORT_REASONS.map(r => '<option value="' + esc(r) + '">' + r + '</option>').join('') + '</select>' +
         '<label for="rp-text">Anything else we should know? <small style="color:var(--muted);font-weight:400;">(optional)</small></label>' +
         '<textarea id="rp-text" placeholder="Details help us act faster…" style="width:100%;min-height:80px;border:2px solid var(--line);border-radius:14px;padding:0.8rem;font-family:inherit;font-size:0.95rem;"></textarea>' +
         '<button class="btn" onclick="submitReport()">Submit report 🚩</button>');
     }
     async function submitReport() {
       if (!reportTarget) { closeSheet(); return; }
+      if (!val('rp-reason')) { toast('Please choose what\'s wrong first'); const s = document.getElementById('rp-reason'); if (s) s.focus(); return; }
       const entry = { kind: reportTarget.kind, target: reportTarget.label, refId: reportTarget.refId, reason: val('rp-reason'), details: val('rp-text') };
       // Who and what, so the admin card can suspend the author or remove the row
       if (reportTarget.authorId) entry.authorId = reportTarget.authorId;
@@ -8905,7 +9095,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       } else {
         h += state.reminders.map((rm, i) =>
           '<div class="row"><div class="ricon">' + remIcon(rm.what) + '</div>' +
-          '<div class="rmain"><div class="rtitle">' + esc(rm.what) + '</div><div class="rmeta">' + esc(rm.freqLabel) + (rm.time ? ' at ' + esc(rm.time) : '') + ' · next ' + nextIn(rm.next) +
+          '<div class="rmain"><div class="rtitle">' + esc(rm.what) + '</div><div class="rmeta">' + esc(rm.freqLabel) + (rm.time ? ' at ' + esc(hxTime(rm.time) || rm.time) : '') + ' · next ' + nextIn(rm.next) +
             (rm.snoozeUntil > Date.now() ? ' · 😴 snoozed until ' + esc(new Date(rm.snoozeUntil).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' })) : '') + '</div>' +
             (remSnoozable(rm) ? '<span class="link" style="font-size:0.78rem;" onclick="snoozeReminder(' + i + ',' + sigArg(rm) + ')">😴 Snooze 1 hour</span>' : '') + '</div>' +
           // Dose reminders follow their med, so they're changed from the med itself
@@ -8935,7 +9125,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         h += upcoming.map(x =>
           '<div class="row"><div class="ricon">' + calIcon(x.c.type) + '</div>' +
           '<div class="rmain"><div class="rtitle">' + esc(x.c.what) + '</div>' +
-          '<div class="rmeta">' + calLabel(x.c.date) + (x.c.time ? ' · ' + esc(x.c.time) : '') +
+          '<div class="rmeta">' + calLabel(x.c.date) + (x.c.time ? ' · ' + esc(hxTime(x.c.time) || x.c.time) : '') +
             (x.c.notified ? '' : ' · 🔔 ' + (x.c.time ? '1 hr before' : 'morning of')) + '</div></div>' +
           '<div class="raction"><button class="pill-btn ghost" onclick="deleteCal(' + x.i + ')">🗑</button></div></div>').join('');
       }
@@ -8962,6 +9152,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       sh.setAttribute('aria-label', String(title).replace(/<[^>]*>/g, '').trim() || 'Dialog');
       document.getElementById('sheet-backdrop').classList.add('show');
       document.body.classList.add('sheet-open'); // the page behind stops scrolling
+      sheetHistPush(); // before the app: Back closes this sheet instead of leaving
       sh.scrollTop = 0;
       setTimeout(() => { try { if (document.body.classList.contains('sheet-open')) sh.focus({ preventScroll: true }); } catch (e) {} }, 30);
     }
@@ -8990,6 +9181,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       sheetSeq++;
       document.getElementById('sheet-backdrop').classList.remove('show');
       document.body.classList.remove('sheet-open');
+      sheetHistPop(); // its history entry goes with it
       if (sheetOpener && sheetOpener.focus && document.contains(sheetOpener)) { try { sheetOpener.focus({ preventScroll: true }); } catch (e) {} }
       sheetOpener = null;
       // A chat that was open stops polling the moment its sheet goes away
@@ -9151,7 +9343,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const d = document.getElementById('cmp-photo-previews'); if (!d) return;
       d.innerHTML = postPhotos.map((p, i) =>
         '<div style="position:relative;"><img src="' + esc(p) + '" alt="Photo ' + (i + 1) + '" style="width:70px;height:70px;object-fit:cover;border-radius:10px;border:2px solid var(--line);display:block;">' +
-        '<span onclick="removePostPhoto(' + i + ')" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:18px;height:18px;font-size:0.7rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>').join('');
+        '<span role="button" aria-label="Remove photo" onclick="removePostPhoto(' + i + ')" style="position:absolute;top:-10px;right:-10px;background:var(--ink);color:#fff;border-radius:50%;width:32px;height:32px;font-size:1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">×</span></div>').join('');
     }
     function removePostPhoto(i) { postPhotos.splice(i, 1); renderPostPreviews(); }
     function postVideoPicked(input) {
@@ -9200,7 +9392,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       d.innerHTML = '<div style="position:relative;display:inline-block;">' +
         '<div style="width:104px;height:74px;border-radius:10px;border:2px solid var(--line);overflow:hidden;' + bg + 'display:flex;align-items:flex-end;">' +
           '<span style="background:rgba(0,0,0,0.6);color:#fff;font-size:0.68rem;font-weight:700;padding:0.12rem 0.4rem;border-radius:999px;margin:0 0 5px 5px;">🎬 ' + esc(fmtDur(postVideo.dur)) + '</span></div>' +
-        '<span onclick="clearPostVideo(true)" style="position:absolute;top:-6px;right:-6px;background:var(--ink);color:#fff;border-radius:50%;width:18px;height:18px;font-size:0.7rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">\u00d7</span></div>';
+        '<span role="button" aria-label="Remove video" onclick="clearPostVideo(true)" style="position:absolute;top:-10px;right:-10px;background:var(--ink);color:#fff;border-radius:50%;width:32px;height:32px;font-size:1rem;display:flex;align-items:center;justify-content:center;cursor:pointer;">\u00d7</span></div>';
     }
     function clearPostVideo(announce) {
       if (postVideo && postVideo.url) URL.revokeObjectURL(postVideo.url);
@@ -9291,6 +9483,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         const { data, error } = await cloud.from('posts').insert({ author_id: cloudUser.id, content }).select('id').single();
         if (error) throw error;
         post.cloudId = data.id;
+        if (appActive() && state.tab === 'home') redrawPostCard(post, postKey(Object.assign({}, post, { cloudId: 0 }))); // edit button now
         if (!state.postedAt) { state.postedAt = Date.now(); track('first_post'); }
         toast(post.scope === 'local' ? 'Posted to your Local feed 🏡' : 'Posted for everyone to see 🐾');
       } catch (e) {
@@ -9386,9 +9579,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       sellEditId = ed ? ed.cloudId : 0;
       sellPhotos = ed ? safePhotos(ed.photos).slice(0, 3) : [];
       const v = k => ed && ed[k] != null ? ' value="' + esc(String(ed[k])) + '"' : '';
-      const cats = ['Products', 'Food', 'Pets'].concat(ed ? [] : ['Services']);
+      const farm = iAmFarm();
+      const cats = (farm ? ['Farm goods'] : []).concat(['Products', 'Food', 'Pets']).concat(ed ? [] : ['Services']);
       openSheet(ed ? '✏️ Edit your listing' : 'List an item in the Pet Store',
-        '<label for="sell-title">What are you selling?</label><input id="sell-title" placeholder="e.g. Chew-proof dog bed"' + v('title') + '>' +
+        '<label for="sell-title">What are you selling?</label><input id="sell-title" placeholder="' + (farm ? 'e.g. Fresh eggs, one dozen' : 'e.g. Chew-proof dog bed') + '"' + v('title') + '>' +
         '<label>Photos <small style="color:var(--muted);font-weight:400;">(up to 3)</small></label>' +
         '<div class="id-drop" style="margin-top:0.3rem;" onclick="document.getElementById(\'sell-photos\').click()">' +
           '<div class="e">📷</div><strong>Add photos</strong>' +
@@ -9401,6 +9595,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         '<p class="sub" style="font-size:0.78rem;margin:0.3rem 0 0;">💡 Buyers message you in Petfi and you arrange payment and pickup or shipping together. Petfi takes no fee.</p>' +
         '<label for="sell-cat">Category</label><select id="sell-cat" onchange="sellCatNote()">' + cats.map(c => '<option value="' + c + '"' + (ed && ed.cat === c ? ' selected' : '') + '>' + c + '</option>').join('') + '</select>' +
         '<div class="note" id="sell-food-note" style="background:#fdeef0;color:#a03a5a;">🚫 <b>No homemade food or treats.</b> Consumables must be sealed, commercially licensed products — the same regulations real pet stores follow. It keeps pets safe.</div>' +
+        (farm ? '<div class="note" id="sell-farm-note">🚜 Farm food from your own farm is welcome. You are responsible for following your state and local rules for selling it, such as licenses, labels and raw milk rules. Say plainly what it is and how it is kept.</div>' : '') +
+        '<label for="sell-pet">Which animal is it for?</label><select id="sell-pet">' + ['Any'].concat(STORE_CATS.filter(c => c !== 'All' && c !== 'Members')).map(c => '<option value="' + c + '"' + ((ed ? ed.pet : '') === c ? ' selected' : '') + '>' + (c === 'Any' ? 'Any animal, or not for an animal' : c) + '</option>').join('') + '</select>' +
         '<label for="sell-url">Link (optional) <small style="color:var(--muted);font-weight:400;">your shop, a product page…</small></label><input id="sell-url" type="url" placeholder="https://..."' + v('url') + '>' +
         contactField('sell-contact', ed && ed.contact) + sellerTermsBox() +
         '<button class="btn" onclick="saveListing()">' + (ed ? '💾 Save changes' : 'List it 🛒') + '</button>');
@@ -9416,6 +9612,30 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (val('sell-cat') === 'Services') { closeSheet(); openOfferService(); return; }
       const n = document.getElementById('sell-food-note');
       if (n) n.style.display = (val('sell-cat') || 'Products') === 'Food' ? 'block' : 'none';
+      const f = document.getElementById('sell-farm-note');
+      if (f) f.style.display = val('sell-cat') === 'Farm goods' ? 'block' : 'none';
+    }
+    // The form as typed, kept while a warning sheet is up, so "Edit my listing" comes back filled in
+    let sellDraft = null;
+    function sellDraftTake() {
+      return { editId: sellEditId, photos: sellPhotos.slice(), terms: !!(document.getElementById('st-ok') || {}).checked,
+        f: ['sell-title', 'sell-desc', 'sell-price', 'sell-cat', 'sell-pet', 'sell-url', 'sell-contact'].reduce((o, k) => { o[k] = val(k); return o; }, {}) };
+    }
+    function openSellDraft() {
+      const d = sellDraft; sellDraft = null;
+      openSell(d ? d.editId : 0);
+      if (!d || !document.getElementById('sell-title')) return;
+      Object.keys(d.f).forEach(k => { const e = document.getElementById(k); if (e && d.f[k] != null && (e.tagName !== 'SELECT' || [...e.options].some(o => o.value === d.f[k]))) e.value = d.f[k]; });
+      const t = document.getElementById('st-ok'); if (t) t.checked = d.terms;
+      sellPhotos = d.photos; renderSellPreviews(); sellCatNote();
+    }
+    // A price is a positive amount ("$12.99", "2 for $10", "$20 per walk") or clearly Free / Ask / Trade
+    function priceTextOk(s) {
+      s = String(s == null ? '' : s).trim();
+      if (!s) return true;
+      if (/^(free|ask|ask me|make an offer|best offer|obo|trade|for trade)$/i.test(s)) return true;
+      if (/(^|[^\w])-\s*\$?\s*\d/.test(s)) return false;
+      return /[1-9]/.test(s);
     }
     // A number only for one clean amount ("$1,250.50", "12", " $9 "); anything
     // else ("2 for $10", "$10-15", "Ask") returns 0 and the seller's text is kept as typed
@@ -9496,11 +9716,13 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const desc = val('sell-desc');
       // Safety rule: no homemade consumables — pet food must be regulated
       if (cat === 'Food' && HOMEMADE_RE.test(title + ' ' + desc)) {
+        sellDraft = sellDraftTake(); // "Edit my listing" brings all of it back
         openSheet('🚫 Homemade food can\'t be listed',
           '<div class="note" style="background:#fdeef0;color:#a03a5a;">Pet food and treats sold on Petfi must be <b>sealed, commercially licensed products</b> — the same rules real pet stores follow. Homemade consumables can make pets sick and can\'t be traced or recalled.</div>' +
-          '<button class="btn secondary" onclick="closeSheet();openSell(' + (Number(sellEditId) || 0) + ')">Edit my listing</button>');
+          '<button class="btn secondary" onclick="closeSheet();openSellDraft()">Edit my listing</button>');
         return;
       }
+      if (!priceTextOk(val('sell-price'))) { toast('Enter a price like $12.99, or type Free or Ask'); return; }
       const contact = cleanContact(val('sell-contact'));
       if (!contact) { toast('Add a phone number or email buyers can reach you at'); return; }
       if (!sellerTermsOk()) return;
@@ -9508,7 +9730,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       let url = val('sell-url'); if (url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
       const base = parsePrice(val('sell-price'));
       const displayPrice = base > 0 ? '$' + base.toFixed(2) : (val('sell-price') || 'Ask');
-      const item = { title, desc, price: displayPrice, seller: state.displayName, cat, url: url || '', photos: [], contact, terms: SELLER_TERMS_V };
+      const pet = STORE_CATS.indexOf(val('sell-pet')) > 1 ? val('sell-pet') : '';
+      const item = { title, desc, price: displayPrice, seller: state.displayName, cat, pet, url: url || '', photos: [], contact, terms: SELLER_TERMS_V };
       // Editing: the form stays open until the server confirms the change
       if (sellEditId) {
         const id = sellEditId, seq = sheetSeq;
@@ -9522,15 +9745,25 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         return;
       }
       const photos = sellPhotos.slice();
-      sellPhotos = [];
-      state.storeCat = 'Members'; closeSheet(); openTab('store');
       if (!(cloud && cloudUser)) {
+        sellPhotos = []; state.storeCat = 'Members'; closeSheet();
         item.photos = photos; item.emo = '🐾'; item.bg = '#fff3d6'; LOCAL_LISTINGS.unshift(item); openTab('store');
         toast('Listed on this device 🛒 (no connection)'); return;
       }
+      // The form stays open until the listing is saved, so nothing typed is lost if it fails
+      if (sellBusy) return;
+      sellBusy = true;
+      const seq = sheetSeq;
       toast(photos.length ? 'Uploading photos… 📷' : 'Publishing your listing…');
-      if (await publishListing(item, photos)) toast('Listed for every Petfi member 🛒');
+      const ok = await publishListing(item, photos);
+      sellBusy = false;
+      if (!ok) return;
+      sellPhotos = []; state.storeCat = 'Members';
+      if (seq === sheetSeq) closeSheet();
+      openTab('store');
+      toast('Listed for every Petfi member 🛒');
     }
+    let sellBusy = false;
 
     // ======================= PET SERVICES (ID-verified members) =======================
     // Walkers, sitters, poop scoopers, groomers, trainers, custom pet art…
@@ -9549,6 +9782,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       { k: 'taxi',     emo: '🚗', label: 'Pet taxi & vet rides',     rate: 'e.g. $20 per ride' },
       { k: 'photo',    emo: '📸', label: 'Pet photography',          rate: 'e.g. $150 per session' },
       { k: 'custom',   emo: '🧸', label: 'Custom pet art & replicas', rate: 'e.g. from $120', ships: true },
+      { k: 'stud',     emo: '🐂', label: 'Stud service',             rate: 'e.g. $300 per breeding', farm: true },
+      { k: 'hay',      emo: '🌾', label: 'Hay & feed delivery',      rate: 'e.g. $15 per bale delivered', farm: true },
+      { k: 'farmboard', emo: '🐴', label: 'Horse & livestock boarding', rate: 'e.g. $250 per month', farm: true },
+      { k: 'farmvisit', emo: '🚜', label: 'Farm visits & tours',     rate: 'e.g. $10 per person', farm: true },
       { k: 'other',    emo: '🧰', label: 'Other pet service',        rate: 'e.g. $30 per hour' },
     ];
     function svcType(k) { return SERVICE_TYPES.find(x => x.k === k) || SERVICE_TYPES[SERVICE_TYPES.length - 1]; }
@@ -9556,7 +9793,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     async function openOfferService() {
       if (!requireSeller('offer a service') || !sellGate('service')) return;
       openSheet('🧑‍🔧 What service do you offer?',
-        '<div class="grid">' + SERVICE_TYPES.map(t => '<div class="pick" role="button" tabindex="0" onclick="svcPick=\'' + t.k + '\';openServiceForm()"><span class="e">' + t.emo + '</span>' + esc(t.label) + '</div>').join('') + '</div>');
+        '<div class="grid">' + SERVICE_TYPES.filter(t => !t.farm || iAmFarm()).map(t => '<div class="pick" role="button" tabindex="0" onclick="svcPick=\'' + t.k + '\';openServiceForm()"><span class="e">' + t.emo + '</span>' + esc(t.label) + '</div>').join('') + '</div>');
     }
     // Edit my own service: the same form, prefilled (sellEditId = its cloud id)
     function openEditService(cloudId) {
@@ -9597,6 +9834,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const t = svcType(svcPick), title = val('sv-title'), desc = val('sv-desc'), rate = val('sv-rate');
       if (!title) { toast('Add a title'); return; }
       if (!rate) { toast('Add your rate (it can be "ask me")'); return; }
+      if (!priceTextOk(rate)) { toast('Enter a rate like $20 per walk, or type Ask me'); return; }
       const contact = cleanContact(val('sv-contact'));
       if (!contact) { toast('Add a phone number or email clients can reach you at'); return; }
       if (!sellerTermsOk()) return;
@@ -9624,10 +9862,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         toast('Service updated ✅');
         return;
       }
-      const photos = sellPhotos.slice(); sellPhotos = [];
-      closeSheet(); toast(photos.length ? 'Uploading photos… 📷' : 'Publishing your service…');
+      const photos = sellPhotos.slice();
+      if (sellBusy) return;
+      sellBusy = true;
+      const seq = sheetSeq;
+      toast(photos.length ? 'Uploading photos… 📷' : 'Publishing your service…');
       const ok = await publishListing(item, photos);
-      if (ok) { track('share_open', 'service'); toast('🧑‍🔧 Your service is listed — members nearby can message you'); state.storeCat = 'Members'; openTab('store'); }
+      sellBusy = false;
+      if (ok) { sellPhotos = []; if (seq === sheetSeq) closeSheet(); track('share_open', 'service'); toast('🧑‍🔧 Your service is listed — members nearby can message you'); state.storeCat = 'Members'; openTab('store'); }
     }
     // Shared by products and services: photos to our bucket, then the row
     async function publishListing(item, photos) {
@@ -9636,11 +9878,11 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         const ins = await cloud.from('listings').insert({ seller_id: cloudUser.id, content: item }).select('id').single();
         if (ins.error) throw ins.error;
         LISTINGS.unshift(Object.assign({}, item, { cloudId: ins.data.id, sellerId: cloudUser.id, mine: true, emo: '🐾', bg: '#fff3d6' }));
-        if (state.tab === 'store') openTab('store');
-        return true;
+        return true; // the callers close the form and show the store
       } catch (e) {
         console.warn('listing:', e.message);
-        toast(/verified/i.test(e.message || '') ? '🪪 Services need ID verification first' : '⚠️ Couldn\'t publish — check your connection and try again');
+        toast(/verified/i.test(e.message || '') ? (item.cat === 'Services' ? '🪪 Services need ID verification first' : '🪪 Selling needs ID verification first')
+          : '⚠️ Couldn\'t publish. Check your connection and tap the button again. Your listing is still here.');
         return false;
       }
     }
@@ -9747,7 +9989,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const g = { cloudId: ins.data.id, emo:'🐾', color:'#fff1ec', title: name, desc, members: 1, joined: !mem.error, isPrivate, creatorId: cloudUser.id, mine: true, memberIds: mem.error ? [] : [cloudUser.id] };
       g.meta = groupMeta(g);
       CLOUD_GROUPS.unshift(g);
-      openTab('groups'); toast('Group is live for everyone 👥');
+      openTab('groups'); toast(isPrivate ? '🔒 Private group created. People ask to join, and you say yes or no.' : 'Group is live for everyone 👥');
     }
 
     function openAddPet() {
@@ -9761,6 +10003,34 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const name = val('pet2-name'); if (!name) { toast('Name your pet'); return; }
       state.pets.push({ id: 'p' + hxId(), name, species: (val('pet2-species') || 'Dog').toLowerCase(), breed: val('pet2-breed') });
       closeSheet(); openTab('profile'); toast('Pet added 🐾');
+    }
+    // Fix a pet's name, animal or breed. The pet keeps its id, so its meds,
+    // vaccines, tag and care team stay with it; saveState mirrors pet_profiles.
+    function openEditPet(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
+      const pt = state.pets[i];
+      openSheet('✏️ Edit ' + esc(pt.name),
+        '<label for="pet2-name">Pet name</label><input id="pet2-name" maxlength="60" value="' + esc(pt.name || '') + '">' +
+        '<label for="pet2-species">Species</label><select id="pet2-species">' + speciesOptions(pt.species) + '</select>' +
+        '<label for="pet2-breed">Breed (optional)</label><input id="pet2-breed" maxlength="60" value="' + esc(pt.breed || '') + '" placeholder="e.g. Rottweiler, Boer, Angus">' +
+        '<button class="btn" onclick="saveEditPet(' + i + ',' + sigArg(pt) + ')">Save changes</button>' +
+        '<button class="btn secondary" onclick="openPetDetail(' + i + ')">Cancel</button>');
+    }
+    function saveEditPet(i, sig) {
+      i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); closeSheet(); return; }
+      const pt = state.pets[i], name = val('pet2-name');
+      if (!name) { toast('Name your pet'); return; }
+      pt.name = name.slice(0, 60); pt.species = (val('pet2-species') || pt.species || 'dog').toLowerCase(); pt.breed = val('pet2-breed').slice(0, 60);
+      // Dose reminders carry the pet's name in their words
+      (state.meds || []).filter(m => m.petId === pt.id).forEach(m => { if ((state.reminders || []).some(r => r.medId === m.id)) syncMedReminder(m); });
+      saveState(); refreshTopAvatar();
+      // Its QR tag shows the name and animal to finders
+      if (cloud && cloudUser && pt.id) loadTags(true).then(() => { const t = TAGS[pt.id]; if (!t) return;
+        const upd = { pet_name: pt.name.slice(0, 40), species: String(pt.species || '').slice(0, 20), breed: String(pt.breed || '').slice(0, 40), updated_at: new Date().toISOString() };
+        return cloud.from('petfi_pet_tags').update(upd).eq('code', t.code).then(r => { if (!r.error) Object.assign(t, upd); });
+      }).catch(() => {});
+      closeSheet(); if (state.tab === 'profile') openTab('profile');
+      toast('Saved ✅');
     }
 
     function openEditStatus() {
@@ -10120,8 +10390,51 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       openSheet('🔔 Notification settings', body);
     }
 
+    // ---- Bell helpers. Likes and comments on my posts are kept on this device
+    // (the last 8, per login) so they can still be read after the toast is gone.
+    function bellOpen() { const h = document.getElementById('sheet-h'); return document.body.classList.contains('sheet-open') && !!h && h.textContent.indexOf('Notifications') >= 0 && h.textContent.indexOf('settings') < 0; }
+    function bellStoreKey() { return 'petfi-bell-' + (cloudUser ? cloudUser.id : ''); }
+    function bellStore() { try { return JSON.parse(localStorage.getItem(bellStoreKey())) || { log: [], seenAt: '' }; } catch (e) { return { log: [], seenAt: '' }; } }
+    function bellStoreSave(b) { try { localStorage.setItem(bellStoreKey(), JSON.stringify(b)); } catch (e) {} }
+    function bellLogAdd(e) {
+      if (!cloudUser) return;
+      const b = bellStore();
+      b.log = [Object.assign({ at: new Date().toISOString() }, e)].concat(b.log || []).slice(0, 8);
+      bellStoreSave(b); updateBadges();
+    }
+    // Hellos nobody answered yet that arrived since the bell was last opened
+    function unansweredBarks() {
+      if (!cloudUser) return 0;
+      const seenAt = bellStore().seenAt || '', seen = {};
+      let n = 0;
+      MY_MESSAGES.forEach(m => {
+        if (m.recipient_id !== cloudUser.id || m.kind !== 'bark' || hiddenUser(m.sender_id)) return;
+        const s = msgSide(m), key = threadKey(s.other, s.mp, s.tp);
+        if (seen[key]) return; seen[key] = 1; // newest hello per conversation
+        if (seenAt && m.created_at <= seenAt) return;
+        const answered = MY_MESSAGES.some(x => x.sender_id === cloudUser.id && x.recipient_id === m.sender_id && x.kind === 'bark' && x.created_at > m.created_at && samePair(msgSide(x), s.other, s.mp, s.tp));
+        if (!answered) n++;
+      });
+      return n;
+    }
+    function bellExtraCount() {
+      if (!cloudUser) return 0;
+      const b = bellStore(), seenAt = b.seenAt || '';
+      let groupAsks = 0;
+      try { groupAsks = CLOUD_GROUPS.filter(g => g.mine).reduce((n, g) => n + (g.requests || []).length, 0); } catch (e) {} // groups not set up yet
+      return unansweredBarks() + groupAsks + (b.log || []).filter(e => !seenAt || e.at > seenAt).length;
+    }
     function openNotifications() {
       let real = lfBellHtml(); // Lost & Found: a pet lost nearby, a sighting, a possible match
+      // Join requests for my private groups
+      CLOUD_GROUPS.filter(g => g.mine && (g.requests || []).length).forEach(g => {
+        const gk = 'gi(\'c' + Number(g.cloudId) + '\')';
+        g.requests.forEach(uid => {
+          real += '<div class="notif"><span class="ne">🙋</span><div class="nt"><b>' + esc(authorName(uid, 'A member')) + '</b> asked to join ' + esc(g.title) + '<small>group request</small></div>' +
+            '<button class="pill-btn" onclick="approveGroupRequest(' + gk + ',\'' + jsStr(uid) + '\',\'notif\')">Approve</button>' +
+            '<button class="pill-btn ghost" onclick="declineGroupRequest(' + gk + ',\'' + jsStr(uid) + '\',\'notif\')">Decline</button></div>';
+        });
+      });
       // Friend requests waiting on your answer
       const pending = incomingFriendRequests();
       pending.forEach(f => {
@@ -10158,10 +10471,20 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
           real += '<div class="notif"><span class="ne">💬</span><div class="nt"><b>' + esc(name) + '</b> ' + (c.mp ? 'sent ' + esc(myPersonaName(c.mp)) + ' a message' : 'sent you a message') + '<small>' + timeAgo(c.last.created_at) + '</small></div>' +
             '<button class="pill-btn ghost" onclick="closeSheet();' + dmOpenJs(c.id, c.mp, c.tp) + '">Open</button></div>';
         });
+        // Recent likes and comments on my posts (kept on this device)
+        (bellStore().log || []).forEach(e => {
+          const about = e.text ? ' on "' + esc(e.text) + (e.text.length >= 60 ? '…' : '') + '"' : ' on your post';
+          real += '<div class="notif"><span class="ne">' + (e.t === 'like' ? '❤️' : '💬') + '</span><div class="nt">' +
+            (e.t === 'like' ? (e.n > 1 ? e.n + ' new likes' : 'A new like') + about : '<b>' + esc(e.who || 'Someone') + '</b> commented' + about + (e.said ? ': ' + esc(e.said) : '')) +
+            '<small>' + timeAgo(e.at) + '</small></div>' +
+            (e.post ? '<button class="pill-btn ghost" onclick="closeSheet();openPostById(' + Number(e.post) + ')">See it</button>' : '') + '</div>';
+        });
+        const b = bellStore(); b.seenAt = new Date().toISOString(); bellStoreSave(b);
+        updateBadges();
       }
       openSheet('🔔 Notifications',
         real || (cloudUser
-          ? '<div class="empty-state"><div class="es-emo">🔔</div><h3>You\'re all caught up</h3><p>Friend requests, barks and new messages show up here.</p></div>'
+          ? '<div class="empty-state"><div class="es-emo">🔔</div><h3>You\'re all caught up</h3><p>Friend requests, hellos, new messages, group requests, and likes and comments on your posts show up here.</p></div>'
           : '<div class="note">Log in to see your notifications.</div>'));
       lfMarkNoticesRead();
     }
@@ -10758,8 +11081,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (editing && editing.loc) listing.loc = editing.loc;
       if (zip) {
         const g = await geocodeZip(zip);
+        // A ZIP that can't be found is reported before anything is published
+        if (!g) { if (btn) { btn.disabled = false; btn.textContent = btnLabel; } toast('We couldn\'t find ZIP ' + zip + '. Check the number and try again.'); return; }
         // Rounded to ~1 km — town-level, never an address
-        if (g) listing.loc = { lat: +g.lat.toFixed(2), lon: +g.lon.toFixed(2), area: g.area || '' };
+        listing.loc = { lat: +g.lat.toFixed(2), lon: +g.lon.toFixed(2), area: g.area || '' };
         if (!state.zip) state.zip = zip;
       }
       state.interests = state.interests || [];
@@ -10884,7 +11209,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     }
     async function saveDatingPrefs() {
       const age = parseInt(val('dp-age'), 10);
-      if (!age || age < 18) { toast('Mate Match for people is 18+ only'); return; }
+      if (!age) { toast('Please type your age'); const a = document.getElementById('dp-age'); if (a) a.focus(); return; }
+      if (age < 18) { toast('Mate Match for people is 18+ only'); return; }
       const zip = val('dp-zip');
       if (zip && !/^\d{5}$/.test(zip)) { toast('ZIP should be 5 digits'); return; }
       if (zip) state.zip = zip;
@@ -11084,6 +11410,12 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (!cloudUser) return;
       mp = lcId(mp); tp = lcId(tp);
       const pets = !!(mp || tp), as = pets ? mp : undefined;
+      // One hello back per conversation: a second tap while it saves (or after) sends nothing
+      const lastHi = MY_MESSAGES.find(m => m.sender_id === id && m.recipient_id === cloudUser.id && m.kind === 'bark' && samePair(msgSide(m), id, mp, tp));
+      const bbKey = threadKey(id, mp, tp) + ':' + (lastHi ? lastHi.id : '');
+      window._barkedBack = window._barkedBack || {};
+      if (window._barkedBack[bbKey]) { toast('You already said hi back 👋'); return; }
+      window._barkedBack[bbKey] = 1;
       const quiet = barkBackQuiet(id, mp, tp); // person → person, or I have no pet voice
       // Answering a Mate Match hello is a Mate Match hello; answering a bark is a bark
       const mateCtx = !pets && MY_MESSAGES.some(m => m.sender_id === id && m.recipient_id === cloudUser.id && isMateHi(m));
@@ -11091,9 +11423,11 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const row = { sender_id: cloudUser.id, recipient_id: id, kind: 'bark', text: mateCtx ? MATE_HI : (quiet ? '👋 Hi!' : greetText(id, as, tp)) };
       if (mp) row.sender_pet = mp;
       if (tp) row.recipient_pet = tp;
-      cloud.from('messages').insert(row)
-        .then(({ error }) => {
-          if (error) { toast('⚠️ It didn\'t go through'); return; }
+      cloud.from('messages').insert(row).select('*').single()
+        .then(({ data, error }) => {
+          if (error) { delete window._barkedBack[bbKey]; toast('⚠️ It didn\'t go through'); return; }
+          if (data) MY_MESSAGES.unshift(data); // the bell now shows "Sent ✓" for this hello
+          if (bellOpen()) openNotifications();
           if (mateCtx) { state.mateBarks = state.mateBarks || {}; state.mateBarks[id] = 1; saveState(); }
           // Answering from the bell counts as reading their hello: clear its unread badge
           let lastIn = '';
@@ -11142,32 +11476,38 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // ======================= GROUP DETAIL =======================
     function groupRequestsHtml(g, i) {
       if (!g.mine || !(g.requests || []).length) return '';
+      i = gi.k(g, i);
       return '<div class="sec" style="margin:0.4rem 0;"><h3>🙋 Join requests (' + g.requests.length + ')</h3></div>' +
         g.requests.map(uid => '<div class="row"><div class="ricon" style="overflow:hidden;">' + (PROFILE_BY_ID[uid] ? personAvatar(PROFILE_BY_ID[uid], 40) : '🐾') + '</div>' +
           '<div class="rmain"><div class="rtitle">' + esc(authorName(uid, 'A member')) + '</div></div>' +
           '<div class="raction" style="display:flex;gap:0.3rem;"><button class="pill-btn" onclick="approveGroupRequest(' + i + ',\'' + jsStr(uid) + '\')">Approve</button>' +
           '<button class="pill-btn ghost" onclick="declineGroupRequest(' + i + ',\'' + jsStr(uid) + '\')">Decline</button></div></div>').join('');
     }
-    async function approveGroupRequest(i, uid) {
+    // from 'notif': answered in the bell, which is redrawn instead of the group page
+    async function approveGroupRequest(i, uid, from) {
       const g = GROUPS_VIEW[i]; if (!g || !cloud) return;
       const { data, error } = await cloud.rpc('petfi_group_approve', { gid: g.cloudId, uid });
       if (error) { toast('⚠️ ' + error.message); return; }
       g.requests = (g.requests || []).filter(x => x !== uid);
       if (data) { g.members++; (g.memberIds = g.memberIds || []).push(uid); g.meta = groupMeta(g); livePing(uid, { type: 'group' }); toast('Approved ✓ ' + authorName(uid, 'They') + ' can see and post now'); }
-      openGroupDetail(i);
+      else toast(authorName(uid, 'They') + ' took back the request, so nothing changed');
+      updateBadges();
+      if (from === 'notif') openNotifications(); else openGroupDetail(i);
     }
-    async function declineGroupRequest(i, uid) {
+    async function declineGroupRequest(i, uid, from) {
       const g = GROUPS_VIEW[i]; if (!g || !cloud) return;
       const { error } = await cloud.from('group_requests').delete().eq('group_id', g.cloudId).eq('user_id', uid);
       if (error) { toast('⚠️ Couldn\'t decline'); return; }
       g.requests = (g.requests || []).filter(x => x !== uid);
-      openGroupDetail(i);
+      updateBadges();
+      if (from === 'notif') openNotifications(); else openGroupDetail(i);
     }
     function groupSheetBody(g, i, posts) {
       const canPost = g.joined || !g.cloudId;
+      const gIdx = i; i = gi.k(g, gIdx); // every tap below finds the group by its id
       return '<p class="sub" style="margin-bottom:0.4rem;">' + esc(g.meta) + (g.creatorId ? ' · started by ' + esc(authorName(g.creatorId, 'a member')) : '') + '</p>' +
         (g.desc ? '<p style="font-size:0.88rem;margin-bottom:0.7rem;">' + esc(g.desc) + '</p>' : '') +
-        groupRequestsHtml(g, i) +
+        groupRequestsHtml(g, gIdx) +
         '<div id="grp-posts">' + (g.cloudId && g.isPrivate && !g.joined && !g.mine ? '<div class="note">🔒 Only members see this group\'s posts.</div>' : posts.length ? posts.map(p =>
           '<div class="post" style="margin-bottom:0.6rem;"><div class="post-name">' + (p.persona && p.persona.id ? '<span style="cursor:pointer;" onclick="openPetSheetById(\'' + jsStr(p.persona.id) + '\')">' + esc(p.who) + '</span>' : esc(p.who)) + (p.persona ? (isVerifiedUser(p.authorId) ? ' ' + vbadge('pet') : '') + ' <span class="post-sub" style="font-weight:400;">· ' + esc(personaWith(p.authorId)) + '</span>' : '') + (p.gid && p.authorId && !(cloudUser && p.authorId === cloudUser.id) && !isAdmin() ? ' <span title="Report" style="cursor:pointer;opacity:0.5;font-size:0.72rem;" onclick="reportGroupPost(' + i + ',' + Number(p.gid) + ')">🚩</span>' : '') +
             (p.gid && ((cloudUser && p.authorId === cloudUser.id) || isAdmin()) ? ' <span title="Delete post" style="cursor:pointer;opacity:0.6;font-size:0.72rem;" onclick="deleteGroupPost(' + i + ',' + Number(p.gid) + ')">' + (cloudUser && p.authorId === cloudUser.id ? '🗑' : '🛡️🗑') + '</span>' : '') + (p.at ? ' <span class="post-sub" style="font-weight:400;">· ' + timeAgo(p.at) + '</span>' : '') + '</div><div class="post-body" style="margin-bottom:0;">' + esc(p.text) + '</div></div>').join('')
@@ -11176,7 +11516,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
           ? '<div class="cmt-input-row">' + cmtAsAvatar() + '<input id="grp-post-in" type="text" aria-label="' + esc(grpPlaceholder()) + '" placeholder="' + esc(grpPlaceholder()) + '" onkeydown="if(event.key===\'Enter\')postToGroup(' + i + ')">' +
             '<button class="pill-btn" onclick="postToGroup(' + i + ')">Post</button></div>'
           : '<button class="btn" onclick="closeSheet();joinCloudGroup(' + i + ')">' + (g.isPrivate ? (g.requested ? '⏳ Request sent' : '🔒 Request to join') : '👥 Join to post') + '</button>') +
-        groupOwnerHtml(g, i);
+        groupOwnerHtml(g, gIdx) +
+        (g.cloudId && g.joined && !g.mine ? '<p style="text-align:center;margin-top:0.9rem;"><button class="pill-btn ghost" onclick="closeSheet();joinCloudGroup(' + i + ')">🚪 Leave group</button></p>' : '');
     }
     // ---- Owner tools: the group's creator sees its members (with Remove)
     // and can delete the group. Server rules: the creator may delete member
@@ -11260,6 +11601,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         toast('Posted to the group 👥');
         if (as.pet) { delete post.as; post.persona = personaRowFor(as); post.authorId = cloudUser.id; }
       } else { canSaveToCloud('post'); return; }
+      if (!Array.isArray(g.posts)) { const k = GROUPS_VIEW.indexOf(g); if (k >= 0) openGroupDetail(k); return; } // reloaded copy: fetch its posts fresh
       g.posts.unshift(post);
       openSheet(esc(g.emo) + ' ' + esc(g.title), groupSheetBody(g, i, g.posts));
     }
@@ -11282,6 +11624,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         '<div class="note">🐾 Show ' + esc(pt.name) + ' off to the community — introduce them with a post.</div>' +
         (pt.id ? '<button class="btn" onclick="openHealthRecord(\'' + jsStr(pt.id) + '\')">🩺 ' + esc(pt.name) + '\'s health, meds &amp; vaccines</button>' : '') +
         '<button class="btn' + (pt.id ? ' secondary' : '') + '" onclick="closeSheet();openCompose(\'Meet ' + jsStr(pt.name) + ', my ' + jsStr(pt.breed || pt.species) + '! 🐾\')">📣 Introduce ' + esc(pt.name) + '</button>' +
+        '<button class="btn secondary" onclick="openEditPet(' + i + ',' + sigArg(pt) + ')">✏️ Edit ' + esc(pt.name) + '\'s name, animal or breed</button>' +
         '<button class="btn secondary" onclick="confirmPassed(' + i + ',' + sigArg(pt) + ')">🕊️ ' + esc(pt.name) + ' passed away</button>' +
         '<button class="btn secondary" onclick="confirmRemovePet(' + i + ',' + sigArg(pt) + ')">🗑 Remove ' + esc(pt.name) + '</button>');
     }
@@ -11292,12 +11635,21 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const pt = petId && (state.pets || []).find(x => x.id === petId);
       return pt && pt.passed ? pt.passed : '';
     }
+    // Indexes of plain reminders (not a med's) whose words name this pet
+    function passedPetRems(pt) {
+      const nm = String((pt && pt.name) || '').trim(); if (!nm) return [];
+      const re = new RegExp('(^|[^\\p{L}\\p{N}])' + nm.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '($|[^\\p{L}\\p{N}])', 'iu');
+      return (state.reminders || []).map((r, k) => (!r.medId && re.test(String(r.what || '')) ? k : -1)).filter(k => k >= 0);
+    }
     function confirmPassed(i, sig) {
       i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
-      const pt = state.pets[i];
+      const pt = state.pets[i], rems = passedPetRems(pt);
       openSheet('🕊️ We\'re so sorry',
         '<p class="sub">' + esc(pt.name) + '\'s reminders and refill and vaccine alerts will stop. ' + esc(pt.name) + '\'s health record and photos stay right here, in memory. You can undo this any time.</p>' +
         '<label for="pp-date">When did ' + esc(pt.name) + ' pass?</label><input type="date" id="pp-date" value="' + hxToday() + '" max="' + hxToday() + '">' +
+        // Plain reminders that name the pet (feeding, walks) don't know which pet they're for: ask
+        (rems.length ? '<label>Reminders that mention ' + esc(pt.name) + '</label>' + rems.map(k =>
+          '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;margin:0.35rem 0;"><input type="checkbox" class="pp-rem" data-k="' + k + '" checked style="width:auto;"> Remove "' + esc(state.reminders[k].what) + '"</label>').join('') : '') +
         '<button class="btn" onclick="markPassed(' + i + ',' + sigArg(pt) + ')">🕊️ Remember ' + esc(pt.name) + '</button>' +
         '<button class="btn secondary" onclick="openPetDetail(' + i + ')">Go back</button>');
     }
@@ -11306,6 +11658,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const pt = state.pets[i];
       const d = val('pp-date');
       pt.passed = hxValidYmd(d) && d <= hxToday() ? d : hxToday();
+      // The reminders they ticked go, kept with the pet so Undo can bring them back
+      // (read before the meds stop: that rebuilds the reminder list)
+      const drop = [...document.querySelectorAll('#sheet .pp-rem')].filter(e => e.checked).map(e => (state.reminders || [])[+e.dataset.k]).filter(Boolean);
+      if (drop.length) { pt.passedRems = (pt.passedRems || []).concat(drop); state.reminders = state.reminders.filter(r => drop.indexOf(r) < 0); }
       (state.meds || []).filter(m => m.petId === pt.id && medActive(m)).forEach(m => { m.stopped = hxToday(); syncMedReminder(m); });
       // A memorial pet is never shown as lost: end lost mode on its tag (#22).
       // TAGS loads lazily, so fetch it first; failures stay quiet.
@@ -11316,7 +11672,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function unmarkPassed(i, sig) {
       i = itemAt(state.pets, i, sig); if (i < 0) { listChanged(); return; }
       const pt = state.pets[i];
-      delete pt.passed; saveState(); closeSheet();
+      delete pt.passed;
+      // Reminders removed when they passed come back, stepped to their next time
+      if (Array.isArray(pt.passedRems)) {
+        const now = Date.now();
+        pt.passedRems.forEach(rm => { if (rm.next <= now) rm.next = nextReminderTime(rm, now); delete rm.snoozeUntil; state.reminders.push(rm); });
+        delete pt.passedRems;
+      }
+      saveState(); closeSheet();
       if (state.tab === 'profile') openTab('profile');
       toast(pt.name + '\'s alerts can be turned back on from their meds in My care');
     }
@@ -11554,7 +11917,15 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const [info] = await Promise.all([verifyCall('status'), loadAvatarStatus()]);
       if (sheetSeq !== mySeq) return;
       if (info.verified) { markVerifiedLocally(); return; }
-      if (info.error || !info.ready) { renderVerifyWaitlist(); return; }
+      // Couldn't reach the server: say so (the waitlist is only for a server that says "not open yet")
+      if (info.error) {
+        openSheet('🪪 ID verification',
+          '<div class="note">📡 We couldn\'t reach Petfi just now, so the ID check didn\'t open. Nothing was charged. Check your connection and try again.</div>' +
+          '<button class="btn blue" onclick="startVerify()">↻ Try again</button>' +
+          '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+        return;
+      }
+      if (!info.ready) { renderVerifyWaitlist(); return; }
       renderVerifyOffer(info);
     }
     // Before Identity is switched on server-side: an honest preview and a waitlist.
@@ -11903,7 +12274,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function hxMeIsAccount(id) { return id === 'me' && !iAmPerson(); }
     function hxPetIcon(p, px) {
       if (hxMeIsAccount(p.id)) return myAvatar(px);
-      const lp = p.id === 'me' ? petById('me') : null;
+      const lp = petById(p.id); // the pet's own photo or look, as on the profile
       return lp ? myPetAvatar(lp, px) : petAvatar(p.species, p.breed, px);
     }
     // The photo a health card or ID tag carries for 'me' (none for other pets, as before)
@@ -11958,7 +12329,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return t ? '<a class="btn secondary" href="tel:' + esc(t) + '" style="text-align:center;text-decoration:none;">' + label + '</a>' : '';
     }
     function hxPetSelect(id, selected) {
-      const pets = hxPets();
+      // A pet that passed isn't offered for new records (an existing one keeps its pet)
+      const all = hxPets(), living = all.filter(p => !hxPassed(p.id) || p.id === selected), pets = living.length ? living : all;
       if (pets.length <= 1) return '<input type="hidden" id="' + id + '" value="' + esc(pets[0] ? pets[0].id : '') + '">';
       return '<label>Which pet?</label><select id="' + id + '">' + pets.map(p => '<option value="' + esc(p.id) + '"' + (p.id === selected ? ' selected' : '') + '>' + esc(p.name) + '</option>').join('') + '</select>';
     }
@@ -12011,13 +12383,33 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (next < from) next = nextReminderTime({ next, ms: f.ms, months: f.months || 0, day: d.getDate(), time: m.time || '09:00' }, from - 1);
       return next;
     }
+    // Monthly meds: dose slots step calendar months from the start day (as the
+    // reminders do), so the count drops on the dose day itself
+    function medMonthStep(ts, n, day) {
+      const d = new Date(ts), hh = d.getHours(), mi = d.getMinutes();
+      d.setDate(1); d.setMonth(d.getMonth() + n);
+      d.setDate(Math.min(day, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+      d.setHours(hh, mi, 0, 0);
+      return d.getTime();
+    }
+    // The n-th dose slot after `after` (n >= 1), or with upto: how many slots fall in (after, upto]
+    function medMonthSlots(m, after, n, upto) {
+      const s0 = medNextDose(m, 0), day = new Date(s0).getDate();
+      let c = 0;
+      for (let k = 0; k < 2400; k++) {
+        const s = medMonthStep(s0, k, day);
+        if (upto != null && s > upto) return c;
+        if (s > after && ++c === n && upto == null) return s;
+      }
+      return upto != null ? c : 0;
+    }
     // Doses on hand now: the count they gave us minus every scheduled dose since
     function medLeft(m) {
       if (!medHasCount(m)) return null;
       const f = medFreq(m);
       if (!f.ms) return m.qty;
       const t = Math.min(Date.now(), medEndMs(m));
-      const given = Math.max(0, Math.floor((t - m.qtyAt) / f.ms));
+      const given = f.months ? medMonthSlots(m, m.qtyAt, 0, t) : Math.max(0, Math.floor((t - m.qtyAt) / f.ms));
       return Math.max(0, Math.round((m.qty - given * medPer(m)) * 100) / 100);
     }
     // When the supply runs out: the first scheduled dose there's nothing left
@@ -12025,15 +12417,41 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function medRunOut(m) {
       const f = medFreq(m);
       if (!f.ms || !medHasCount(m)) return 0;
-      return m.qtyAt + (Math.floor(m.qty / medPer(m)) + 1) * f.ms;
+      const n = Math.floor(m.qty / medPer(m)) + 1;
+      return f.months ? medMonthSlots(m, m.qtyAt, n) : m.qtyAt + n * f.ms;
+    }
+    // The last dose the supply covers (ms), or 0
+    function medLastDose(m) {
+      const f = medFreq(m);
+      if (!f.ms || !medHasCount(m)) return 0;
+      const n = Math.floor(m.qty / medPer(m));
+      if (n < 1) return 0;
+      return f.months ? medMonthSlots(m, m.qtyAt, n) : m.qtyAt + n * f.ms;
     }
     function medNeedsRefill(m) { const r = medRunOut(m); return !!r && r < medEndMs(m); }
     function medDaysLeft(m) { const r = medRunOut(m); return r ? Math.max(0, Math.floor((r - Date.now()) / DAY_MS)) : null; }
+    // Less than one dose on hand
+    function medOut(m) { const l = medLeft(m); return l != null && l < medPer(m); }
+    // How long the supply lasts, in words: "about 5 days", or near the end
+    // "2 doses left, the last one tomorrow"; '' when we can't tell, 'out' when out
+    function medSupplyText(m) {
+      const dl = medDaysLeft(m); if (dl == null) return '';
+      if (medOut(m)) return 'out';
+      if (dl >= 2) return 'about ' + dl + ' days';
+      const n = Math.floor(medLeft(m) / medPer(m)), t = medLastDose(m);
+      let when = '';
+      if (t) {
+        const days = hxDaysUntil(hxYmd(new Date(t)));
+        when = days <= 0 ? (new Date(t).getHours() >= 17 ? 'tonight' : 'today at ' + hxTime(String(new Date(t).getHours()).padStart(2, '0') + ':' + String(new Date(t).getMinutes()).padStart(2, '0'))) : days === 1 ? 'tomorrow' : hxWhen(days);
+      }
+      return n + (n === 1 ? ' dose' : ' doses') + ' left' + (when ? ', the last one ' + when : '');
+    }
     // Counting starts from the last dose before now, so the count drops at dose time
     function medCountAnchor(m) {
       const f = medFreq(m);
       if (!f.ms) return Date.now();
-      return medNextDose(m, Date.now()) - f.ms;
+      const next = medNextDose(m, Date.now());
+      return f.months ? medMonthStep(next, -1, new Date(medNextDose(m, 0)).getDate()) : next - f.ms;
     }
     function medReminderText(m) {
       return '💊 ' + hxPetName(m.petId) + ': ' + m.name + (m.strength ? ' ' + m.strength : '') + ' — ' + medDoseText(m);
@@ -12078,11 +12496,12 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function hxAttention() {
       const items = [];
       (state.meds || []).forEach(m => {
-        if (!medActive(m)) return;
+        if (!medActive(m) || hxPassed(m.petId)) return;
         const pn = hxPetName(m.petId), dl = medDaysLeft(m);
         if (dl != null && medNeedsRefill(m) && dl <= (m.lead || 7)) {
+          const st = medSupplyText(m);
           items.push({ lvl: dl <= 1 ? 'bad' : 'warn', icon: '💊', act: "openRefill('" + m.id + "')",
-            text: (dl <= 0 ? 'Out of ' : 'Refill ') + m.name + ' for ' + pn + (dl > 0 ? ' — about ' + dl + (dl === 1 ? ' day' : ' days') + ' left' : '') + (m.refills === 0 ? ' · no refills left' : '') });
+            text: (st === 'out' ? 'Out of ' + m.name + ' for ' + pn : 'Refill ' + m.name + ' for ' + pn + ' — ' + st + (/^about/.test(st) ? ' left' : '')) + (m.refills === 0 ? ' · no refills left' : '') });
         }
         if (hxValidYmd(m.rxExp) && hxDaysUntil(m.rxExp) <= 30) {
           const d = hxDaysUntil(m.rxExp);
@@ -12109,12 +12528,21 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const out = [];
       const add = (key, ymd, title, body) => { if (hxValidYmd(ymd)) out.push({ key, at: hxMorning(ymd), title, body }); };
       (state.meds || []).forEach(m => {
-        if (!medActive(m)) return;
+        if (!medActive(m) || hxPassed(m.petId)) return;
         const pn = hxPetName(m.petId), lead = m.lead || 7;
         if (medNeedsRefill(m)) {
-          const ro = medRunOut(m);
-          add('rf:' + m.id + ':' + hxYmd(new Date(ro)), hxYmd(new Date(ro - lead * DAY_MS)), '💊 Time to refill ' + m.name,
+          const ro = medRunOut(m), key = 'rf:' + m.id + ':' + hxYmd(new Date(ro));
+          add(key, hxYmd(new Date(ro - lead * DAY_MS)), '💊 Time to refill ' + m.name,
             pn + ' has about ' + lead + ' days left. ' + (m.refills === 0 ? 'No refills left — call your vet first.' : 'Order now so it arrives in time.'));
+          // The count was set after that morning had passed (a short supply): say it
+          // once at the next 9 AM instead, or a minute after saving if it runs out first
+          const set = m.qtySet || m.created || 0, a = out[out.length - 1];
+          if (a && a.key === key && a.at < set) {
+            const d = new Date(set); d.setHours(9, 0, 0, 0);
+            if (d.getTime() <= set) d.setDate(d.getDate() + 1);
+            a.at = d.getTime() < ro ? d.getTime() : set + 60000;
+            a.body = pn + ' has ' + (medSupplyText(m) === 'out' ? 'run out' : medSupplyText(m).replace(/^about (\d+) days$/, 'about $1 days left')) + '. ' + (m.refills === 0 ? 'No refills left, so call your vet first.' : 'Order now so it arrives in time.');
+          }
         }
         if (hxValidYmd(m.rxExp)) add('rx:' + m.id + ':' + m.rxExp, hxAddDays(m.rxExp, -14), '📋 ' + m.name + ' prescription expires soon',
           pn + '\'s prescription runs out ' + hxDate(m.rxExp) + '. Ask your vet to renew it.');
@@ -12165,8 +12593,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
           '<div class="rmain"><div class="rtitle">' + esc(p.name) + '</div><div class="rmeta">' + esc(meta) + '</div></div><span class="chev">›</span></div>';
       }).join('');
 
-      if (cloudUser && pets.length && !CARE_TEAMS.length) {
-        h += '<p class="sub" style="font-size:0.8rem;margin:0.1rem 0 0.4rem;">Two of you looking after ' + esc(pets[0].name) + '? <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="openCareTeamForPet(\'' + jsStr(pets[0].id) + '\')">Share care</span> so you both see who fed and gave meds.</p>';
+      const living = pets.find(p => !hxPassed(p.id));
+      if (cloudUser && living && !CARE_TEAMS.length) {
+        h += '<p class="sub" style="font-size:0.8rem;margin:0.1rem 0 0.4rem;">Two of you looking after ' + esc(living.name) + '? <span style="color:var(--blue);cursor:pointer;font-weight:700;" role="button" tabindex="0" onclick="openCareTeamForPet(\'' + jsStr(living.id) + '\')">Share care</span> so you both see who fed and gave meds.</p>';
       }
       // Meds & prescriptions
       h += '<div class="sec"><h3>💊 Meds &amp; prescriptions</h3><span class="link" onclick="openMedForm()">+ Add</span></div>';
@@ -12201,9 +12630,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return h;
     }
     function medRow(m) {
-      const f = medFreq(m), left = medLeft(m), dl = medDaysLeft(m);
+      const f = medFreq(m), left = medLeft(m), dl = medDaysLeft(m), st = medSupplyText(m);
       const bits = [medDoseText(m) + ' ' + f.label.toLowerCase() + (f.ms && m.time ? ' at ' + hxTime(m.time) : '')];
-      if (left != null) bits.push(medUnit(left, m.unit) + ' left' + (dl != null && medNeedsRefill(m) ? ' (~' + dl + (dl === 1 ? ' day)' : ' days)') : ''));
+      if (left != null) bits.push(medUnit(left, m.unit) + ' left' + (dl != null && medNeedsRefill(m) && st && st !== 'out' ? ' (' + st.replace(/^about /, '~').replace(/^\d+ doses? left, the last one /, 'last dose ') + ')' : ''));
       if (typeof m.refills === 'number') bits.push(m.refills + (m.refills === 1 ? ' refill' : ' refills'));
       if (m.lastGiven && Date.now() - m.lastGiven < 2 * DAY_MS) bits.push('✓ given ' + hxAgo(m.lastGiven));
       const low = dl != null && medNeedsRefill(m) && dl <= (m.lead || 7);
@@ -12213,15 +12642,16 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         '<div class="raction"><button class="pill-btn' + (low ? '' : ' ghost') + '" onclick="event.stopPropagation();openRefill(\'' + jsStr(m.id) + '\')">Refill</button></div></div>';
     }
     function vaxRow(v) {
-      const st = hxVaxStatus(v);
+      // A pet that passed: the record stays, without due dates
+      const st = hxPassed(v.petId) ? { lvl: 'ok', text: v.given ? 'given ' + hxDate(v.given) : '' } : hxVaxStatus(v);
       return '<div class="row" style="cursor:pointer;" onclick="openVaccine(\'' + jsStr(v.id) + '\')"><div class="ricon">💉</div>' +
         '<div class="rmain"><div class="rtitle">' + esc(v.name) + '</div><div class="rmeta">' + esc(hxPetName(v.petId)) + ' · <span class="hx-pill ' + st.lvl + '">' + esc(st.text || 'no due date') + '</span></div></div>' +
         '<span class="chev">›</span></div>';
     }
     function supplyRow(s) {
-      const ro = supplyRunOut(s), d = ro ? hxDaysUntil(ro) : null;
+      const ro = hxPassed(s.petId) ? '' : supplyRunOut(s), d = ro ? hxDaysUntil(ro) : null;
       const lvl = d == null ? 'ok' : d <= 0 ? 'bad' : d <= (s.lead || 5) ? 'warn' : 'ok';
-      const when = d == null ? '' : d <= 0 ? 'ran out ' + hxDate(ro) : 'runs out ~' + hxDate(ro) + ' (' + hxWhen(d) + ')';
+      const when = hxPassed(s.petId) ? 'in loving memory' : d == null ? '' : d <= 0 ? 'ran out ' + hxDate(ro) : 'runs out ~' + hxDate(ro) + ' (' + hxWhen(d) + ')';
       return '<div class="row" style="cursor:pointer;" onclick="openSupplyForm(\'' + jsStr(s.id) + '\')"><div class="ricon">📦</div>' +
         '<div class="rmain"><div class="rtitle">' + esc(s.name) + '</div><div class="rmeta">' + (s.petId ? esc(hxPetName(s.petId)) + ' · ' : '') + '<span class="hx-pill ' + lvl + '">' + esc(when) + '</span></div></div>' +
         '<div class="raction"><button class="pill-btn' + (lvl === 'ok' ? ' ghost' : '') + '" onclick="event.stopPropagation();openReorder(\'' + jsStr(s.id) + '\')">Reorder</button></div></div>';
@@ -12248,6 +12678,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const m = (id && hxMed(id)) || {};
       const left = medLeft(m);
       const f = m.freq || 'd1';
+      // Editing: "Next dose" shows the real next dose, not the day it started
+      const nd = m.id && medActive(m) ? medNextDose(m, Date.now()) : 0;
+      const nextYmd = nd ? hxYmd(new Date(nd)) : (m.start || hxToday());
       openSheet(m.id ? '💊 Edit ' + esc(m.name) : '💊 Add a med',
         hxBackField(back) + hxPetSelect('md-pet', m.petId || petId) +
         '<label for="md-name">Medicine</label><input type="text" id="md-name" list="md-list" maxlength="80" value="' + esc(m.name || '') + '" placeholder="e.g. Apoquel, NexGard, Heartgard">' +
@@ -12256,7 +12689,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         '<label for="md-per" id="md-per-l">Each dose</label><div style="display:flex;gap:0.5rem;"><input type="number" id="md-per" min="0" step="0.25" value="' + esc(m.perDose || 1) + '" style="flex:1;">' +
           '<select id="md-unit" aria-labelledby="md-per-l" style="flex:1.4;">' + MED_UNITS.map(u => '<option value="' + u[0] + '"' + (u[0] === (m.unit || 'tablet') ? ' selected' : '') + '>' + u[1] + '</option>').join('') + '</select></div>' +
         '<label for="md-freq">How often?</label><select id="md-freq" onchange="hxFreqChanged()">' + MED_FREQS.map(x => '<option value="' + x.key + '"' + (x.key === f ? ' selected' : '') + '>' + x.label + '</option>').join('') + '</select>' +
-        '<div id="md-when"><label for="md-date" id="md-date-l">Next dose</label><div style="display:flex;gap:0.5rem;"><input type="date" id="md-date" value="' + esc(m.start || hxToday()) + '" style="flex:1.3;"><input type="time" id="md-time" aria-labelledby="md-date-l" value="' + esc(m.time || '08:00') + '" style="flex:1;"></div>' +
+        '<div id="md-when"><label for="md-date" id="md-date-l">Next dose</label><div style="display:flex;gap:0.5rem;"><input type="date" id="md-date" value="' + esc(nextYmd) + '" style="flex:1.3;min-width:0;"><input type="time" id="md-time" aria-labelledby="md-date-l" value="' + esc(m.time || '08:00') + '" style="flex:1;min-width:0;"></div>' +
+          '<input type="hidden" id="md-date0" value="' + esc(nextYmd) + '">' +
           '<label style="display:flex;align-items:center;gap:0.5rem;font-weight:600;"><input type="checkbox" id="md-remind"' + (m.id ? (m.remind ? ' checked' : '') : ' checked') + ' style="width:auto;"> Remind me at dose time</label></div>' +
         '<label for="md-qty">How many ' + '<span id="md-unit-name">' + esc((MED_UNITS.find(u => u[0] === (m.unit || 'tablet')) || MED_UNITS[0])[1]) + '</span> do you have now? <small style="color:var(--muted);font-weight:400;">(so we can warn you before you run out)</small></label>' +
           '<input type="number" id="md-qty" min="0" step="0.5" value="' + (left == null ? '' : esc(left)) + '" placeholder="e.g. 30">' +
@@ -12295,13 +12729,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       m.petId = petId; m.name = name.slice(0, 80); m.strength = val('md-str').slice(0, 40);
       m.perDose = hxNum(val('md-per'), 1) || 1; m.unit = val('md-unit') || 'tablet';
       m.freq = val('md-freq') || 'd1';
-      m.start = hxValidYmd(val('md-date')) ? val('md-date') : hxToday();
+      // The date shown untouched keeps the schedule's own start day (monthly meds keep their day of the month)
+      if (!(m.start && val('md-date') === val('md-date0') && !isNew)) m.start = hxValidYmd(val('md-date')) ? val('md-date') : hxToday();
       m.time = /^\d{2}:\d{2}$/.test(val('md-time')) ? val('md-time') : '08:00';
       const rem = document.getElementById('md-remind');
       m.remind = !!(rem && rem.checked) && !!medFreq(m).ms;
       const qRaw = val('md-qty'), q = qRaw === '' ? null : hxNum(qRaw, null);
       if (q == null) { delete m.qty; delete m.qtyAt; }
-      else if (isNew || q !== before) { m.qty = q; m.qtyAt = medCountAnchor(m); }
+      else if (isNew || q !== before) { m.qty = q; m.qtyAt = medCountAnchor(m); m.qtySet = Date.now(); }
       const rf = val('md-refills');
       m.refills = rf === '' ? null : Math.max(0, Math.round(hxNum(rf, 0)));
       m.lead = parseInt(val('md-lead'), 10) || 7;
@@ -12313,8 +12748,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (isNew) state.meds.push(m);
       syncMedReminder(m);
       if (m.remind && ('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') ensurePushSubscription(false); });
-      const dl = medDaysLeft(m);
-      hxDone(val('hx-back'), isNew ? (dl != null && medNeedsRefill(m) ? '💊 Added — supply lasts about ' + dl + ' days' : '💊 ' + m.name + ' added') : 'Saved 💊');
+      const dl = medDaysLeft(m), st = medSupplyText(m);
+      hxDone(val('hx-back'), isNew ? (dl != null && medNeedsRefill(m) ? (st === 'out' ? '💊 ' + m.name + ' added. You are out, time to refill' : /^about/.test(st) ? '💊 Added — supply lasts ' + st : '💊 Added: ' + st) : '💊 ' + m.name + ' added') : 'Saved 💊');
     }
     function openMed(id) {
       const m = hxMed(id); if (!m) return;
@@ -12325,7 +12760,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         line('For', hxPetName(m.petId)) +
         line('Dose', medDoseText(m) + ' ' + f.label.toLowerCase() + (f.ms && m.time ? ' at ' + hxTime(m.time) : '')) +
         line('Next reminder', rem ? new Date(rem.next).toLocaleString(esLocale(), { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '') +
-        line('On hand', left == null ? '' : medUnit(left, m.unit) + (dl != null && medNeedsRefill(m) ? ' — runs out ~' + hxDate(hxYmd(new Date(medRunOut(m)))) : '')) +
+        line('On hand', left == null ? '' : medUnit(left, m.unit) + (dl != null && medNeedsRefill(m) ? (medOut(m) ? ', time to refill' : ' — last dose ' + hxDate(hxYmd(new Date(medLastDose(m)))) + ' at ' + new Date(medLastDose(m)).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' })) : '')) +
         line('Refills left', typeof m.refills === 'number' ? String(m.refills) : '') +
         line('Last given', m.lastGiven ? hxAgo(m.lastGiven) : '') +
         line('Rx number', m.rxNo) + line('Prescribed by', m.vet) +
@@ -12346,8 +12781,29 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       h += '<button class="btn secondary" onclick="deleteMed(\'' + jsStr(id) + '\')">🗑 Delete</button>';
       openSheet('💊 ' + esc(m.name) + (m.strength ? ' <span style="font-weight:600;color:var(--muted);font-size:0.9em;">' + esc(m.strength) + '</span>' : ''), h);
     }
-    function markMedGiven(id) {
+    // When this med was last given, by me here or by anyone on its care team
+    function medLastGiven(m) {
+      let at = m.lastGiven || 0, who = '';
+      const t = myCareTeam(m.petId);
+      if (t) (CARE_LOG[t.id] || []).forEach(l => { if (l.kind === 'meds' && l.med_id === m.id) { const x = new Date(l.at).getTime(); if (x >= at - 1000) { at = Math.max(at, x); who = l.user_id; } } });
+      return { at, who };
+    }
+    const MED_AGAIN = {};
+    function markMedGiven(id, again) {
       const m = hxMed(id); if (!m) return;
+      // A double tap on "Log another dose" logs once
+      if (again) { if (Date.now() - (MED_AGAIN[id] || 0) < 3000) return; MED_AGAIN[id] = Date.now(); }
+      // Before logging: a dose given within half the dosing gap (8 hours for as-needed) may be this one
+      const last = medLastGiven(m), gap = medFreq(m).ms ? medFreq(m).ms / 2 : 8 * 3600000;
+      if (!again && last.at && Date.now() - last.at < gap) {
+        const iso = new Date(last.at).toISOString();
+        openSheet('⚠️ Already given?',
+          '<div class="note" style="margin-top:0;background:#fff1d6;color:#8a5a00;"><b>' + esc(last.who && cloudUser && last.who !== cloudUser.id ? careWho(last.who) + ' logged' : 'You logged') + ' ' + esc(m.name) + ' at ' + esc(careClock(iso)) + '</b> (' + esc(hxAgo(last.at)) + ').' +
+            ' Give another dose only if that\'s what the vet prescribed.</div>' +
+          '<button class="btn secondary" onclick="openMed(\'' + jsStr(id) + '\')">Don\'t log it</button>' +
+          '<button class="btn" onclick="markMedGiven(\'' + jsStr(id) + '\',true)">Log another dose</button>');
+        return;
+      }
       m.lastGiven = Date.now();
       // As-needed meds don't count down on a schedule, so a dose comes off by hand
       if (!medFreq(m).ms && medHasCount(m)) m.qty = Math.max(0, Math.round((m.qty - medPer(m)) * 100) / 100);
@@ -12362,7 +12818,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function restartMed(id) {
       const m = hxMed(id); if (!m) return;
       delete m.stopped; if (m.end && hxDaysUntil(m.end) < 0) m.end = '';
-      m.start = hxToday(); if (medHasCount(m)) m.qtyAt = medCountAnchor(m);
+      m.start = hxToday(); if (medHasCount(m)) { m.qtyAt = medCountAnchor(m); m.qtySet = Date.now(); }
       syncMedReminder(m); hxDone('', '▶️ ' + m.name + ' is back on the list');
     }
     function deleteMed(id) {
@@ -12383,7 +12839,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const info = state.petInfo[m.petId] || {};
       const q = m.name.replace(/\s*\(.*?\)\s*/g, ' ').trim() + (m.strength ? ' ' + m.strength : '');
       const left = medLeft(m), dl = medDaysLeft(m);
-      let h = '<p class="sub" style="margin-bottom:0.6rem;">' + esc(hxPetName(m.petId)) + (left != null ? ' · ' + esc(medUnit(left, m.unit)) + ' left' + (dl != null && medNeedsRefill(m) ? ' (about ' + dl + (dl === 1 ? ' day)' : ' days)') : '') : '') + '</p>';
+      let h = '<p class="sub" style="margin-bottom:0.6rem;">' + esc(hxPetName(m.petId)) + (left != null ? ' · ' + esc(medUnit(left, m.unit)) + ' left' + (dl != null && medNeedsRefill(m) && !medOut(m) ? ' (' + esc(medSupplyText(m)) + ')' : '') : '') + '</p>';
       if (m.refills === 0) h += '<div class="note" style="margin-top:0;background:#fff4e0;color:#8a5a00;">No refills left on this prescription — the pharmacy will need a new one from your vet. Call the vet first.</div>';
       h += hxTelButton('📞 Call ' + esc(m.pharm || 'my pharmacy'), m.pharmPhone);
       if (m.pharmUrl) h += '<button class="btn secondary" onclick="openLink(\'' + jsStr(m.pharmUrl) + '\')">🌐 Refill on ' + esc(m.pharm || 'my pharmacy\'s') + ' website</button>';
@@ -12442,12 +12898,12 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const got = hxNum(val('lr-got'), 0);
       if (!(got > 0)) { toast('How many came in the refill?'); return; }
       const left = medLeft(m) || 0;
-      m.qty = Math.round((left + got) * 100) / 100; m.qtyAt = medCountAnchor(m); m.lastFill = got;
+      m.qty = Math.round((left + got) * 100) / 100; m.qtyAt = medCountAnchor(m); m.qtySet = Date.now(); m.lastFill = got;
       const used = document.getElementById('lr-used');
       if (used && used.checked && m.refills > 0) m.refills--;
       hxSpend(hxNum(val('lr-cost'), 0), m.name + ' refill', m.petId, 'refill');
       const dl = medDaysLeft(m);
-      hxDone('', dl != null && medNeedsRefill(m) ? '✅ Count updated — lasts about ' + dl + ' days' : '✅ Count updated');
+      hxDone('', dl != null && medNeedsRefill(m) && /^about/.test(medSupplyText(m)) ? '✅ Count updated — lasts ' + medSupplyText(m) : '✅ Count updated');
     }
 
     // ---- Vaccines ----
@@ -12469,7 +12925,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         hxBackField(back) + hxPetSelect('vx-pet', pid) +
         '<label for="vx-name">Vaccine</label><input type="text" id="vx-name" list="vx-list" maxlength="60" value="' + esc(v.name || (prev && prev.name) || '') + '" placeholder="e.g. Rabies">' +
         '<datalist id="vx-list">' + presets.map(x => '<option value="' + esc(x) + '">').join('') + '</datalist>' +
-        '<label for="vx-given">Date given</label><input type="date" id="vx-given" value="' + esc(given) + '">' +
+        '<label for="vx-given">Date given</label><input type="date" id="vx-given" value="' + esc(given) + '" max="' + hxToday() + '">' +
         '<label for="vx-due">Next due <small style="color:var(--muted);font-weight:400;">(it\'s on the certificate)</small></label><input type="date" id="vx-due" value="' + esc(due) + '">' +
         '<div class="chips chips-sm" style="margin:0.5rem 0 0;">' + [['+6 months', 0, 6], ['+1 year', 1, 0], ['+3 years', 3, 0]].map(x =>
           '<div class="chip" onclick="hxSetDue(' + x[1] + ',' + x[2] + ')">' + x[0] + '</div>').join('') + '</div>' +
@@ -12487,6 +12943,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const petId = val('vx-pet'); if (!hxPet(petId)) { toast('Pick a pet'); return; }
       const given = val('vx-given'), due = val('vx-due');
       if (!hxValidYmd(given)) { toast('When was it given?'); return; }
+      if (given > hxToday()) { toast('The date given can\'t be in the future'); return; }
       if (due && hxValidYmd(due) && due <= given) { toast('The due date should be after the date given'); return; }
       let v = id ? hxVax(id) : null;
       const isNew = !v;
@@ -12625,7 +13082,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         (cloudUser ? ' ' + careShareLink(p.id) : '') +
         (info.insurer ? '' : ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openInsurance()">🛡️ Insurance quotes</button>') +
         ' <button class="pill-btn ghost" style="margin-top:0.5rem;" onclick="openVetChat()">💬 Ask a vet online</button>' +
-        (info.vetPhone ? ' ' + '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;" href="tel:' + esc(hxTel(info.vetPhone)) + '">📞 Call vet</a>' : '') + '</div>';
+        (hxTel(info.vetPhone) ? ' ' + '<a class="pill-btn ghost" style="margin-top:0.5rem;text-decoration:none;" href="tel:' + esc(hxTel(info.vetPhone)) + '">📞 Call vet</a>' : '') + '</div>';
       h += journalSection(p.id);
       // Meds
       const meds = (state.meds || []).filter(m => m.petId === p.id && medActive(m));
@@ -12655,7 +13112,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const p = hxPet(petId); if (!p) return;
       const info = state.petInfo[p.id] || {}, w = hxLastWeight(p.id);
       const L = [p.name + ' — ' + [p.breed || p.species, hxPetAge(p, hxMeIsAccount(p.id) ? state.bday : info.bday), info.sex].filter(Boolean).join(', ')];
-      if (w) L.push('Weight: ' + w.v + ' ' + (info.wu || 'lb') + ' (' + hxDate(w.d) + ')');
+      // Pasted elsewhere, so every date carries its year
+      const fullDate = ymd => hxValidYmd(ymd) ? new Date(ymd + 'T12:00:00').toLocaleDateString(esLocale(), { month: 'short', day: 'numeric', year: 'numeric' }) : '';
+      if (w) L.push('Weight: ' + w.v + ' ' + (info.wu || 'lb') + ' (' + fullDate(w.d) + ')');
       if (info.chip) L.push('Microchip: ' + info.chip + (info.chipCo ? ' (' + info.chipCo + ')' : ''));
       if (info.vetName || info.vetPhone) L.push('Vet: ' + [info.vetName, info.vetPhone].filter(Boolean).join(', '));
       if (info.allergies) L.push('Allergies: ' + info.allergies);
@@ -12664,7 +13123,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const meds = (state.meds || []).filter(m => m.petId === p.id && medActive(m));
       if (meds.length) { L.push('', 'Medications:'); meds.forEach(m => L.push('• ' + m.name + (m.strength ? ' ' + m.strength : '') + ' — ' + medDoseText(m) + ' ' + medFreq(m).label.toLowerCase() + (medFreq(m).ms && m.time ? ' at ' + hxTime(m.time) : '') + (m.notes ? ' (' + m.notes + ')' : ''))); }
       const vx = hxCurrentVaccines(p.id);
-      if (vx.length) { L.push('', 'Vaccines:'); vx.forEach(v => L.push('• ' + v.name + ': given ' + hxDate(v.given) + (v.due ? ', due ' + hxDate(v.due) : '') + (v.tag ? ' (tag ' + v.tag + ')' : ''))); }
+      if (vx.length) { L.push('', 'Vaccines:'); vx.forEach(v => { const lv = hxPassed(p.id) ? 'ok' : hxVaxStatus(v).lvl;
+        L.push('• ' + v.name + ': given ' + fullDate(v.given) + (v.due ? ', due ' + fullDate(v.due) + (lv === 'bad' ? ' (OVERDUE)' : lv === 'warn' ? ' (due soon)' : '') : '') + (v.tag ? ' (tag ' + v.tag + ')' : '')); }); }
       L.push('', 'Owner: ' + (state.displayName || state.name || '') + ' — via Petfi');
       hxCopy(L.join('\n'), '📋 Copied — paste it into a text or email for your sitter, boarder or vet');
     }
@@ -12689,11 +13149,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         '<button class="btn" onclick="savePetInfo(\'' + jsStr(p.id) + '\')">Save</button>');
     }
     function savePetInfo(petId) {
+      // A phone with letters or too few digits would make a Call button that dials nothing
+      const vp = val('pi-vetphone');
+      if (vp && (/[A-Za-z]/.test(vp) || !hxTel(vp))) { toast('Please type the vet\'s phone with numbers only, like 916 555 0142'); const e = document.getElementById('pi-vetphone'); if (e) e.focus(); return; }
       const info = hxInfo(petId);
       info.sex = val('pi-sex'); info.fixed = val('pi-fixed');
       if (document.getElementById('pi-bday')) info.bday = hxValidYmd(val('pi-bday')) ? val('pi-bday') : '';
       info.chip = val('pi-chip').slice(0, 30); info.chipCo = val('pi-chipco').slice(0, 60);
-      info.vetName = val('pi-vet').slice(0, 80); info.vetPhone = hxPhone(val('pi-vetphone'));
+      info.vetName = val('pi-vet').slice(0, 80); info.vetPhone = hxPhone(vp);
       info.allergies = val('pi-allergies').slice(0, 200); info.conditions = val('pi-cond').slice(0, 200); info.diet = val('pi-diet').slice(0, 200);
       info.insurer = val('pi-ins').slice(0, 60); info.policy = val('pi-policy').slice(0, 40);
       hxDone(petId, 'Saved ✅');
@@ -12705,7 +13168,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       openSheet('⚖️ ' + esc(p.name) + '\'s weight',
         '<div style="display:flex;gap:0.5rem;"><input type="number" id="wt-v" aria-label="Weight" min="0" step="0.1" placeholder="Weight" style="flex:1.4;">' +
           '<select id="wt-u" aria-label="Unit" style="flex:1;"><option value="lb"' + ((info.wu || 'lb') === 'lb' ? ' selected' : '') + '>lb</option><option value="kg"' + (info.wu === 'kg' ? ' selected' : '') + '>kg</option></select></div>' +
-        '<label for="wt-d">Date</label><input type="date" id="wt-d" value="' + hxToday() + '">' +
+        '<label for="wt-d">Date</label><input type="date" id="wt-d" value="' + hxToday() + '" max="' + hxToday() + '">' +
         '<button class="btn" onclick="saveWeight(\'' + jsStr(p.id) + '\')">Save weight ⚖️</button>' +
         (ws.length ? '<div class="sec"><h3>History</h3></div>' + ws.slice(0, 20).map(w =>
           '<div class="hx-kv"><span>' + esc(hxDate(w.d)) + '</span><b>' + esc(w.v + ' ' + (info.wu || 'lb')) + ' <span style="color:var(--muted);cursor:pointer;margin-left:0.4rem;" title="Remove" onclick="deleteWeight(\'' + jsStr(p.id) + '\',\'' + jsStr(w.d) + '\')">✕</span></b></div>').join('') : ''));
@@ -12722,9 +13185,15 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       info.weights.push({ d, v: Math.round(v * 10) / 10 });
       info.weights = info.weights.sort((a, b) => a.d < b.d ? -1 : 1).slice(-120);
     }
+    // Generous top weights (lb) per species, only to catch a slip of the finger
+    const WEIGHT_MAX_LB = { dog: 250, cat: 40, rabbit: 25, bird: 10, hamster: 2, reptile: 400, fish: 100, snake: 300, chicken: 20, duck: 20, turkey: 60,
+      goat: 400, sheep: 450, pig: 1500, cattle: 3500, horse: 3000, alpaca: 600 };
     function saveWeight(petId) {
       const v = hxNum(val('wt-v'), 0), d = val('wt-d');
       if (!(v > 0)) { toast('Enter the weight'); return; }
+      if (hxValidYmd(d) && d > hxToday()) { toast('The date can\'t be in the future'); return; }
+      const sp = String((hxPet(petId) || {}).species || '').toLowerCase(), u = val('wt-u') || 'lb', max = WEIGHT_MAX_LB[sp];
+      if (max && (u === 'kg' ? v / 0.45359237 : v) > max && !confirm(v + ' ' + u + ' is a lot for a ' + speciesLabel(sp).toLowerCase() + '. Save it anyway?')) return;
       hxAddWeight(petId, hxValidYmd(d) ? d : hxToday(), v, val('wt-u') || 'lb');
       hxDone(petId, '⚖️ Weight saved');
     }
@@ -12835,7 +13304,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const mePhoto = hxMePhoto(pet.id);
       if (mePhoto) c.photo = mePhoto;
       if (inc.basics) {
-        c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? hxPetAge(pet, bday) : ''; // a pet that passed stops ageing here too c.sex = info.sex || ''; c.fixed = info.fixed || '';
+        c.breed = String(pet.breed || '').slice(0, 40); c.age = bday ? hxPetAge(pet, bday) : ''; // a pet that passed stops ageing here too
+        c.sex = info.sex || ''; c.fixed = info.fixed || '';
         if (w) c.weight = { v: w.v, u: info.wu || 'lb', d: w.d };
       }
       if (inc.health) { c.allergies = info.allergies || ''; c.conditions = info.conditions || ''; c.diet = info.diet || ''; }
@@ -13799,7 +14269,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const zip = String(f.zip || '').trim();
       if (!/^\d{5}$/.test(zip)) { toast('Enter the 5-digit ZIP code'); focus('lf-zip'); return; }
       const when = new Date((hxValidYmd(f.d) ? f.d : hxToday()) + 'T' + (/^\d{1,2}:\d{2}$/.test(f.t || '') ? f.t : '12:00') + ':00');
-      if (isNaN(when) || when.getTime() > Date.now() + 3600000) { toast('The date and time can\'t be in the future'); focus('lf-d'); return; }
+      if (isNaN(when) || when.getTime() > Date.now() + 5 * 60000) { toast('The date and time can\'t be in the future'); focus('lf-t'); return; }
       if (when.getTime() < Date.now() - 364 * DAY_MS) { toast('Reports can go back one year at most'); focus('lf-d'); return; }
       const phone = hxPhone(f.phone).replace(/[^0-9+() .-]/g, '');
       if (phone && !hxTel(phone)) { toast('That phone number looks too short'); focus('lf-phone'); return; }
@@ -13950,7 +14420,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       else if (lost) h += '<div class="lf-status lost"><b>Missing since ' + esc(lfDateTime(r.seen_at)) + '</b> (' + esc(hxAgo(r.seen_at)) + ')' + (!open ? '. This report has ended.' : '') + '</div>';
       else if (r.held) h += '<div class="lf-status found"><b>Safe with ' + esc(mine ? 'you' : p.name || 'the finder') + '</b> since ' + esc(lfDateTime(r.seen_at)) + (!open ? '. This report has ended.' : '') + '</div>';
       else h += '<div class="lf-status seen"><b>Seen ' + esc(lfDateTime(r.seen_at)) + '</b>, not caught yet' + (!open ? '. This report has ended.' : '') + '</div>';
-      const place = [r.spot ? 'Near ' + r.spot : '', r.area].filter(Boolean).join(', ');
+      const place = [r.spot ? (/^(near|by|at|behind|outside|close to)\b/i.test(r.spot) ? lfCap(r.spot) : 'Near ' + r.spot) : '', r.area].filter(Boolean).join(', ');
       const facts = [['Animal', [speciesLabel(r.species), r.breed].filter(Boolean).join(' · ')], ['Colour', r.color], ['Age', r.age], ['Wearing', r.wearing],
         ['Microchip', r.chip === 'yes' ? 'Yes' : r.chip === 'no' ? 'No' : ''], [lost ? 'Last seen' : r.held ? 'Found' : 'Seen', place], ['Distance', !mine && r.miles ? lfMiles(r.miles) + ' from you' : '']];
       h += '<dl class="lf-facts">' + facts.filter(x => x[1]).map(x => '<dt>' + x[0] + '</dt><dd>' + esc(x[1]) + '</dd>').join('') + '</dl>';
@@ -14080,7 +14550,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (!spot) { toast('Say where you saw ' + lfTitle(r)); const e = document.getElementById('lfs-spot'); if (e) e.focus(); return; }
       const d = val('lfs-d'), t = val('lfs-t');
       const when = new Date((hxValidYmd(d) ? d : hxToday()) + 'T' + (/^\d{1,2}:\d{2}$/.test(t) ? t : '12:00') + ':00');
-      if (isNaN(when) || when.getTime() > Date.now() + 3600000) { toast('The time can\'t be in the future'); return; }
+      if (isNaN(when) || when.getTime() > Date.now() + 5 * 60000) { toast('The time can\'t be in the future'); return; }
       lfBusy = true;
       const btn = document.getElementById('lfs-go'); if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
       try {
@@ -14382,6 +14852,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if (k.num) {
         if (v === '' && kind !== 'seizure') { toast('Enter the ' + k.label.toLowerCase()); return; }
         if (v !== '') { const n = parseFloat(v); if (!(n >= 0 && n < 10000)) { toast('That number doesn\'t look right'); return; } v = String(Math.round(n * 10) / 10); }
+        // Pets usually run about 100 to 103 °F; a Celsius reading typed here is the usual slip
+        if (kind === 'temp' && v !== '' && (+v < 95 || +v > 108) && !confirm(v + ' °F is far from a normal pet temperature (about 100 to 103 °F).' +
+          (+v >= 30 && +v <= 43 ? ' If you measured in Celsius, that is about ' + Math.round((+v * 9 / 5 + 32) * 10) / 10 + ' °F.' : '') + ' Save it anyway?')) return;
       }
       const note = val('jn-note').slice(0, 200);
       if (kind === 'other' && !note) { toast('Write the note first'); return; }
@@ -14904,7 +15377,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     }
     function openAdoptable(i) {
       const x = ADOPT.pets[i]; if (!x) return;
-      const go = x.url || (x.org && x.org.url) || '';
+      const go = x.url || (x.org && x.org.url) || (x.org && x.org.name ? 'https://www.google.com/search?q=' + encodeURIComponent([x.org.name, x.org.city, x.org.state].filter(Boolean).join(' ')) : '');
       openSheet('🏠 ' + esc(x.name),
         '<div style="text-align:center;"><img src="' + esc(x.photo) + '" alt="' + esc(x.name) + '" style="max-width:100%;max-height:300px;border-radius:16px;object-fit:cover;"></div>' +
         '<p style="font-weight:700;margin:0.6rem 0 0.2rem;">' + esc([x.breed, x.age, x.sex, x.size].filter(Boolean).join(' · ')) + '</p>' +
@@ -15046,8 +15519,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         (rm ? '<button class="btn" onclick="saveReminder(' + i + ',' + sigArg(rm) + ')">Save changes</button>' : '') +
         (rm ? '' :
         '<p class="sub" style="font-size:0.75rem;margin:0.3rem 0 0;">Pick a time and reminders land right then — e.g. daily at 7:30 AM. Leave it empty to just count from now.</p>' +
-        '<div class="note">🔔 Remember: notifications must be enabled for alerts to reach you' +
-          (('Notification' in window) && Notification.permission === 'default' ? ' — we\'ll ask when you save.' : '.') + '</div>' +
+        (('Notification' in window) && Notification.permission === 'denied'
+          ? '<div class="note">🔕 Notifications are blocked for Petfi in this browser\'s settings, so this reminder will only show while Petfi is open. Unblock them in the browser settings to get alerts.</div>'
+          : '<div class="note">🔔 Remember: notifications must be enabled for alerts to reach you' +
+          (('Notification' in window) && Notification.permission === 'default' ? ' — we\'ll ask when you save.' : '.') + '</div>') +
         '<button class="btn" onclick="saveReminder()">Set reminder ⏰</button>'));
     }
     function saveReminder(i, sig) {
@@ -15080,7 +15555,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       state.reminders.push(fields);
       saveState();
       askPushNow();
-      closeSheet(); refreshCare(); toast('Reminder set ⏰' + (time ? ' for ' + time : ''));
+      closeSheet(); refreshCare(); toast('Reminder set ⏰' + (time ? ' for ' + (hxTime(time) || time) : ''));
     }
     function deleteReminder(i, sig) {
       const at = itemAt(state.reminders, i, sig);
@@ -15258,11 +15733,15 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // A dose for this reminder's slot already logged by anyone on the pet's care
     // team (me included): the reminder for that slot counts as done
     function careSlotDone(rm, slot) {
-      if (!rm || !rm.medId || !cloudUser) return false;
-      // A carer's reminder (careReminders) names its team; the owner's goes through the med
-      const m = rm.teamId ? null : hxMed(rm.medId), t = rm.teamId ? careTeam(rm.teamId) : m && myCareTeam(m.petId);
-      if (!t) return false;
+      if (!rm || !rm.medId) return false;
       const from = slot - Math.min((rm.ms || DAY_MS) / 2, 4 * 3600000);
+      // A carer's reminder (careReminders) names its team; the owner's goes through the med
+      const m = rm.teamId ? null : hxMed(rm.medId);
+      // My own dose logged early (team or not) counts for the coming slot
+      if (m && m.lastGiven >= from && m.lastGiven <= slot + Math.min((rm.ms || DAY_MS) / 2, 4 * 3600000)) return true;
+      if (!cloudUser) return false;
+      const t = rm.teamId ? careTeam(rm.teamId) : m && myCareTeam(m.petId);
+      if (!t) return false;
       return (CARE_LOG[t.id] || []).some(l => l.kind === 'meds' && l.med_id === rm.medId && new Date(l.at).getTime() >= from);
     }
     let pushCareSkips = ''; // which slots pushRows moved on (part of the sync signature)
@@ -15308,7 +15787,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         if (c.notified || c.followUpAsked) return;
         const at = calNotifyTime(c);
         if (!(at > now) || now > new Date(c.date + 'T23:59:59').getTime()) return;
-        rows.push({ title: '🗓️ ' + String(c.what || 'Appointment').slice(0, 100), body: c.time ? 'Today at ' + c.time : 'Today!', tag: 'cal:' + k, next_at: new Date(at).toISOString(), every_ms: null, every_months: null, until_at: null });
+        rows.push({ title: '🗓️ ' + String(c.what || 'Appointment').slice(0, 100), body: c.time ? 'Today at ' + (hxTime(c.time) || c.time) : 'Today!', tag: 'cal:' + k, next_at: new Date(at).toISOString(), every_ms: null, every_months: null, until_at: null });
       });
       // Pet health: refill, prescription, vaccine and supply alerts (one-off)
       hxAlerts().forEach(a => {
@@ -15562,13 +16041,18 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         if (now >= calNotifyTime(c)) {
           // Only alert if the appointment day isn't already over
           if (now <= new Date(c.date + 'T23:59:59').getTime()) {
-            fireReminder({ what: '🗓️ ' + c.what + (c.time ? ' at ' + c.time : ' — today!') });
+            fireReminder({ what: '🗓️ ' + c.what + (c.time ? ' at ' + (hxTime(c.time) || c.time) : ' — today!') });
           }
           c.notified = true; changed = true;
         }
       });
-      if (changed) { saveState({ bg: true }); if (state.tab === 'home' && state.homeTab === 'care') openTab('home'); }
+      // A new day: courses end, counts and "due in" change, so My care redraws (once)
+      const today = hxToday(), newDay = today !== careRenderDay;
+      careRenderDay = today;
+      if (changed) saveState({ bg: true });
+      if ((changed || newDay) && state.tab === 'home' && state.homeTab === 'care') openTab('home');
     }, 5000);
+    let careRenderDay = hxToday();
 
     // ======================= PET CALENDAR =======================
     // Future vet visits, grooming & events. When a visit date passes,
@@ -15597,7 +16081,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       openSheet('🗓️ Add to pet calendar',
         '<label for="cal-what">What is it?</label><input id="cal-what" value="' + esc(prefWhat || '') + '" placeholder="e.g. Tank\'s annual checkup">' +
         '<label for="cal-type">Type</label><select id="cal-type">' + opts + '</select>' +
-        '<label for="cal-date">Date</label><input type="date" id="cal-date">' +
+        '<label for="cal-date">Date</label><input type="date" id="cal-date" min="' + hxToday() + '">' +
         '<label for="cal-time">Time (optional)</label><input type="time" id="cal-time">' +
         '<div class="note">🔔 We\'ll notify you the <b>morning of</b> the appointment — or <b>1 hour before</b> if you set a time. Notifications must be enabled for alerts to reach you.</div>' +
         '<button class="btn" onclick="saveCal()">Add to calendar 🗓️</button>');
@@ -15606,6 +16090,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const what = val('cal-what'), date = val('cal-date');
       if (!what) { toast('What\'s the appointment for?'); return; }
       if (!date) { toast('Pick a date'); return; }
+      if (hxValidYmd(date) && date < hxToday()) { toast('That date has already passed. Pick today or a later day'); return; }
       state.calendar.push({ what, type: val('cal-type') || 'other', date, time: val('cal-time'), followUpAsked: false, notified: false });
       saveState();
       askPushNow();
@@ -15675,14 +16160,17 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return '';
     }
     // A full screen, not a sheet — sheets close with × or a backdrop tap
+    var ageUnderVisit = false; // said "under 18" in this visit: the question isn't asked again until the page reloads
     function askAge(then) {
-      if (ageStatus() === 'under') { ageSignOut(); return; }
+      if (ageStatus() === 'under' || ageUnderVisit) { ageSignOut(); return; }
       ageThen = then || null;
       delete state.tab; // background refreshes re-open state.tab; none may pull the app up behind this screen
       show('s-agecheck');
       const h = document.getElementById('agecheck-title'); if (h) h.focus();
     }
     function ageYes() {
+      // Nothing waiting to open (no account, no next step): never a blank app
+      if (ageUnderVisit || (!ageThen && !state.accountType)) { ageThen = null; renderResume(); show('s-welcome'); return; }
       rememberAge(true);
       const then = ageThen || enterApp; ageThen = null;
       then();
@@ -15694,6 +16182,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // Under age: sign out on this device only and delete nothing — the
     // account, its cloud data and this device's saved copy all stay put.
     async function ageSignOut() {
+      ageUnderVisit = true;
       await logOut({ ageBlock: true });
       openSheet('💛 Thanks for telling us',
         '<div style="text-align:center;padding:0.8rem 0;"><div style="font-size:3rem;">🐾</div>' +
@@ -15772,12 +16261,17 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const btn = document.getElementById('acct-btn');
       const ageBox = document.getElementById('acct-age');
       const ageErr = document.getElementById('acct-age-err');
-      err.style.display = 'none';
+      // Each message sits under the field it is about (acct-err is the PIN's, and anything general)
+      const emailErr = document.getElementById('acct-email-err'), passErr = document.getElementById('acct-pass-err');
+      const fieldErr = (el, msg, focusId) => { el.textContent = msg; el.style.display = 'block'; const f = document.getElementById(focusId); if (f) f.focus(); };
+      err.style.display = 'none'; emailErr.style.display = 'none'; passErr.style.display = 'none';
       ageErr.textContent = '';
-      if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return; }
-      if (pass.length < 6) { err.textContent = 'Password needs at least 6 characters.'; err.style.display = 'block'; return; }
+      if (!/^\S+@\S+\.\S+$/.test(email)) return fieldErr(emailErr, 'Please enter a valid email address.', 'acct-email');
+      if (!pass.trim()) return fieldErr(passErr, pass ? 'Your password can\'t be only spaces.' : 'Please choose a password of at least 6 characters.', 'acct-pass');
+      if (pass.length < 6) return fieldErr(passErr, 'Password needs at least 6 characters.', 'acct-pass');
       const newPin = val('acct-pin'); // optional
-      if (newPin && !/^\d{4,8}$/.test(newPin)) { err.textContent = 'The PIN is optional, but if you want one it needs 4 to 8 digits. Or leave it empty.'; err.style.display = 'block'; return; }
+      if (newPin.length > 8) return fieldErr(err, 'A PIN can be at most 8 digits.', 'acct-pin');
+      if (newPin && !/^\d{4,8}$/.test(newPin)) return fieldErr(err, 'The PIN is optional, but if you want one it needs 4 to 8 digits. Or leave it empty.', 'acct-pin');
       if (!ageBox.checked) { ageErr.textContent = 'Please confirm you\'re ' + MIN_AGE + ' or older — Petfi accounts are for adults only.'; ageBox.focus(); return; }
       btn.disabled = true; btn.textContent = 'Creating your account…';
       const { data, error } = await cloud.auth.signUp({ email: email, password: pass });
@@ -15786,13 +16280,13 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       // back with no error and a user with no identities (#34): same as "already"
       const already = error ? /already/i.test(error.message)
         : !!(data && data.user && Array.isArray(data.user.identities) && data.user.identities.length === 0);
-      if (error || already) {
-        err.textContent = already
-          ? 'That email already has an account — use "Log in" on the welcome screen instead.'
-          : error.message;
-        err.style.display = 'block';
+      if (already) {
+        emailErr.innerHTML = 'That email already has an account.' +
+          '<button class="btn secondary" style="margin-top:0.5rem;" onclick="openLogin({ email: \'' + jsStr(email) + '\', password: true })">Log in with this email</button>';
+        emailErr.style.display = 'block';
         return;
       }
+      if (error) { err.textContent = error.message; err.style.display = 'block'; return; }
       if (!data.session) {
         // Email confirmation is on: no session until they click the link
         track('confirm_wait', pendingFinish);
@@ -15809,11 +16303,23 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       cloudUser = data.user;
       rememberAge(true);          // they ticked the box — no second question on the way in
       state.lastEmail = email;
+      if (pendingFinish === 'org') {
+        // Ask the server about the free trial first: the verify screen must not flash before a trial
+        // opens, and no trial is promised that the server didn't grant
+        btn.disabled = true; btn.textContent = 'Getting your account ready…';
+        btn.insertAdjacentHTML('afterend', '<div id="acct-wait">' + searchingHtml('Getting your account ready…') + '</div>');
+        applyOrgHome();
+        try { await Promise.race([orgTrialFetch(), new Promise(r => setTimeout(r, 8000))]); } catch (e) {}
+        const w = document.getElementById('acct-wait'); if (w) w.remove();
+        btn.disabled = false; btn.textContent = 'Create my account ☁️';
+      }
       finishOnboard();            // builds state + enters the app (also saves)
       cloudSaveProfile();
       syncCloud();
       confetti();
-      toast(pendingFinish === 'org' && !appActive() ? 'Account created. Getting your free trial ready…' : 'Account created — you\'re in 🐾');
+      toast(pendingFinish !== 'org' ? 'Account created — you\'re in 🐾'
+        : orgTrialOn() && appActive() ? '🎉 Account created. Your ' + ORG_TRIAL_DAYS + '-day free trial has started. Look around!'
+        : 'Account created. One more step: verify your ID.');
       track('account_created', pendingFinish);
       // The optional PIN from the sign-up form. They were offered one here, so the
       // "Want a login PIN?" sheet does not ask again; a PIN the server turns down
@@ -15824,8 +16330,25 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         let pinErr = null;
         try { ({ error: pinErr } = await cloud.rpc('petfi_set_login_pin', { p_pin: newPin })); } catch (e) { pinErr = e; }
         if (!pinErr) { rememberLogin(true); track('pin_set', 'signup'); setTimeout(() => toast('🔢 Your login PIN is on'), 2500); }
-        else setTimeout(() => toast(/pin_weak/.test(String(pinErr.message || '')) ? 'That PIN was too easy to guess, so it wasn\'t saved. Pick another in Settings › Account.' : 'Your PIN wasn\'t saved. You can set one in Settings › Account.'), 2500);
+        else {
+          // Told in its own sheet once the welcome tour is closed (tourDone), so it can't be missed
+          pinNotice = /pin_weak/.test(String(pinErr.message || ''))
+            ? 'The PIN you picked was too easy to guess (like 1234, a date, or one number repeated), so it was not saved.'
+            : 'Your PIN could not be saved right now.';
+          if ((TOUR_DONE || !appActive()) && !document.body.classList.contains('sheet-open')) pinNoticeShow(); // else the tour is coming
+        }
       }
+    }
+    let pinNotice = null;
+    function pinNoticeShow() {
+      const m = pinNotice; pinNotice = null;
+      if (!m) return false;
+      openSheet('🔢 Your PIN was not saved',
+        '<p class="sub">' + m + ' Your account is ready, and you log in with your email and password.</p>' +
+        '<p class="sub">To set a PIN later, tap <b>Me</b>, then <b>Account &amp; security</b>, then <b>Login PIN</b>.</p>' +
+        '<button class="btn" onclick="openSetPin()">Pick a different PIN now</button>' +
+        '<button class="btn secondary" onclick="closeSheet();setTimeout(askPushAfterTour, 400)">OK</button>');
+      return true;
     }
 
     // ---- Remembered login (1.32.0): this device knows who logged in last ----
@@ -15865,7 +16388,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     const LINK_STYLE = 'color:var(--muted);font-size:0.85rem;';
     // A PIN box is a text field with masked digits, not type=password: a password
     // field next to the email makes browsers offer to save the PIN as the password.
-    const PIN_FIELD = 'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" spellcheck="false" placeholder="4 to 8 digits" ' +
+    const PIN_FIELD = 'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="9" spellcheck="false" placeholder="4 to 8 digits" ' +
       'style="letter-spacing:0.4em;font-size:1.3rem;text-align:center;-webkit-text-security:disc;"';
     // Log out from Settings: on a shared computer, the member can also make this device forget them
     function openLogOutChoice() {
@@ -15928,6 +16451,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const fail = m => { btn.disabled = false; btn.textContent = 'Log in'; err.textContent = m; err.style.display = 'block'; };
       err.style.display = 'none';
       if (!/^\S+@\S+\.\S+$/.test(email)) return fail('Enter the email you log in with.');
+      if (pin.length > 8) return fail('A PIN can be at most 8 digits.');
       if (!/^\d{4,8}$/.test(pin)) return fail('Your PIN is 4 to 8 digits.');
       btn.disabled = true; btn.textContent = 'Logging in…';
       let status = 0, body = {};
@@ -16058,6 +16582,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const err = document.getElementById('sp-err'), btn = document.getElementById('sp-btn');
       const fail = m => { btn.disabled = false; btn.textContent = 'Save PIN'; err.textContent = m; err.style.display = 'block'; };
       err.style.display = 'none';
+      if (p1.length > 8) return fail('A PIN can be at most 8 digits.');
       if (!/^\d{4,8}$/.test(p1)) return fail('Your PIN needs 4 to 8 digits.');
       if (p1 !== p2) return fail('Those don\'t match — try again.');
       if (!cloud || !cloudUser) return fail('Log in first.');
@@ -16623,7 +17148,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         if (c.petfiType) return; // dating cards / territory claims aren't feed posts
         if (c.pendingKey && pendingKeys[c.pendingKey]) return; // still shown as the local copy
         const p = {
-          cloudId: row.id, authorId: row.author_id,
+          cloudId: row.id, authorId: row.author_id, pk: c.pendingKey ? String(c.pendingKey) : '',
           mine: !!(cloudUser && row.author_id === cloudUser.id),
           who: authorName(row.author_id, c.who), type: c.type === 'owner' || c.type === 'org' ? c.type : 'pet',
           species: c.species, breed: c.breed, text: String(c.text || ''), edited: c.edited ? String(c.edited) : '',
@@ -16675,17 +17200,22 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         let statsChanged = false;
         FEED.filter(p => p.cloudId && p.mine).forEach(p => {
           const prev = state.myPostStats[p.cloudId];
+          // Only other members' likes and comments are news: never my own
+          const otherCmts = (p.comments || []).filter(c => c.authorId !== cloudUser.id);
+          const nLikes = Math.max(0, (Number(p.likes) || 0) - (p.likedByMe ? 1 : 0)), nCmts = otherCmts.length;
           if (prev) {
-            if (p.likes > prev.likes && notifPref('likes')) {
-              toast((REACT_EMO[p.kind] || '❤️') + ' Your post got ' + (p.likes - prev.likes > 1 ? (p.likes - prev.likes) + ' new likes!' : 'a new like!'));
+            if (nLikes > prev.likes && notifPref('likes')) {
+              toast((REACT_EMO[p.kind] || '❤️') + ' Your post got ' + (nLikes - prev.likes > 1 ? (nLikes - prev.likes) + ' new likes!' : 'a new like!'));
+              bellLogAdd({ t: 'like', n: nLikes - prev.likes, post: p.cloudId, text: String(p.text || '').slice(0, 60) });
             }
-            if ((p.comments || []).length > prev.comments && notifPref('comments')) {
-              const latest = p.comments[p.comments.length - 1];
+            if (nCmts > prev.comments && notifPref('comments')) {
+              const latest = otherCmts[otherCmts.length - 1];
               toast('💬 ' + (latest && latest.who ? latest.who + ' commented' : 'New comment') + ' on your post');
+              bellLogAdd({ t: 'comment', who: latest && latest.who ? String(latest.who).slice(0, 40) : '', said: latest ? String(latest.text || '').slice(0, 80) : '', post: p.cloudId, text: String(p.text || '').slice(0, 60) });
             }
           }
-          if (!prev || prev.likes !== p.likes || prev.comments !== (p.comments || []).length) statsChanged = true;
-          state.myPostStats[p.cloudId] = { likes: p.likes, comments: (p.comments || []).length };
+          if (!prev || prev.likes !== nLikes || prev.comments !== nCmts) statsChanged = true;
+          state.myPostStats[p.cloudId] = { likes: nLikes, comments: nCmts };
         });
         if (statsChanged) saveState({ bg: true });
       }
@@ -16699,9 +17229,15 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const c = document.getElementById('tab-content'); if (!c) return;
       const ae = document.activeElement;
       if (ae && c.contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) { pendingRerender = renderFn; return; }
+      // Half-typed text and open comment panels survive the redraw
+      const drafts = {}, open = [];
+      c.querySelectorAll('input[id]:not([type]), input[id][type=text], input[id][type=search], textarea[id]').forEach(e => { if (e.value) drafts[e.id] = e.value; });
+      c.querySelectorAll('.cmts[id]').forEach(e => { if (e.style.display === 'block') open.push(e.id); });
       pvidStopAll();
       c.innerHTML = renderFn();
       pendingRerender = null;
+      Object.keys(drafts).forEach(id => { const e = document.getElementById(id); if (e && c.contains(e) && !e.value) e.value = drafts[id]; });
+      open.forEach(id => { const e = document.getElementById(id); if (e && c.contains(e)) e.style.display = 'block'; });
     }
     let pendingRerender = null;
     document.addEventListener('focusout', () => { setTimeout(() => { if (pendingRerender && appActive()) rerenderTab(pendingRerender); }, 250); });
@@ -17734,6 +18270,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return '<button class="btn secondary" disabled style="opacity:0.8;">' + (ofPet ? '⏳ Request sent to ' + n : '⏳ Request sent') + '</button>' +
         '<button class="pill-btn ghost" style="display:block;margin:0 auto 0.6rem;" onclick="cancelFriendRequest(' + Number(f.id) + ',\'' + jsStr(u.username) + '\',\'person\')">Cancel request</button>';
     }
+    var personSheetFor = null, personSheetSeq = -1;
     function showPersonSheet(u) {
       const friendBtn = friendButtonsHtml(u, false);
       const x = pubExtras(u);
@@ -17779,12 +18316,13 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
           : '') +
         friendBtn +
         '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(u.id) + '\')">💬 Message</button>' +
-        (isPersonKind(u.kind) ? '' : '<button class="btn secondary" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">' + sayHiLabel() + '</button>') +
+        (isPersonKind(u.kind) ? '' : '<button class="btn secondary" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\')">' + sayHiLabel() + ' to ' + esc(u.username) + '</button>') +
         '<div style="display:flex;gap:0.6rem;margin-top:0.8rem;">' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="sharePerson(\'' + jsStr(u.id) + '\')">🔗 Share</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="openReport(\'user\',\'' + jsStr(u.username) + '\',\'' + jsStr(u.id) + '\')">🚩 Report</button>' +
           '<button class="pill-btn ghost" style="flex:1;" onclick="blockUser(\'' + jsStr(u.id) + '\',\'' + jsStr(u.username) + '\')">🚫 Block</button>' +
         '</div>');
+      personSheetFor = u.id; personSheetSeq = sheetSeq; // a friend ping can redraw it
       // Their shop: top up the listings, then fill in place
       if (isPersonKind(u.kind)) {
         const seq0 = sheetSeq;
@@ -17823,9 +18361,15 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     }
     async function acceptFriend(fid, name) {
       const f = FRIENDSHIPS.find(x => x.id === fid);
-      const { error } = await cloud.from('friendships').update({ status: 'accepted' }).eq('id', fid);
+      // Ask for the row back: zero rows means the request was withdrawn meanwhile
+      const { data: got, error } = await cloud.from('friendships').update({ status: 'accepted' }).eq('id', fid).select('id');
       if (error) { toast('⚠️ Could not accept'); uiSound('error'); return; }
       await loadFriendships();
+      if (!got || !got.length) {
+        toast(name + ' took back this friend request, so nothing changed'); uiSound('error');
+        if (bellOpen()) openNotifications(); else closeSheet();
+        return;
+      }
       uiSound('friend'); haptic([10, 20, 10]); confetti();
       if (f) livePing(f.requester_id, { type: 'friend', accepted: true });
       const mp = f ? fsSide(f).mp : null;
@@ -17841,10 +18385,17 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const other = f ? (f.requester_id === cloudUser.id ? f.addressee_id : f.requester_id) : null;
       let res;
       try { res = await cloud.from('friendships').delete().eq('id', fid).select(); } catch (e) { res = { error: e }; }
-      if (res.error || !res.data || !res.data.length) { toast('⚠️ That didn\'t go through — try again'); uiSound('error'); return; }
-      FRIENDSHIPS = FRIENDSHIPS.filter(x => x.id !== fid);
+      if (res.error) { toast('⚠️ That didn\'t go through. Please try again.'); uiSound('error'); return; }
+      if (!res.data || !res.data.length) {
+        // Already gone: the other member answered or took it back first. Catch up instead of offering a retry that can't work.
+        await loadFriendships();
+        toast(f && f.status === 'pending' ? 'This request was already answered or taken back' : 'You two aren\'t friends anymore');
+      } else {
+        FRIENDSHIPS = FRIENDSHIPS.filter(x => x.id !== fid);
+        if (other) livePing(other, { type: 'friend' }); // their screen catches up (no message is shown to them)
+        toast(okMsg);
+      }
       updateBadges();
-      toast(okMsg);
       if (from === 'notif') openNotifications();
       else if (from === 'friends') openFriendsList();
       else if (from === 'person' && other) openPersonSheetById(other);
@@ -17930,7 +18481,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // Threads live in the cloud; while a chat is open we check for new
     // messages every few seconds (true push comes with hosting later).
     let MY_MESSAGES = [];
-    let dmOpenWith = null, dmPollTimer = null, lastSeenMsgId = 0, firstMsgLoad = true;
+    let dmOpenWith = null, dmPollTimer = null, lastSeenMsgId = 0, firstMsgLoad = true, dmPollTick = 0;
     let dmMyPet = null, dmTheirPet = null; // the open conversation's personas (stage 5; null = the account)
 
     async function loadMessages() {
@@ -18014,7 +18565,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function updateBadges() {
       const unread = cloudUser ? unreadConvos().reduce((s, c) => s + c.unread, 0) : 0;
       setBadge('dm-dot', unread);
-      const pend = cloudUser ? incomingFriendRequests().length + (lfOn() ? lfUnread() : 0) : 0;
+      const pend = cloudUser ? incomingFriendRequests().length + (lfOn() ? lfUnread() : 0) + bellExtraCount() : 0;
       setBadge('notif-dot', pend);
     }
     // Requests waiting on my answer; ones from members I blocked don't count or show
@@ -18123,8 +18674,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
             '<button class="btn secondary" onclick="openCloudDM(\'' + jsStr(userId) + '\')">💬 Message ' + esc(ownerLabel(userId, u.username || 'their owner')) + '</button>'
           : '<div class="cmt-input-row" style="align-items:center;">' +
             (canHi ? '<button class="pill-btn ghost" style="padding:0.45rem 0.6rem;" title="Say hi" onclick="sendCloudBarkById(\'' + jsStr(u.id) + '\'' + barkArgs + ')">🔊</button>' : '') +
-            '<input id="dm-cloud-in" type="text" aria-label="Message ' + esc((tName || '').split(' ')[0]) + '…" placeholder="Message ' + esc((tName || '').split(' ')[0]) + '…" autocomplete="off" value="' + esc(draft) + '" onkeydown="if(event.key===\'Enter\')sendCloudDM()">' +
-            '<button class="pill-btn" onclick="sendCloudDM()">Send</button></div>'));
+            '<input id="dm-cloud-in" type="text" aria-label="Message ' + esc((tName || '').split(' ')[0]) + '…" placeholder="Message ' + esc((tName || '').split(' ')[0]) + '…" autocomplete="off" maxlength="2000" value="' + esc(draft) + '" oninput="dmCount(this)" onkeydown="if(event.key===\'Enter\')sendCloudDM()">' +
+            '<button class="pill-btn" onclick="sendCloudDM()">Send</button></div><div class="cmp-count" id="dm-count" aria-live="polite"></div>'));
       if (draft) setTimeout(() => { const e = document.getElementById('dm-cloud-in'); if (e) e.focus(); }, 200);
       if (tp) dmCheckTheirPet(userId, tp); // their pet's switch, read fresh
       renderDMThread(curThread()); // instant, from what we already have
@@ -18132,7 +18683,9 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       clearInterval(dmPollTimer);
       dmPollTimer = setInterval(() => {
         if (!(document.getElementById('dm-thread') && dmOpenWith)) { clearInterval(dmPollTimer); dmOpenWith = null; return; }
-        if (!(liveOK && liveLastPing)) refreshDMThread(); // polling only while live isn't proven
+        dmPollTick = (dmPollTick || 0) + 1;
+        // Every 4 s while live isn't proven; every 20 s even when it is, so an unsent message still drops out
+        if (!(liveOK && liveLastPing) || dmPollTick % 5 === 0) refreshDMThread();
       }, 4000);
     }
     // Messages between me and one member in ONE pair of personas (mp mine, tp
@@ -18164,6 +18717,18 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return sameDay ? 'Today' : yest ? 'Yesterday' : d.toLocaleDateString(esLocale(), { month: 'short', day: 'numeric' });
     }
     function clock(iso) { return new Date(iso).toLocaleTimeString(esLocale(), { hour: 'numeric', minute: '2-digit' }); }
+    // Message text with https links made tappable (opened through openLink, never javascript: or http:)
+    function dmTextHtml(text) {
+      const s = String(text || ''), re = /https:\/\/[^\s<>"'`]+/g;
+      let out = '', at = 0, m;
+      while ((m = re.exec(s))) {
+        let url = m[0]; const trail = (url.match(/[.,!?;:)\]]+$/) || [''])[0];
+        url = url.slice(0, url.length - trail.length);
+        out += esc(s.slice(at, m.index)) + '<a href="' + esc(url) + '" target="_blank" rel="noopener noreferrer" style="color:inherit;text-decoration:underline;word-break:break-all;" onclick="event.preventDefault();event.stopPropagation();openLink(\'' + jsStr(url) + '\')">' + esc(url) + '</a>' + esc(trail);
+        at = m.index + m[0].length;
+      }
+      return out + esc(s.slice(at));
+    }
     function renderDMThread(rows) {
       const th = document.getElementById('dm-thread'); if (!th) return;
       let html = '', lastDay = '', lastMine = null, lastAt = 0;
@@ -18176,7 +18741,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         // Your own sent message: tap it to show "Unsend" under it
         const canUnsend = mine && !m.pending && !m.failed && m.id != null && !m.outboxAt;
         html += '<div class="dm-bubble ' + (mine ? 'mine' : 'theirs') + (m.kind === 'bark' ? ' bark' : '') + (m.pending ? ' pending' : '') + (m.failed ? ' failed' : '') + '"' +
-          (canUnsend ? ' style="cursor:pointer;" title="Tap for options" onclick="dmPick(\'' + jsStr(String(m.id)) + '\')"' : '') + '>' + (m.kind === 'bark' ? '🔊 ' : '') + esc(m.text) + '</div>';
+          (canUnsend ? ' style="cursor:pointer;" title="Tap for options" onclick="dmPick(\'' + jsStr(String(m.id)) + '\')"' : '') + '>' + (m.kind === 'bark' ? '🔊 ' : '') + dmTextHtml(m.text) + '</div>';
         if (m.failed) html += '<div class="dm-meta failed" onclick="retryOutbox(' + Number(m.outboxAt) + ')">Not sent · tap to retry</div>';
         else if (m.pending) html += '<div class="dm-meta">Sending…</div>';
         else if (canUnsend && dmPickedId === String(m.id)) html += '<div class="dm-meta dm-unsend" role="button" tabindex="0" onclick="unsendDM(\'' + jsStr(String(m.id)) + '\')">↩️ Unsend</div>';
@@ -18204,7 +18769,17 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       dmPickedId = null;
       if (dmIsOpen(other, mp, tp)) renderDMThread(curThread());
       updateBadges();
+      livePing(other, { type: 'dm', unsent: m.id }); // their open chat drops it too
       toast('Message unsent ↩️');
+    }
+    // A ping says a message was unsent: believe it only if the server no longer has the row
+    async function dropUnsentIfGone(id, from) {
+      if (!cloud || !cloudUser || !MY_MESSAGES.some(m => String(m.id) === String(id) && m.sender_id === from)) return;
+      const { data, error } = await cloud.from('messages').select('id').eq('id', id);
+      if (error || !Array.isArray(data) || data.length) return;
+      MY_MESSAGES = MY_MESSAGES.filter(m => String(m.id) !== String(id));
+      if (dmOpenWith === from) renderDMThread(curThread());
+      updateBadges();
     }
     // "⋯" at the top of a chat: report or block the other member (always the
     // account, also in a pet's conversation), using the same sheets as their profile
@@ -18243,11 +18818,20 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         if (state.dmSeen[key] !== last) { state.dmSeen[key] = last; saveState({ bg: true }); updateBadges(); }
       }
     }
+    const DM_MAX = 2000;
+    // Shows how many characters are left once a message gets close to the limit
+    function dmCount(el) {
+      const c = document.getElementById('dm-count'); if (!c || !el) return;
+      const left = DM_MAX - el.value.length;
+      c.textContent = left <= 200 ? (left >= 0 ? left + ' characters left' : 'Too long by ' + (-left)) : '';
+      c.classList.toggle('warn', left <= 50);
+    }
     async function sendCloudDM() {
       const inp = document.getElementById('dm-cloud-in');
       const t = (inp.value || '').trim(); if (!t || !dmOpenWith) return;
+      if (t.length > DM_MAX) { toast('Messages can be up to ' + DM_MAX + ' characters. Please make it a little shorter.'); return; }
       const to = dmOpenWith;
-      inp.value = ''; inp.focus();
+      inp.value = ''; inp.focus(); dmCount(inp);
       uiSound('send'); haptic(8);
       // Optimistic: it's on screen before the network answers
       state.outbox = state.outbox || [];
@@ -18269,8 +18853,14 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         const blocked = /row-level security|policy|permission/i.test(error.message || '');
         if (blocked) {
           if (i >= 0) state.outbox.splice(i, 1);
-          toast(entry.tp ? '🔒 Message blocked. ' + theirPetName(entry.to, lcId(entry.tp)) + ' may not be taking messages right now, or you may need to be friends first'
-            : '🔒 Message blocked — you may need to be friends first'); uiSound('error');
+          // Give the typed words back, and say why in plain words (their setting may have changed since we looked)
+          const box = open() && document.getElementById('dm-cloud-in');
+          if (box && !box.value) box.value = entry.text;
+          await ensureProfiles([entry.to], true);
+          const u = PROFILE_BY_ID[entry.to], nm = entry.tp ? theirPetName(entry.to, lcId(entry.tp)) : (u && u.username) || 'This member';
+          toast((u && u.friends_only ? '🔒 ' + nm + ' only takes messages from friends. Send a friend request first.'
+            : entry.tp ? '🔒 ' + nm + ' isn\'t taking messages right now.' : '🔒 ' + nm + ' can\'t get messages from you right now.') +
+            (box ? ' Your message is still in the box.' : '')); uiSound('error');
         } else {
           entry.failed = true; toast('📡 No connection — will retry'); uiSound('error');
         }
@@ -18369,6 +18959,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         return grp;
       });
       if (appActive() && state.tab === 'groups') rerenderTab(renderGroups);
+      updateBadges(); // join requests for my groups light the bell
     }
     async function loadListings(force) {
       if (!cloud) return;
@@ -18476,9 +19067,22 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       const p = ps[ps.length - 1];
       if (p.type === 'dm' || p.type === 'bark') {
         if (dmOpenWith && ps.some(x => x.from === dmOpenWith)) refreshDMThread();
+        // An unsent message: drop it once the server confirms the row is gone (the ping is only a hint)
+        ps.filter(x => x.unsent).forEach(x => dropUnsentIfGone(x.unsent, x.from));
         loadMessages();
       } else if (p.type === 'group') {
-        loadGroups(true);
+        const before = {};
+        CLOUD_GROUPS.forEach(g => { before[g.cloudId] = { joined: g.joined, reqs: (g.requests || []).slice() }; });
+        loadGroups(true).then(() => {
+          CLOUD_GROUPS.forEach(g => {
+            const b = before[g.cloudId];
+            if (b && !b.joined && g.joined && !g.mine) { toast('👥 You\'re in ' + g.title + '. You can see and post there now.'); uiSound('friend'); }
+            const fresh = g.mine ? (g.requests || []).filter(u => !(b ? b.reqs : []).includes(u)) : [];
+            if (fresh.length) { toast('🙋 ' + authorName(fresh[0], 'Someone') + ' asked to join ' + g.title); uiSound('receive'); ringBell(); }
+          });
+          updateBadges();
+          if (bellOpen()) openNotifications();
+        });
       } else if (p.type === 'friend') {
         loadFriendships().then(() => {
           // A broadcast is just a nudge: the toast comes from the row the
@@ -18498,7 +19102,10 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
               toast('🐾 ' + who + (s.mp ? ' wants to be friends with ' + myPersonaName(s.mp) : ' wants to be your friend')); uiSound('receive'); ringBell();
             }
           });
-          if (state.tab === 'profile' || state.tab === 'nearby') openTab(state.tab);
+          // Redraw without stealing focus from a box the member is typing in
+          if (appActive() && (state.tab === 'profile' || state.tab === 'nearby')) rerenderTab(state.tab === 'profile' ? renderProfile : renderNearby);
+          if (bellOpen()) openNotifications(); // a request withdrawn meanwhile leaves the bell
+          else if (personSheetFor && personSheetSeq === sheetSeq && ps.some(x => x.from === personSheetFor) && document.body.classList.contains('sheet-open')) openPersonSheetById(personSheetFor);
         });
       } else if (p.type === 'like' || p.type === 'comment') {
         lastPostsFetch = 0; loadCloudPosts(true);
