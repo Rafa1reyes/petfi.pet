@@ -3215,6 +3215,7 @@
       setTimeout(() => handleInviteLanding(firstTime), 400);  // came in through a shared profile or invite link?
       setTimeout(syncShareAvatar, 6000);  // keep the link-preview icon current
       setTimeout(() => ensurePushSubscription(false), 3000); // reminders by push when notifications are allowed
+      if (!firstTime) setTimeout(askPushAfterTour, 8000);    // a member this device never asked about alerts: once
       setTimeout(() => loadTags(true), 4500);
       setTimeout(careJoinPending, 2500);                     // arrived on a care-team invite link
       setTimeout(openPendingMate, 3000);                     // arrived on a shared Mate Match listing
@@ -3255,6 +3256,7 @@
           row('📣', 'Run a Spotlight ad', 'Put your organization in front of pet owners near you') +
           row('👤', 'Me', 'Your profile, settings, help & privacy') +
           '<button class="btn" onclick="tourDone()">Let\'s go 🐾</button>');
+        TOUR_SHEET = sheetSeq;
         return;
       }
       openSheet('🎉 Welcome to Petfi, ' + esc((state.displayName || '').split(' ')[0] || 'friend') + '!',
@@ -3267,6 +3269,7 @@
         row('🛒', 'Store', 'Buy from members (message the seller) or shop popular products') +
         row('👤', 'Me', 'Your profile, settings, help & privacy') +
         '<button class="btn" onclick="tourDone()">Let\'s go 🐾</button>');
+      TOUR_SHEET = sheetSeq;
     }
 
     function openTab(name) {
@@ -8011,7 +8014,7 @@
     })();
     let inviteHandled = false;
     let INVITE_OPEN_AFTER_TOUR = null;
-    let TOUR_DONE = false;
+    let TOUR_DONE = false, TOUR_SHEET = 0; // TOUR_SHEET: the tour's sheetSeq while it is the open sheet
 
     // Signed out on the welcome screen: show who sent them, so the first
     // thing a newcomer sees is a real pet, not a sales pitch.
@@ -8068,9 +8071,15 @@
       livePing(id, { type: 'friend' });
       return true;
     }
+    // The tour ends the same way however it is closed: its button, the ×, Back
+    // or Escape. closeSheet() runs tourAfter() when the sheet it closes is the tour.
     function tourDone() {
-      TOUR_DONE = true;
+      const wasTour = TOUR_SHEET && TOUR_SHEET === sheetSeq;
       closeSheet();
+      if (!wasTour) tourAfter();
+    }
+    function tourAfter() {
+      TOUR_DONE = true;
       const id = INVITE_OPEN_AFTER_TOUR; INVITE_OPEN_AFTER_TOUR = null;
       if (pinNotice && !id) { setTimeout(pinNoticeShow, 250); return; } // a PIN from sign-up that wasn't saved
       if (id) setTimeout(() => openPersonSheetById(id), 250);
@@ -8078,7 +8087,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.4';
+    const APP_VERSION = '1.33.5';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -8467,9 +8476,17 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       });
       h += line('Waiting on the email link', n('confirm_wait'), start) + line('Account created', n('account_created'), start);
       h += '<div class="sec"><h3>🐾 In the app</h3></div>' +
-        line('Opened the app', n('open', 'app')) + line('Turned on notifications', n('push_on')) + line('Made an ID tag', n('tag_made')) +
+        line('Opened the app', n('open', 'app')) + line('Made an ID tag', n('tag_made')) +
         line('Shared a health passport', n('passport_made')) + line('First post', n('first_post')) + line('Logged care (meds, journal, care team)', n('care_added')) +
         line('Opened a share or invite', n('share_open')) + line('Reported a lost pet', n('lost_reported'));
+      // Alerts: asked by Petfi -> answered the phone's own prompt -> signed up with the server
+      const pushRows = rows.filter(r => r.name === 'push_on'), pushN = f => pushRows.filter(f).reduce((a, r) => a + Number(r.devices || 0), 0);
+      const asked = n('push_on', 'asked');
+      h += '<div class="sec"><h3>🔔 Notifications</h3></div>' +
+        line('Asked by Petfi', asked) + line('· allowed', n('push_on', 'allowed'), asked) + line('· blocked', n('push_on', 'blocked'), asked) +
+        line('· closed the prompt', n('push_on', 'dismissed'), asked) + line('Alerts working on the device', pushN(r => !r.detail)) +
+        line('Allowed, but the device could not finish', pushN(r => /^fail-/.test(r.detail || '')));
+      pushRows.filter(r => /^fail-/.test(r.detail || '')).forEach(r => { h += line('· ' + r.detail, Number(r.devices)); });
       const steps = rows.filter(r => r.name === 'start_step');
       if (steps.length) h += '<div class="sec"><h3>✅ Getting started taps</h3></div>' + steps.map(r => line(r.detail || '—', Number(r.devices))).join('');
       const from = rows.filter(r => r.name === 'from');
@@ -9180,6 +9197,8 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       if ((e.key === 'Enter' || e.key === ' ') && t && t.tagName !== 'BUTTON' && t.getAttribute && t.getAttribute('role') === 'button') { e.preventDefault(); t.click(); }
     });
     function closeSheet() {
+      const wasTour = TOUR_SHEET && TOUR_SHEET === sheetSeq; TOUR_SHEET = 0;
+      if (wasTour) setTimeout(tourAfter, 0); // what waits behind the welcome tour comes next
       sheetSeq++;
       document.getElementById('sheet-backdrop').classList.remove('show');
       document.body.classList.remove('sheet-open');
@@ -12750,7 +12769,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       m.notes = val('md-notes').slice(0, 500);
       if (isNew) state.meds.push(m);
       syncMedReminder(m);
-      if (m.remind && ('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(p => { if (p === 'granted') ensurePushSubscription(false); });
+      if (m.remind && ('Notification' in window) && Notification.permission === 'default') Notification.requestPermission().then(p => { pushAnswer(p); if (p === 'granted') ensurePushSubscription(false); });
       const dl = medDaysLeft(m), st = medSupplyText(m);
       hxDone(val('hx-back'), isNew ? (dl != null && medNeedsRefill(m) ? (st === 'out' ? '💊 ' + m.name + ' added. You are out, time to refill' : /^about/.test(st) ? '💊 Added — supply lasts ' + st : '💊 Added: ' + st) : '💊 ' + m.name + ' added') : 'Saved 💊');
     }
@@ -15472,9 +15491,12 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
       return '<div class="note">🔔 <b>Enable notifications</b> so we can alert you when a reminder is due — otherwise you won\'t get alerts. ' +
              '<span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="askNotifPermission()">Enable now</span></div>';
     }
+    // What the member told the browser's own prompt (usage counts, see openUsage)
+    function pushAnswer(p) { track('push_on', p === 'granted' ? 'allowed' : p === 'denied' ? 'blocked' : 'dismissed'); }
     function askNotifPermission() {
       if (!('Notification' in window)) { toast('Notifications not supported here'); return; }
       Notification.requestPermission().then(async p => {
+        pushAnswer(p);
         if (p === 'granted') await ensurePushSubscription(true);
         if (state.tab === 'home') openTab('home');
         toast(p === 'granted' ? (PUSH_ACTIVE ? '🔔 Notifications on — they reach you even when Petfi is closed' : '🔔 Notifications enabled!') : 'You can enable them later in browser settings');
@@ -15483,17 +15505,27 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // Right after they set something that only works with alerts on
     function askPushNow() {
       if (!('Notification' in window) || Notification.permission !== 'default') return;
-      Notification.requestPermission().then(p => { if (p === 'granted') ensurePushSubscription(false); if (state.tab === 'home') openTab('home'); });
+      Notification.requestPermission().then(p => { pushAnswer(p); if (p === 'granted') ensurePushSubscription(false); if (state.tab === 'home') openTab('home'); });
     }
-    // After the welcome tour, a short "why" comes first: a "Block" in the
-    // browser's own prompt can't be undone from the app. Asked once.
+    // A short "why" comes first: a "Block" in the browser's own prompt can't be
+    // undone from the app. After the welcome tour for a new member, and a few
+    // seconds into the app for a member this device has never asked. Asked once
+    // per device (alerts are allowed phone by phone), and never on top of
+    // another sheet or while they are typing: then it waits for the next open.
+    function pushAsked() { try { return !!localStorage.getItem('petfi-push-asked'); } catch (e) { return true; } }
     function askPushAfterTour() {
-      if (!('Notification' in window) || !cloudUser || Notification.permission !== 'default' || state.pushAskedAt) return;
+      if (!('Notification' in window) || !cloudUser || Notification.permission !== 'default' || pushAsked()) return false;
+      const ae = document.activeElement;
+      if (!appActive() || document.visibilityState !== 'visible' || document.body.classList.contains('sheet-open') ||
+          (ae && (/^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName) || ae.isContentEditable))) return false;
+      try { localStorage.setItem('petfi-push-asked', String(Date.now())); } catch (e) {}
       state.pushAskedAt = Date.now(); saveState();
+      track('push_on', 'asked');
       openSheet('🔔 Want a heads-up?',
         '<p class="sub" style="margin-bottom:0.8rem;">Petfi can ping you when someone messages you, sends a friend request or finds your pet, and when a dose or vaccine is due — even with the app closed. You choose which ones in Me → Notification settings.</p>' +
         '<button class="btn" onclick="closeSheet();askNotifPermission()">🔔 Turn on notifications</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Not now</button>');
+      return true;
     }
     // Inline, never a pop-up: shown where an alert matters until alerts work
     function pushNote(why) {
@@ -15621,23 +15653,29 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     }
     async function ensurePushSubscription(sendTest) {
       if (!cloud || !cloudUser || !pushSupported() || Notification.permission !== 'granted') { PUSH_ACTIVE = false; return false; }
+      // Where it stopped is counted (fail-sw, fail-sub, fail-keys, fail-save), so a
+      // phone that allows alerts but cannot finish shows up in Usage
+      let step = 'fail-sw';
       try {
-        const reg = await navigator.serviceWorker.ready;
+        // .ready never settles when the service worker did not install: don't wait forever
+        const reg = await Promise.race([navigator.serviceWorker.ready, new Promise((_, no) => setTimeout(() => no(new Error('no service worker')), 10000))]);
+        step = 'fail-sub';
         let sub = await reg.pushManager.getSubscription();
         if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64urlToBytes(VAPID_PUBLIC_KEY) });
         const j = sub.toJSON();
-        if (!j.endpoint || !j.keys) return false;
+        if (!j.endpoint || !j.keys) { track('push_on', 'fail-keys'); return false; }
+        step = 'fail-save';
         const { error } = await cloud.from('petfi_push_subscriptions').upsert({
           user_id: cloudUser.id, endpoint: j.endpoint, p256dh: j.keys.p256dh, auth: j.keys.auth,
           ua: String(navigator.userAgent || '').slice(0, 300), failures: 0,
         }, { onConflict: 'endpoint' });
-        if (error) { console.warn('push subscribe:', error.message); PUSH_ACTIVE = false; return false; }
+        if (error) { console.warn('push subscribe:', error.message); track('push_on', step); PUSH_ACTIVE = false; return false; }
         PUSH_ACTIVE = true;
         track('push_on');
         state.pushSyncedSig = ''; schedulePushSync(0);
         if (sendTest) { try { await cloud.functions.invoke('petfi-push', { method: 'POST', body: { test: true } }); } catch (e) {} }
         return true;
-      } catch (e) { console.warn('push subscribe:', e && e.message); PUSH_ACTIVE = false; return false; }
+      } catch (e) { console.warn('push subscribe:', e && e.message); track('push_on', step); PUSH_ACTIVE = false; return false; }
     }
     // ---- Carer dose reminders (opt-in per team: state.careRemind[teamId]) ----
     // Derived every time from the owner's team card (card.meds[].sched, see
