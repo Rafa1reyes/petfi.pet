@@ -644,6 +644,11 @@
     .hx-pill.ok { background: #e7f6e9; color: #1f7a3d; }
     .hx-pill.warn { background: #fff1d6; color: #8a5a00; }
     .hx-pill.bad { background: #ffe3e3; color: #b42323; }
+    /* "Still working" notes: a spinner next to the words, so a slow lookup never looks broken */
+    .searching { display: flex; align-items: center; gap: 0.6rem; }
+    .spin { width: 18px; height: 18px; flex: 0 0 18px; border-radius: 50%; border: 3px solid var(--line); border-top-color: var(--brand); animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
     /* Farm Stuff */
     .farm-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 0.75rem 0.85rem; margin-bottom: 0.7rem; }
     .farm-top { display: flex; align-items: center; gap: 0.7rem; }
@@ -4525,10 +4530,7 @@
       try {
         // Any park counts — dog parks AND regular parks, just like a real dog sees it
         const q = '[out:json][timeout:20];(nwr["leisure"="dog_park"](around:6000,' + lat + ',' + lon + ');nwr["leisure"="park"](around:6000,' + lat + ',' + lon + '););out center 80;';
-        const data = await (await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent(q),
-        })).json();
+        const data = await overpassJson(q, { lat, lon, kinds: [{ q: 'dog park', km: 6, tag: ['leisure', 'dog_park'] }, { q: 'park', km: 6, tag: ['leisure', 'park'] }] });
         const parks = [];
         (data.elements || []).forEach(el => {
           const t = el.tags || {}; if (!t.name) return;
@@ -4774,7 +4776,7 @@
       }
       const real = state.spots && state.spots.zip === zip && state.spots.feed ? state.spots : null; // no feed list = saved before 1.31.3
       if (state.spotsLoading || (!real && !state.spotsFailed)) {
-        h += '<div class="note">⏳ Looking up real places near ' + esc(zip) + '…</div>';
+        h += searchingHtml('Looking up real places near ' + esc(zip) + '… this can take up to 20 seconds.');
         if (!state.spotsLoading) setTimeout(() => applyZip(zip), 0); // first open: fetch automatically
       } else if (!real) {
         h += '<div class="note">📡 Couldn\'t reach the map service just now. <span class="link" onclick="applyZip()">Try again</span></div>';
@@ -4838,7 +4840,8 @@
         if (!geo) throw new Error('ZIP not found');
         const a = '(around:' + FARM_OSM_M + ',' + geo.lat + ',' + geo.lon + ');';
         const q = '[out:json][timeout:20];(nwr["shop"="farm"]' + a + 'nwr["amenity"="marketplace"]' + a + ');out center 120;';
-        const data = await overpassJson(q);
+        const data = await overpassJson(q, { lat: geo.lat, lon: geo.lon, kinds: [
+          { q: 'farm shop', km: 48, tag: ['shop', 'farm'] }, { q: 'farmers market', km: 48, tag: ['amenity', 'marketplace'] }, { q: 'marketplace', km: 48, tag: ['amenity', 'marketplace'] }] });
         const out = { zip, shops: [], markets: [] };
         (data.elements || []).forEach(el => {
           const t = el.tags || {}; if (!t.name) return;
@@ -4918,7 +4921,7 @@
       if (!zip) {
         h += '<div class="note">Enter your ZIP to see farms near you.</div>';
       } else if (!geo) {
-        h += '<div class="note">⏳ Finding farms near ' + esc(zip) + '…</div>';
+        h += searchingHtml('Finding farms near ' + esc(zip) + '…');
         geocodeZip(zip).then(g => { if (g) farmRerender(); else if (state.tab === 'farm') { const n = document.querySelector('#tab-content .note'); if (n) n.textContent = 'We couldn\'t place that ZIP. Check it and search again.'; } });
       } else {
         if (!FARM_OSM || FARM_OSM.zip !== zip) { if (farmOsmState !== 'failed') setTimeout(() => loadFarmOsm(zip), 0); }
@@ -4935,7 +4938,7 @@
           h += farms.slice(0, farmShown).map(farmRow).join('');
           if (farms.length > farmShown) h += '<button class="btn secondary" onclick="farmMore()">Show more farms (' + (farms.length - farmShown) + ')</button>';
         } else if (farmListState === 'loading' || farmListState === 'idle' || farmOsmState === 'loading') {
-          h += '<div class="note">⏳ Looking up farms near ' + esc(zip) + '…</div>';
+          h += searchingHtml('Looking up farms near ' + esc(zip) + '…');
         } else {
           h += '<div class="note">' + (farmCat === 'all' ? 'We don\'t have a farm listed within ' + FARM_RADIUS_MI + ' miles of ' + esc(zip) + ' yet.' : 'Nothing listed for that near ' + esc(zip) + ' yet. Try “All”.') +
             ' <span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('farm stand near ' + zip) + '\')">Search farm stands on Google Maps</span></div>';
@@ -4944,6 +4947,7 @@
           h += '<div class="sec"><h3>🧺 Farmers markets</h3></div>' +
             FARM_OSM.markets.map(near).sort((a, b) => a._mi - b._mi).slice(0, 6).map(f => farmRow(Object.assign(f, { market: true }))).join('');
         }
+        if (farmOsmState === 'loading') h += searchingHtml('Checking the map for more farm stands and farmers markets…');
         if (farmOsmState === 'failed' && !osmOn) h += '<p class="sub" style="font-size:0.78rem;">📡 The map service didn\'t answer, so mapped farm shops and markets are missing. <span class="link" onclick="farmOsmState=\'idle\';farmRerender()">Try again</span></p>';
         h += '<p class="sub" style="font-size:0.8rem;margin:0.5rem 0 0.2rem;"><span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent('farms that sell to the public near ' + zip) + '\')">See more farms on Google Maps</span></p>';
       }
@@ -5017,7 +5021,9 @@
           'nwr["amenity"="veterinary"](around:16000,' + lat + ',' + lon + ');' +
           FEED_SEL.map(s => s + '(around:32000,' + lat + ',' + lon + ');').join('') +
           ');out center 150;';
-        const data = await overpassJson(q);
+        const data = await overpassJson(q, { lat, lon, kinds: [
+          { q: 'dog park', km: 16, tag: ['leisure', 'dog_park'] }, { q: 'pet shop', km: 16, tag: ['shop', 'pet'] }, { q: 'veterinary', km: 16, tag: ['amenity', 'veterinary'] },
+          { q: 'feed store', km: 32, shop: true }, { q: 'Tractor Supply', km: 32, shop: true, as: { shop: 'country_store' } }] });
         state.spots = groupSpots(data.elements || [], lat, lon, z);
         if (typeof zipArg !== 'string') toast('📍 Real places loaded for ' + z);
       } catch (e) {
@@ -5031,21 +5037,107 @@
     // OpenStreetMap's query service is free and sometimes slow or busy: give each
     // server 9 seconds, then try the next one; the one that answered goes first next time
     let OVERPASS = ['https://overpass-api.de/api/interpreter', 'https://overpass.kumi.systems/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-    async function overpassJson(q) {
-      let last = null;
-      for (const url of OVERPASS.slice()) {
-        const ac = new AbortController(), timer = setTimeout(() => ac.abort(), 9000);
-        try {
-          const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: ac.signal });
-          if (!r.ok) throw new Error('map service ' + r.status);
-          const j = await r.json();
-          if (!j || !Array.isArray(j.elements)) throw new Error('map service answer');
-          OVERPASS = [url].concat(OVERPASS.filter(u => u !== url));
-          return j;
-        } catch (e) { last = e; } finally { clearTimeout(timer); }
-      }
-      throw last || new Error('map service');
+    // Each map answer is kept on this device for a day (the ten newest), so a repeat
+    // lookup is instant and a busy map service still shows the last good answer.
+    const OSM_KEEP = ['name', 'shop', 'amenity', 'leisure', 'agrarian', 'craft', 'website', 'contact:website', 'addr:city', 'produce', 'phone', 'contact:phone'];
+    function osmKey(q) { let h = 5381; for (let i = 0; i < q.length; i++) h = ((h << 5) + h + q.charCodeAt(i)) | 0; return 'q' + (h >>> 0).toString(36) + q.length; }
+    function osmCacheGet(q, maxAgeMs) {
+      try {
+        const hit = JSON.parse(localStorage.getItem('petfi_osm') || '{}')[osmKey(q)];
+        return hit && Date.now() - hit.t < maxAgeMs && Array.isArray(hit.e) ? { elements: hit.e, cached: true } : null;
+      } catch (e) { return null; }
     }
+    function osmCachePut(q, j) {
+      try {
+        const e = (j.elements || []).map(el => {
+          const t = el.tags || {}, tags = {};
+          OSM_KEEP.forEach(k => { if (t[k] != null) tags[k] = String(t[k]).slice(0, 200); });
+          return { lat: el.lat != null ? el.lat : (el.center && el.center.lat), lon: el.lon != null ? el.lon : (el.center && el.center.lon), tags };
+        }).filter(el => el.lat != null && el.tags.name);
+        const all = JSON.parse(localStorage.getItem('petfi_osm') || '{}');
+        // "Nothing found" is only trusted for an hour
+        all[osmKey(q)] = { t: e.length ? Date.now() : Date.now() - 23 * 3600000, e };
+        Object.keys(all).sort((x, y) => all[y].t - all[x].t).slice(10).forEach(k => delete all[k]);
+        localStorage.setItem('petfi_osm', JSON.stringify(all));
+      } catch (e) {}
+    }
+    // Overpass: the server that answered last time goes first; the others start 2.5
+    // and 5 seconds later if nothing has come back. The first good answer wins.
+    async function overpassRace(q) {
+      const acs = [];
+      const ask = (url, wait) => new Promise((resolve, reject) => {
+        const timer = setTimeout(async () => {
+          const ac = new AbortController(); acs.push(ac);
+          const kill = setTimeout(() => ac.abort(), 20000);
+          try {
+            const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: 'data=' + encodeURIComponent(q), signal: ac.signal });
+            if (!r.ok) throw new Error('map service ' + r.status);
+            const j = await r.json();
+            if (!j || !Array.isArray(j.elements)) throw new Error('map service answer');
+            OVERPASS = [url].concat(OVERPASS.filter(u => u !== url));
+            resolve(j);
+          } catch (e) { reject(e); } finally { clearTimeout(kill); }
+        }, wait);
+        acs.push({ abort: () => clearTimeout(timer) });
+      });
+      try { return await Promise.any(OVERPASS.slice().map((u, i) => ask(u, i * 2500))); }
+      catch (e) { throw new Error('map service'); }
+      finally { acs.forEach(x => { try { x.abort(); } catch (e) {} }); }
+    }
+    // Nominatim: one search per kind of place inside a box around the point, at most
+    // one request a second (its usage rule). alt = { lat, lon, kinds: [{ q, km,
+    // tag: [key, value] to require, shop: true for "any shop", name: /regex/, as: tags }] }
+    let nomNextAt = 0;
+    async function nominatimPlaces(alt) {
+      const out = [], seen = {};
+      let answered = 0;
+      for (const k of alt.kinds) {
+        const km = k.km || 16, dLat = km / 111, dLon = km / (111 * Math.max(0.2, Math.cos(alt.lat * Math.PI / 180)));
+        const box = [alt.lon - dLon, alt.lat + dLat, alt.lon + dLon, alt.lat - dLat].map(n => n.toFixed(5)).join(',');
+        const wait = nomNextAt - Date.now(); nomNextAt = Math.max(Date.now(), nomNextAt) + 1100;
+        if (wait > 0) await new Promise(r => setTimeout(r, wait));
+        try {
+          const r = await fetch('https://nominatim.openstreetmap.org/search?format=jsonv2&limit=40&bounded=1&addressdetails=1&viewbox=' + box + '&q=' + encodeURIComponent(k.q));
+          if (!r.ok) continue;
+          const rows = await r.json();
+          if (!Array.isArray(rows)) continue;
+          answered++;
+          rows.forEach(x => {
+            if (!x.name || !isFinite(+x.lat)) return;
+            if (k.tag && !(x.category === k.tag[0] && x.type === k.tag[1])) return;
+            if (k.shop && x.category !== 'shop') return;
+            if (k.name && !k.name.test(x.name)) return;
+            if (haversineMi(alt.lat, alt.lon, +x.lat, +x.lon) > km * 0.62 * 1.15) return;
+            const id = x.name.toLowerCase() + '|' + (+x.lat).toFixed(3) + '|' + (+x.lon).toFixed(3);
+            if (seen[id]) return; seen[id] = 1;
+            const ad = x.address || {}, tags = Object.assign({ name: x.name }, k.as || { [x.category]: x.type });
+            const city = ad.city || ad.town || ad.village || ad.hamlet; if (city) tags['addr:city'] = city;
+            out.push({ lat: +x.lat, lon: +x.lon, tags });
+          });
+        } catch (e) {}
+      }
+      if (!answered) throw new Error('place search');
+      return { elements: out, partial: true };
+    }
+    // The one door for every map lookup. q = the Overpass query; alt (optional) lets
+    // Nominatim answer when Overpass is slow or down.
+    async function overpassJson(q, alt) {
+      const fresh = osmCacheGet(q, 24 * 3600000);
+      if (fresh) return fresh;
+      const over = overpassRace(q);
+      over.catch(() => {});
+      let res = null;
+      if (alt) {
+        const first = await Promise.race([over.then(j => j, () => 'failed'), new Promise(r => setTimeout(() => r(null), 3500))]);
+        if (first && first !== 'failed') res = first;
+        else res = await Promise.any([over, nominatimPlaces(alt)]).catch(() => null); // slow or down: the first of the two to answer
+      } else res = await over.catch(() => null);
+      if (res) { osmCachePut(q, res); return res; }
+      const stale = osmCacheGet(q, Infinity);
+      if (stale) return stale;
+      throw new Error('map service');
+    }
+    function searchingHtml(text) { return '<div class="note searching" role="status"><span class="spin" aria-hidden="true"></span><span>' + text + '</span></div>'; }
     function haversineMi(lat1, lon1, lat2, lon2) {
       const R = 3958.8, toR = x => x * Math.PI / 180;
       const dLat = toR(lat2 - lat1), dLon = toR(lon2 - lon1);
@@ -5220,13 +5312,14 @@
     function directBrandFor(name) { return DIRECT_BRANDS.find(b => b.re.test(String(name || '')) && affOn(b.key)) || null; }
     // What kind of place is the user after? Maps words → map categories.
     const PLACE_TYPES = [
-      { re: /groom|wash|bath|spa/i,                    icon: '🛁', sel: ['nwr["shop"="pet_grooming"]', 'nwr["amenity"="dog_wash"]'] },
-      { re: /vet|clinic|hospital|emergenc/i,           icon: '🏥', sel: ['nwr["amenity"="veterinary"]'] },
-      { re: /park|run|trail|beach/i,                   icon: '🌳', sel: ['nwr["leisure"="dog_park"]'] },
-      { re: /board|kennel|daycare|day care|sitter|hotel/i, icon: '🏨', sel: ['nwr["amenity"="animal_boarding"]'] },
-      { re: /shelter|adopt|rescue|pound/i,             icon: '🐾', sel: ['nwr["amenity"="animal_shelter"]'] },
-      { re: /feed|hay\b|tack|livestock|farm suppl|tractor/i, icon: '🌾', sel: FEED_SEL },
-      { re: /store|shop|suppl|food|treat|toy/i,        icon: '🛒', sel: ['nwr["shop"="pet"]'] },
+      { re: /groom|wash|bath|spa/i,                    icon: '🛁', sel: ['nwr["shop"="pet_grooming"]', 'nwr["amenity"="dog_wash"]', 'nwr["shop"]["name"~"groom",i]'],
+        nom: [{ q: 'pet grooming', tag: ['shop', 'pet_grooming'] }, { q: 'grooming', shop: true, name: /groom/i, as: { shop: 'pet_grooming' } }, { q: 'dog wash', name: /wash|groom/i, as: { amenity: 'dog_wash' } }] },
+      { re: /vet|clinic|hospital|emergenc/i,           icon: '🏥', sel: ['nwr["amenity"="veterinary"]'], nom: [{ q: 'veterinary', tag: ['amenity', 'veterinary'] }] },
+      { re: /park|run|trail|beach/i,                   icon: '🌳', sel: ['nwr["leisure"="dog_park"]'], nom: [{ q: 'dog park', tag: ['leisure', 'dog_park'] }] },
+      { re: /board|kennel|daycare|day care|sitter|hotel/i, icon: '🏨', sel: ['nwr["amenity"="animal_boarding"]'], nom: [{ q: 'animal boarding', tag: ['amenity', 'animal_boarding'] }, { q: 'kennel', name: /kennel|board|daycare|pet (hotel|resort)/i, as: { amenity: 'animal_boarding' } }] },
+      { re: /shelter|adopt|rescue|pound/i,             icon: '🐾', sel: ['nwr["amenity"="animal_shelter"]'], nom: [{ q: 'animal shelter', tag: ['amenity', 'animal_shelter'] }] },
+      { re: /feed|hay\b|tack|livestock|farm suppl|tractor/i, icon: '🌾', sel: FEED_SEL, nom: [{ q: 'feed store', km: 32, shop: true }, { q: 'Tractor Supply', km: 32, shop: true, as: { shop: 'country_store' } }] },
+      { re: /store|shop|suppl|food|treat|toy/i,        icon: '🛒', sel: ['nwr["shop"="pet"]'], nom: [{ q: 'pet shop', tag: ['shop', 'pet'] }] },
     ];
 
     function openSearch(prefill) {
@@ -5238,7 +5331,7 @@
           '<button class="pill-btn" onclick="runSearch()">Search</button></div>' +
         '<div class="chips" style="margin:0.7rem -1.3rem 0.3rem;padding:0 1.3rem;">' +
           chips.map(s => '<div class="chip" onclick="document.getElementById(\'search-q\').value=\'' + esc(s).replace(/'/g, '') + '\';runSearch()">' + esc(s) + '</div>').join('') + '</div>' +
-        '<div id="assist-box"></div>' +
+        '<div id="ai-answer"></div>' +
         '<div id="search-results"><p class="sub" style="font-size:0.82rem;margin-top:0.6rem;">Products, groomers, vets, parks, boarding, shelters — pet results only, zero ads.</p></div>');
       if (prefill) runSearch();
       else setTimeout(() => { const e = document.getElementById('search-q'); if (e) e.focus(); }, 250);
@@ -5250,7 +5343,7 @@
     // add my pet?") gets a written answer above the results, with buttons that
     // take the member there. Answers come from the petfi-assistant function; the
     // assistant never does anything by itself, the member taps.
-    const ASSIST = { ready: null, history: [], busy: false, actions: [] };
+    const ASSIST = { ready: null, history: [], busy: false, actions: [], cands: [], picks: [] };
     const ASSIST_SCREENS = {
       help: () => openHelp(), ask_developer: () => openAskDev(), add_pet: () => openAddPet(), my_care: () => setHomeTab('care'),
       sell: () => openSell(), offer_service: () => openOfferService(), verify: () => startVerify(), login_pin: () => openPinSettings(),
@@ -5276,49 +5369,94 @@
       return { account: state.accountType === 'org' ? (iAmFarm() ? 'farm' : 'organization') : 'pet owner', verified: !!state.verified, area: geo && geo.area ? geo.area : '', pets, lang: langIsEs() ? 'es' : 'en' };
     }
     async function assistIntro() {
-      const box = document.getElementById('assist-box');
+      const box = document.getElementById('ai-answer');
       if (!box || !(await assistReady())) return;
-      if (!document.getElementById('assist-box') || document.getElementById('assist-box').innerHTML) return;
+      if (!document.getElementById('ai-answer') || document.getElementById('ai-answer').innerHTML) return;
       box.innerHTML = '<p class="sub" style="font-size:0.82rem;margin:0.5rem 0 0;">✨ You can also ask a question, like “what should I feed a puppy?” or “how do I add my pet?”</p>';
     }
     // Called by every search: answer questions, offer to answer the rest
     async function assistOnSearch(q) {
-      const box = document.getElementById('assist-box');
+      const box = document.getElementById('ai-answer');
       if (!box) return;
       box.innerHTML = '';
       if (!(await assistReady())) return;
-      if (assistIsQuestion(q)) { askAssistant(q); return; }
+      if (assistIsQuestion(q) || q.trim().split(/\s+/).length >= 3) { askAssistant(q); return; } // anything longer than a product name gets an answer
       if (val('search-q') !== q) return;
       box.innerHTML = '<div class="link" style="font-size:0.85rem;font-weight:700;margin:0.6rem 0 0.2rem;" role="button" tabindex="0" onclick="askAssistant(val(\'search-q\'))">✨ Ask the Petfi assistant about this</div>';
     }
+    // What the wait looks like: the words change as time passes, so a researched
+    // answer (which can take most of a minute) never looks stuck
+    const ASSIST_STEPS = [[0, 'Reading your question…'], [4, 'Looking it up in trusted pet-care sources…'],
+      [16, 'Still working: checking a few sources so the answer is right. This can take up to a minute.'], [45, 'Almost there, writing it up…'], [80, 'This one is taking longer than usual. Still working…']];
     async function askAssistant(q) {
       q = String(q || '').trim().slice(0, 500);
-      const box = document.getElementById('assist-box');
+      const box = document.getElementById('ai-answer');
       if (!box || q.length < 2 || ASSIST.busy) return;
       ASSIST.busy = true;
-      box.innerHTML = '<div class="hx-card" style="margin:0.7rem 0 0.4rem;"><b>✨ Petfi assistant</b><p class="sub" style="margin:0.3rem 0 0;">Thinking…</p></div>';
-      track('assistant_ask');
-      const r = await fnCall('petfi-assistant', 'ask', { q, history: ASSIST.history.slice(-6), ctx: assistCtx() });
-      ASSIST.busy = false;
-      const now = document.getElementById('assist-box');
-      if (!now) return;
       const card = inner => '<div class="hx-card" style="margin:0.7rem 0 0.4rem;text-align:left;"><b>✨ Petfi assistant</b>' + inner + '</div>';
+      box.innerHTML = card('<div class="searching" style="margin-top:0.4rem;color:var(--muted);font-size:0.9rem;" role="status"><span class="spin" aria-hidden="true"></span><span id="ai-progress">' + ASSIST_STEPS[0][1] + '</span></div>');
+      const t0 = Date.now();
+      const ticker = setInterval(() => {
+        const el = document.getElementById('ai-progress'); if (!el) return;
+        const sec = (Date.now() - t0) / 1000, step = ASSIST_STEPS.filter(x => sec >= x[0]).pop();
+        if (step && el.textContent !== step[1]) el.textContent = step[1];
+      }, 1000);
+      track('assistant_ask');
+      // The store items that match the question go along, so the assistant can say which ones fit
+      ensureCatalog();
+      for (let w = 0; w < 30 && catalogState === 'loading'; w++) await new Promise(r => setTimeout(r, 100));
+      STORE_VIEW = LISTINGS.concat(LOCAL_LISTINGS, AFFILIATE_PRODUCTS);
+      const found = searchProducts(q, 40);
+      ASSIST.cands = (found.intent.species.length || found.intent.kinds.length) ? found.items : [];
+      const ctx = assistCtx();
+      if (SEARCH_PLACES && SEARCH_PLACES.q === q && SEARCH_PLACES.names.length) ctx.places = SEARCH_PLACES.names;
+      const r = await fnCall('petfi-assistant', 'ask', { q, history: ASSIST.history.slice(-6), ctx,
+        products: ASSIST.cands.map((x, i) => ({ id: i, title: String(x.title || '').slice(0, 140) })) });
+      clearInterval(ticker);
+      ASSIST.busy = false;
+      const now = document.getElementById('ai-answer');
+      if (!now || val('search-q').trim().slice(0, 500) !== q) return; // they searched for something else meanwhile
       if (r && r.ready === false) { ASSIST.ready = false; now.innerHTML = ''; return; }
       if (!r || r.error || r.declined || !r.answer) {
         now.innerHTML = card('<p class="sub" style="margin:0.3rem 0 0;">' + (r && r.error === 'daily_limit' ? 'You\'ve reached today\'s limit of questions. It resets tomorrow; the search results below still work.'
           : r && r.declined ? 'I can only help with pets, animals and using Petfi. Try asking it another way.'
-          : 'I couldn\'t answer just now. Try again in a moment, or use the results below.') + '</p>');
+          : 'I couldn\'t answer just now. <span class="link" onclick="askAssistant(val(\'search-q\'))">Try again</span>, or use the results below.') + '</p>');
         return;
       }
       ASSIST.history.push({ role: 'user', text: q }, { role: 'assistant', text: r.answer });
       ASSIST.history = ASSIST.history.slice(-6);
       ASSIST.actions = (Array.isArray(r.actions) ? r.actions : []).filter(a => a &&
-        ((a.kind === 'open_tab' && ASSIST_TABS.indexOf(a.value) >= 0) || (a.kind === 'open_screen' && ASSIST_SCREENS[a.value]) || (a.kind === 'search' && String(a.value || '').trim().length > 1))).slice(0, 3);
+        ((a.kind === 'open_tab' && ASSIST_TABS.indexOf(a.value) >= 0) || (a.kind === 'open_screen' && ASSIST_SCREENS[a.value]) ||
+         (a.kind === 'search' && String(a.value || '').trim().length > 1 && String(a.value).trim().toLowerCase() !== q.toLowerCase()))).slice(0, 3);
+      ASSIST.picks = (Array.isArray(r.picks) ? r.picks : []).filter(x => x && ASSIST.cands[x.id]).slice(0, 5);
+      const sources = (Array.isArray(r.sources) ? r.sources : []).filter(x => x && /^https:\/\//.test(String(x.url || ''))).slice(0, 4);
+      const host = u => { try { return new URL(u).hostname.replace(/^www\./, ''); } catch (e) { return ''; } };
+      const pickRow = (x, i) => {
+        const pr = ASSIST.cands[x.id], ph = pr.affiliate ? [] : safePhotos(pr.photos), az = pr.affiliate ? (pr.imgUrl || amazonImg(pr.img, 160)) : '';
+        return '<div class="row" style="cursor:pointer;margin-bottom:0.5rem;" role="button" tabindex="0" onclick="assistPick(' + i + ')">' +
+          '<div class="ricon"' + (az ? ' style="background:#fff;"' : '') + '>' + (ph.length ? '<img src="' + esc(ph[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : az ? '<img src="' + esc(az) + '" alt="" style="width:100%;height:100%;object-fit:contain;">' : '🛒') + '</div>' +
+          '<div class="rmain"><div class="rtitle">' + esc(pr.title) + '</div>' + (x.why ? '<div class="rmeta" style="color:var(--ink);">✓ ' + esc(String(x.why).slice(0, 110)) + '</div>' : '') + '</div>' +
+          '<div class="raction"><span class="fl">View ›</span></div></div>';
+      };
+      const fi = found.intent;
       now.innerHTML = card(
         '<p style="white-space:pre-wrap;margin:0.4rem 0 0;font-size:0.95rem;line-height:1.45;">' + esc(r.answer) + '</p>' +
-        (ASSIST.actions.length ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;">' +
+        (ASSIST.picks.length ? '<div style="font-weight:800;font-size:0.9rem;margin:0.8rem 0 0.4rem;">🛒 Good fits in the Petfi store</div>' + ASSIST.picks.map(pickRow).join('') +
+          ((fi.species.length || fi.kinds.length) ? '<span class="link" style="font-size:0.82rem;" onclick="searchSeeAll(\'' + jsStr(fi.species[0] || '') + '\',\'' + jsStr(fi.kinds[0] || '') + '\')">See everything in ' + esc([fi.species[0], fi.kinds[0]].filter(Boolean).join(' · ')) + ' ›</span>' : '') : '') +
+        (ASSIST.actions.length ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.7rem;">' +
           ASSIST.actions.map((a, i) => '<button class="pill-btn' + (i ? ' ghost' : '') + '" onclick="assistAct(' + i + ')">' + esc(String(a.label || 'Open').slice(0, 40)) + '</button>').join('') + '</div>' : '') +
-        '<p class="sub" style="font-size:0.72rem;margin:0.6rem 0 0;">Written by AI, so it can be wrong. For a sick or injured animal, call a vet.</p>');
+        (sources.length ? '<p class="sub" style="font-size:0.74rem;margin:0.7rem 0 0;">Checked: ' + sources.map(x => '<span class="link" onclick="openLink(\'' + jsStr(x.url) + '\')">' + esc(host(x.url) || 'source') + '</span>').join(', ') + '</p>' : '') +
+        '<p class="sub" style="font-size:0.72rem;margin:0.5rem 0 0;">Written by AI' + (sources.length ? ' after checking the sources above' : '') + ', so it can be wrong, and every animal is different. For a sick or injured animal, call a vet.</p>');
+      // The assistant's picks replace the plain "most popular" list, so the page never
+      // shows a product next to an answer that says to avoid it
+      if (ASSIST.picks.length) { const sp = document.getElementById('search-products'); if (sp) sp.innerHTML = ''; }
+    }
+    function assistPick(i) {
+      const x = ASSIST.picks[i], pr = x && ASSIST.cands[x.id]; if (!pr) return;
+      track('assistant_tap', 'pick');
+      let k = STORE_VIEW.indexOf(pr);
+      if (k < 0) { STORE_VIEW.push(pr); k = STORE_VIEW.length - 1; }
+      openProductDetail(k);
     }
     function assistAct(i) {
       const a = ASSIST.actions[i]; if (!a) return;
@@ -5329,6 +5467,86 @@
       else if (ASSIST_SCREENS[a.value]) ASSIST_SCREENS[a.value]();
     }
 
+    // Which animal and which kind of product a search is about. "best food for a
+    // german shepherd" is Dog + Food, so only dog food may come back, best sellers
+    // first; the leftover words ("orthopedic", "grain free") rank inside that.
+    const SEARCH_STOP = new Set(['best', 'good', 'great', 'top', 'highest', 'rated', 'rating', 'most', 'popular', 'recommended', 'recommend', 'for', 'the', 'and', 'with', 'what', 'which', 'should', 'buy', 'get', 'need', 'want', 'cheap', 'cheapest', 'affordable', 'healthy', 'healthiest', 'quality', 'pet', 'pets', 'your', 'our', 'that', 'this', 'are', 'can', 'how', 'does', 'have', 'year', 'old', 'months', 'month', 'size', 'breed', 'breeds', 'kind', 'type', 'brand', 'brands']);
+    const SEARCH_SPECIES = [
+      ['Dog', /\b(dogs?|doggy|pupp(y|ies)|pups?|canine|k9|shepherds?|german|gsd|pit ?bulls?|pitt?ies?|terriers?|labradors?|labs?|retrievers?|goldens?|bulldogs?|frenchies?|husk(y|ies)|chihuahuas?|beagles?|dachshunds?|corgis?|boxers?|dobermans?|mastiffs?|collies?|pugs?|shih ?tzus?|yorkies?|maltese|pomeranians?|great danes?|rottweilers?|rotties?|poodles?|doodles?|heelers?|aussies?|malinois|akitas?|spaniels?|pointers?|setters?|hounds?|schnauzers?|pinschers?|bernese|newfoundlands?|samoyeds?|greyhounds?|whippets?|cane corsos?|bull(y|ies)|mutts?)\b/i],
+      ['Cat', /\b(cats?|kittens?|kitt(y|ies)|feline|siamese|persians?|maine coons?|ragdolls?|bengals?|sphynx|tabb(y|ies))\b/i],
+      ['Bird', /\b(birds?|parrots?|parakeets?|budgies?|cockatiels?|finch(es)?|canar(y|ies)|conures?|macaws?|lovebirds?)\b/i],
+      ['Small Pets', /\b(rabbits?|bunn(y|ies)|hamsters?|guinea pigs?|gerbils?|ferrets?|chinchillas?|rats?|mice|mouse|hedgehogs?)\b/i],
+      ['Reptile', /\b(reptiles?|lizards?|geckos?|bearded dragons?|snakes?|turtles?|tortoises?|iguanas?|chameleons?)\b/i],
+      ['Aquatic', /\b(fish|aquariums?|bettas?|goldfish|koi)\b/i],
+      ['Horse', /\b(horses?|pony|ponies|equine|foals?|mares?|geldings?)\b/i],
+      ['Farm', /\b(chickens?|hens?|chicks?|roosters?|goats?|sheep|lambs?|cattle|cows?|calves|calf|pigs?|hogs?|ducks?|turkeys?|alpacas?|llamas?|livestock|poultry)\b/i],
+    ];
+    const SEARCH_KINDS = [
+      ['Food', /\b(food|foods|kibble|diet|feed|wet food|dry food|canned)\b/i],
+      ['Treats', /\b(treats?|chews?|bones?|jerky|biscuits?)\b/i],
+      ['Toys', /\b(toys?|balls?|squeak\w*|frisbees?|tug)\b/i],
+      ['Beds & Crates', /\b(beds?|crates?|kennels?|mats?|blankets?)\b/i],
+      ['Walk & Travel', /\b(leash(es)?|collars?|harness(es)?|carriers?|strollers?|muzzles?)\b/i],
+      ['Litter', /\b(litter|litter ?box(es)?)\b/i],
+      ['Grooming', /\b(shampoos?|brush(es)?|clippers?|nail|deshedding|conditioner|wipes)\b/i],
+      ['Health', /\b(fleas?|ticks?|vitamins?|supplements?|dewormers?|probiotics?|joint|dental|calming|allerg\w*)\b/i],
+      ['Feeding', /\b(bowls?|feeders?|fountains?|waterers?)\b/i],
+      ['Habitat', /\b(cages?|tanks?|hutch(es)?|coops?|terrariums?|enclosures?|perch(es)?)\b/i],
+      ['Training', /\b(training|pee pads?|potty|clickers?)\b/i],
+      ['DNA', /\b(dna)\b/i],
+    ];
+    function searchIntent(q) {
+      const sp = SEARCH_SPECIES.filter(x => x[1].test(q)), kinds = SEARCH_KINDS.filter(x => x[1].test(q));
+      // The words left after the animal, the kind and the filler are taken out
+      const words = searchTokens(q).filter(w => !SEARCH_STOP.has(w) && !sp.some(x => x[1].test(w)) && !kinds.some(x => x[1].test(w)));
+      return { species: sp.map(x => x[0]), kinds: kinds.map(x => x[0]), words };
+    }
+    // Up to `max` store items that are really about the search, best match first
+    // (ties keep the catalog's order, which is most popular first)
+    function searchProducts(q, max) {
+      const it = searchIntent(q), all = searchTokens(q).filter(w => !SEARCH_STOP.has(w));
+      const pool = STORE_VIEW.filter(p => p.cat !== 'Services');
+      const text = p => (p.title + ' ' + (p.cats ? p.cats.join(' ') : p.cat) + ' ' + (p.q || '')).toLowerCase();
+      const scored = [];
+      pool.forEach((p, idx) => {
+        const t = text(p);
+        let n;
+        if (p.cats && (it.species.length || it.kinds.length)) {
+          if (it.species.length && !it.species.some(s => p.cats.indexOf(s) >= 0)) return;
+          if (it.kinds.length && !it.kinds.some(k => p.cats.indexOf(k) >= 0)) return;
+          n = it.words.filter(w => t.indexOf(w) >= 0).length;
+          if (it.words.length && !n && !(it.species.length && it.kinds.length)) return; // "orthopedic dog bed": the extra word must count unless animal + kind already pin it down
+        } else {
+          // Member listings and searches with no animal or kind: plain word matching
+          n = all.filter(w => t.indexOf(w) >= 0).length;
+          if (!n || n < Math.min(2, all.length)) return;
+        }
+        scored.push({ p, n, idx });
+      });
+      // Big dog, small dog, puppy, kitten, senior: prefer what fits, drop what clearly doesn't
+      const big = /\b(large|big|giant|shepherds?|german|gsd|labradors?|labs?|retrievers?|goldens?|husk(y|ies)|rottweilers?|rotties?|mastiffs?|great danes?|dobermans?|boxers?|pit ?bulls?|malinois|bernese|akitas?|cane corsos?|newfoundlands?|greyhounds?)\b/i.test(q);
+      const small = /\b(small|tiny|toy|mini|chihuahuas?|yorkies?|pomeranians?|maltese|shih ?tzus?|pugs?|dachshunds?|frenchies?)\b/i.test(q);
+      const young = /\b(pupp(y|ies)|pups?|kittens?)\b/i.test(q), senior = /\b(senior|older|elderly|aging)\b/i.test(q);
+      const fit = scored.filter(x => {
+        const t = x.p.title.toLowerCase();
+        if (big && !small && /\b(small|mini|toy) (breeds?|dogs?|&|and)|small & mini/.test(t)) return false;
+        if (small && !big && /\b(large|giant) breeds?\b/.test(t)) return false;
+        if (!young && /\b(puppy|kitten)\b/.test(t)) return false;
+        if (big && /\blarge\b/.test(t)) x.n += 1;
+        if (small && /\b(small|mini|toy)\b/.test(t)) x.n += 1;
+        if (young && /\b(puppy|kitten)\b/.test(t)) x.n += 2;
+        if (senior && /\b(senior|mature|7\+|11\+)\b/.test(t)) x.n += 2;
+        return true;
+      });
+      const use = fit.length ? fit : scored;
+      use.sort((a, b) => (b.n - a.n) || (a.idx - b.idx));
+      return { items: use.slice(0, max).map(x => x.p), intent: it };
+    }
+    function searchSeeAll(sp, kind) {
+      if (STORE_CATS.indexOf(sp) >= 0) state.storeCat = sp;
+      state.storeType = STORE_TYPES.indexOf(kind) >= 0 ? kind : 'Any';
+      storeShown = 0; closeSheet(); openTab('store');
+    }
     function searchTokens(q) {
       return q.toLowerCase().replace(/near me|nearby|nearest|closest|around|near|\b\d{5}\b/g, ' ')
         .split(/[^a-z0-9]+/).filter(w => w.length > 2);
@@ -5336,15 +5554,20 @@
 
     async function runSearch(fromAssistant) {
       const q = val('search-q'); if (!q) return;
-      if (fromAssistant !== true) assistOnSearch(q); // a question gets a written answer above the results
+      // The assistant writes an answer above the results. It waits a moment for the
+      // place lookup, so it can name the places Petfi's map found.
+      SEARCH_PLACES = null;
+      if (fromAssistant !== true) { const ab = document.getElementById('ai-answer'); if (ab) ab.innerHTML = ''; setTimeout(() => { if (val('search-q') === q) assistOnSearch(q); }, /near me|nearby|nearest|closest|\b\d{5}\b/i.test(q) || PLACE_TYPES.some(t => t.icon !== '🛒' && t.re.test(q)) ? 4000 : 0); }
       state.searches = [q].concat((state.searches || []).filter(s => s !== q)).slice(0, 5);
       saveState();
       const box = document.getElementById('search-results'); if (!box) return;
-      box.innerHTML = '<div class="note">⏳ Fetching pet-only results…</div>';
+      box.innerHTML = searchingHtml('Searching…');
+      let placesJob = null;
 
       const zipInQ = (q.match(/\b(\d{5})\b/) || [])[1];
       const near = /near me|nearby|nearest|closest|around|near/i.test(q) || !!zipInQ;
-      const types = PLACE_TYPES.filter(t => t.re.test(q));
+      let types = PLACE_TYPES.filter(t => t.re.test(q));
+      if (types.length > 1) types = types.filter(t => t.icon !== '🛒'); // "feed store" means feed stores, not every pet shop
       const tokens = searchTokens(q);
       let h = '';
 
@@ -5361,19 +5584,22 @@
         } else {
           // Known category → search that category. Unknown words → search
           // every pet place and match the words against the NAMES.
-          h += await searchPlaces(zip, types.length ? types : PLACE_TYPES, tokens, types.length === 0);
+          h += '<div id="search-places"><div class="sec"><h3>📍 Near ' + esc(zip) + '</h3></div>' + searchingHtml('Looking for places near ' + esc(zip) + '… this can take a few seconds.') + '</div>';
+          placesJob = () => searchPlaces(zip, types.length ? types : PLACE_TYPES, tokens, types.length === 0, q);
         }
       }
 
       // 2) Petfi store — second, and only genuinely RELATED items:
       // with 2+ search words an item must match at least 2 of them.
-      const minHits = Math.min(2, tokens.length);
-      ensureCatalog(); // the catalog joins the results once it has loaded
+      ensureCatalog(); // first search of a visit: give the catalog up to 3 seconds to arrive
+      for (let w = 0; w < 30 && catalogState === 'loading'; w++) await new Promise(r => setTimeout(r, 100));
       STORE_VIEW = LISTINGS.concat(LOCAL_LISTINGS, AFFILIATE_PRODUCTS);
-      const hits = STORE_VIEW.map(p => ({ p, n: tokens.filter(t => (p.title + ' ' + (p.cats ? p.cats.join(' ') : p.cat) + ' ' + (p.q || '')).toLowerCase().indexOf(t) >= 0).length }))
-        .filter(x => x.n >= minHits && x.n > 0).sort((a, b) => b.n - a.n).slice(0, 5);
+      const found = searchProducts(q, 6), fi = found.intent;
+      const hits = found.items.map(x => ({ p: x }));
       if (hits.length) {
-        h += '<div class="sec"><h3>🛒 In the Petfi store</h3></div>';
+        const about = [fi.species[0], fi.kinds[0]].filter(Boolean).join(' · ');
+        h += '<div id="search-products"><div class="sec"><h3>🛒 In the Petfi store</h3>' + (fi.species.length || fi.kinds.length ? '<span class="link" onclick="searchSeeAll(\'' + jsStr(fi.species[0] || '') + '\',\'' + jsStr(fi.kinds[0] || '') + '\')">See all ›</span>' : '') + '</div>' +
+          (about ? '<p class="sub" style="font-size:0.78rem;margin:-0.2rem 0 0.5rem;">' + esc(about) + ', most popular first.</p>' : '');
         h += hits.map(x => {
           const i = STORE_VIEW.indexOf(x.p);
           const go = 'openProductDetail(' + i + ')';
@@ -5383,7 +5609,7 @@
             '<div class="ricon"' + (az ? ' style="background:#fff;"' : '') + '>' + (ph.length ? '<img src="' + esc(ph[0]) + '" alt="" style="width:100%;height:100%;object-fit:cover;">' : az ? '<img src="' + esc(az) + '" alt="" style="width:100%;height:100%;object-fit:contain;">' : esc(x.p.affiliate ? x.p.emo : '🐾')) + '</div>' +
             '<div class="rmain"><div class="rtitle">' + esc(x.p.title) + '</div><div class="rmeta">' + esc(x.p.price) + ' · ' + esc(x.p.seller) + '</div></div>' +
             '<div class="raction"><span class="fl">View ›</span></div></div>';
-        }).join('');
+        }).join('') + '</div>';
       }
 
       // 3) Clean links into the big pet shops (affiliate tags slot in later)
@@ -5399,6 +5625,11 @@
         '<p class="sub" style="font-size:0.82rem;margin-top:0.5rem;">🔎 Want it in the Petfi store? <span class="link" onclick="openStoreRequest(\'' + jsStr(q.slice(0, 120)) + '\')">Ask us to add it</span></p>';
 
       box.innerHTML = h;
+      if (placesJob) {
+        const html = await placesJob();
+        const el = document.getElementById('search-places');
+        if (el && val('search-q') === q) el.innerHTML = html;
+      }
     }
     function searchZipGo() {
       const z = val('search-zip');
@@ -5407,20 +5638,24 @@
     }
 
     const GEO_CACHE = {}; // zip → coords, so we geocode each ZIP only once
-    async function searchPlaces(zip, types, tokens, nameFilter) {
+    // What the last place lookup found, for the assistant: { q, zip, names: ['Name (1.2 mi)'] }
+    let SEARCH_PLACES = null;
+    // Petfi's map has no star ratings, so every place list links to Google Maps for them
+    function mapsRatingsLink(q, zip, text) {
+      const words = String(q || '').replace(/\b\d{5}\b/g, '').replace(/near me|nearby/gi, '').trim() || 'pet services';
+      return '<p class="sub" style="font-size:0.82rem;margin:0.3rem 0 0.2rem;">⭐ <span class="link" onclick="openLink(\'https://www.google.com/maps/search/' + encodeURIComponent(words + ' near ' + zip) + '\')">' + text + '</span></p>';
+    }
+    async function searchPlaces(zip, types, tokens, nameFilter, q) {
+      SEARCH_PLACES = { q, zip, names: [] };
       try {
-        if (!GEO_CACHE[zip]) {
-          const geo = await (await fetch('https://nominatim.openstreetmap.org/search?postalcode=' + zip + '&country=USA&format=json&limit=1')).json();
-          if (!geo.length) throw new Error('zip not found');
-          GEO_CACHE[zip] = { lat: +geo[0].lat, lon: +geo[0].lon };
-        }
-        const lat = GEO_CACHE[zip].lat, lon = GEO_CACHE[zip].lon;
+        const geo = await geocodeZip(zip);
+        if (!geo) return '<div class="sec"><h3>📍 Near you</h3></div><div class="note">We couldn\'t place the ZIP code ' + esc(zip) + '. Check it under Nearby and search again.</div>';
+        const lat = geo.lat, lon = geo.lon;
         const sels = [];
         types.forEach(t => t.sel.forEach(s => sels.push(s + '(around:16000,' + lat + ',' + lon + ');')));
-        const data = await (await fetch('https://overpass-api.de/api/interpreter', {
-          method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-          body: 'data=' + encodeURIComponent('[out:json][timeout:20];(' + sels.join('') + ');out center 40;'),
-        })).json();
+        const kinds = [];
+        types.forEach(t => (t.nom || []).forEach(k => kinds.push(Object.assign({ km: 16 }, k))));
+        const data = await overpassJson('[out:json][timeout:20];(' + sels.join('') + ');out center 60;', kinds.length ? { lat, lon, kinds } : null);
         let items = [];
         (data.elements || []).forEach(el => {
           const t = el.tags || {}; if (!t.name) return;
@@ -5429,7 +5664,7 @@
           if (la == null) return;
           const mi = haversineMi(lat, lon, la, lo);
           items.push({ name: t.name, mi, meta: mi.toFixed(1) + ' mi away', icon: searchPlaceIcon(t),
-            url: 'https://www.google.com/maps/search/?api=1&query=' + la + ',' + lo });
+            url: 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(t.name + ' ' + (t['addr:city'] || zip)) });
         });
         // Unknown words ("camp bow wow near me") → match against place names
         if (nameFilter) {
@@ -5437,10 +5672,14 @@
           if (nameHits.length) items = nameHits;
         }
         items.sort((a, b) => a.mi - b.mi);
-        if (!items.length) return '<div class="sec"><h3>📍 Near ' + esc(zip) + '</h3></div><div class="note">Nothing matching within ~10 miles — try different words, or shop online below.</div>';
-        return '<div class="sec"><h3>📍 Near ' + esc(zip) + '</h3></div>' + items.slice(0, 8).map(spotRow).join('');
+        if (!items.length) return '<div class="sec"><h3>📍 Near ' + esc(zip) + '</h3></div><div class="note">Nothing on Petfi\'s map within about 10 miles.</div>' + mapsRatingsLink(q, zip, 'Look on Google Maps instead');
+        SEARCH_PLACES.names = items.slice(0, 8).map(it => it.name + ' (' + it.mi.toFixed(1) + ' mi)');
+        return '<div class="sec"><h3>📍 Near ' + esc(zip) + '</h3></div>' +
+          '<p class="sub" style="font-size:0.78rem;margin:-0.2rem 0 0.5rem;">Nearest first. Tap Open for directions and reviews.</p>' +
+          items.slice(0, 8).map(spotRow).join('') +
+          mapsRatingsLink(q, zip, items.length < 4 ? 'Petfi\'s map only knows ' + items.length + ' here. See more, with star ratings, on Google Maps' : 'See star ratings and reviews on Google Maps');
       } catch (e) {
-        return '<div class="sec"><h3>📍 Near you</h3></div><div class="note">Live place lookup is unavailable right now — try again in a minute, or shop online below.</div>';
+        return '<div class="sec"><h3>📍 Near you</h3></div><div class="note">The map service didn\'t answer just now. <span class="link" onclick="runSearch()">Try again</span></div>' + mapsRatingsLink(q, zip, 'Or look on Google Maps');
       }
     }
     function searchPlaceIcon(t) {
@@ -5516,7 +5755,7 @@
       if (!isAdmin() || !cloud) return;
       const now = new Date(), prev = new Date(now.getFullYear(), now.getMonth() - 1, 1);
       const ym = d => d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
-      openSheet('📅 Monthly profit', '<div class="note">⏳ Loading…</div>');
+      openSheet('📅 Monthly profit', searchingHtml('Loading…'));
       const mySeq = sheetSeq;
       const { data, error } = await cloud.from('pledge_profit_months').select('month, profit_cents, note').order('month', { ascending: false }).limit(24);
       if (sheetSeq !== mySeq) return;
@@ -5624,7 +5863,7 @@
       // Inside the Play app nothing may be paid outside Play Billing; an older
       // build without it gets pointed at the update instead of Stripe.
       if (IS_PLAY_APP) { donateFail('needs_update'); return; }
-      openSheet('💝 Thank you', '<div class="note">⏳ Opening secure checkout…</div>');
+      openSheet('💝 Thank you', searchingHtml('Opening secure checkout…'));
       const r = await donateCall('checkout', { amount_cents: cents });
       if (r.url) { location.href = r.url; return; }
       donateFail(r.error);
@@ -5728,7 +5967,7 @@
       if (!(cloud && cloudUser)) { toast('Sign in to give'); return; }
       if (IS_PLAY_APP) return;
       if (!isFinite(cents) || cents < 100 || cents > 100000) { toast('Monthly gifts are $1 to $1,000'); return; }
-      openSheet('💞 Thank you', '<div class="note">⏳ Opening secure checkout…</div>');
+      openSheet('💞 Thank you', searchingHtml('Opening secure checkout…'));
       const r = await donateCall('monthly', { amount_cents: cents });
       if (r.url) { location.href = r.url; return; }
       if (r.error === 'already_monthly') { openSheet('💞 Monthly gift', '<div class="note">You already give every month. To change the amount, cancel it on the Pledge page and start a new one.</div><button class="btn secondary" onclick="openDonate()">Back</button>'); return; }
@@ -5933,7 +6172,7 @@
     async function openAssistQueue(status) {
       if (!isAdmin() || !cloud) return;
       status = ASSIST_STATUS[status] ? status : 'pending';
-      openSheet('🗂️ Help requests', '<div class="note">⏳ Loading…</div>');
+      openSheet('🗂️ Help requests', searchingHtml('Loading…'));
       const mySeq = sheetSeq;
       await loadAssistSettings();
       const { data, error } = await cloud.from('pledge_assist_requests').select('*').eq('status', status).order('created_at', { ascending: true }).limit(200);
@@ -6099,7 +6338,7 @@
     }
     async function openTopDonors() {
       if (!isAdmin() || !cloud) return;
-      openSheet('🏆 Top supporters', '<div class="note">⏳ Loading…</div>');
+      openSheet('🏆 Top supporters', searchingHtml('Loading…'));
       const mySeq = sheetSeq;
       const { data, error } = await cloud.rpc('petfi_pledge_donors', { lim: 100 });
       if (sheetSeq !== mySeq) return;
@@ -6126,10 +6365,8 @@
         if (!donateShelters || donateShelters.zip !== zip) {
           const geo = await geocodeZip(zip); if (!geo) throw new Error('zip');
           const { lat, lon } = geo;
-          const data = await (await fetch('https://overpass-api.de/api/interpreter', {
-            method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-            body: 'data=' + encodeURIComponent('[out:json][timeout:20];(nwr["amenity"="animal_shelter"](around:24000,' + lat + ',' + lon + '););out center 20;'),
-          })).json();
+          const data = await overpassJson('[out:json][timeout:20];(nwr["amenity"="animal_shelter"](around:24000,' + lat + ',' + lon + '););out center 20;',
+            { lat, lon, kinds: [{ q: 'animal shelter', km: 24, tag: ['amenity', 'animal_shelter'] }] });
           const list = [];
           (data.elements || []).forEach(el2 => {
             const t = el2.tags || {}; if (!t.name) return;
@@ -6350,7 +6587,7 @@
     async function openStoreRequestsAdmin(status) {
       if (!isAdmin() || !cloud) return;
       status = REQ_STATUS[status] ? status : 'new';
-      openSheet('🗂️ Product requests', '<div class="note">⏳ Loading…</div>');
+      openSheet('🗂️ Product requests', searchingHtml('Loading…'));
       const seq = sheetSeq;
       const { data, error } = await cloud.from('petfi_store_requests').select('*').eq('status', status).order('created_at', { ascending: status === 'new' }).limit(200);
       const rows = data || [], ids = [...new Set(rows.map(r => r.user_id))];
@@ -6497,7 +6734,7 @@
           'and half of all Petfi profit — plus every donation dollar Petfi receives — goes back to animals.</div>';
       }
       if (catalogState === 'failed' && state.storeCat !== 'Members') h += '<div class="note">📡 The catalog didn\'t load. <span class="link" onclick="catalogState=\'idle\';ensureCatalog()">Try again</span></div>';
-      else if (catalogState !== 'ready' && state.storeCat !== 'Members') h += '<div class="note">⏳ Loading the catalog…</div>';
+      else if (catalogState !== 'ready' && state.storeCat !== 'Members') h += searchingHtml('Loading the catalog…');
       else if (!items.length) h += '<div class="note">Nothing in this combination yet — try another type.</div>';
       const limit = storeShown || STORE_PAGE;
       h += '<div class="store-grid">' + items.slice(0, limit).map(prodCard).join('') + '</div>';
@@ -7650,7 +7887,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.1';
+    const APP_VERSION = '1.33.2';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7803,7 +8040,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // Admin: the inbox for those messages (Me › Questions & feedback)
     async function openDevInbox() {
       if (!isAdmin()) return;
-      openSheet('🙋 Questions & feedback', '<div class="note">⏳ Loading…</div>');
+      openSheet('🙋 Questions & feedback', searchingHtml('Loading…'));
       const seq = sheetSeq;
       const r = await cloud.from('feedback').select('id, user_id, content, created_at').order('created_at', { ascending: false }).limit(60).then(x => x, e => ({ error: e }));
       if (seq !== sheetSeq) return;
@@ -8017,7 +8254,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     async function openUsage(days) {
       if (!isAdmin() || !cloud) return;
       days = days || 30;
-      openSheet('📊 Usage', '<div class="note">⏳ Loading…</div>');
+      openSheet('📊 Usage', searchingHtml('Loading…'));
       const seq = sheetSeq;
       const { data, error } = await cloud.rpc('petfi_events_summary', { days });
       if (seq !== sheetSeq) return;
@@ -8049,7 +8286,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     }
     async function openModeration() {
       if (!isAdmin()) return;
-      openSheet('🛡️ Moderation', '<div class="note">⏳ Loading reports…</div>');
+      openSheet('🛡️ Moderation', searchingHtml('Loading reports…'));
       const mySeq = sheetSeq;
       const { data, error } = await cloud.from('reports').select('id, reporter_id, content, created_at, status').eq('status', 'open').order('created_at', { ascending: false }).limit(50);
       if (sheetSeq !== mySeq) return;
@@ -11480,7 +11717,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     // Admin: add codes, see how often each was used, switch one off
     async function openVerifyCodesAdmin() {
       if (!isAdmin() || !cloud) return;
-      openSheet('🎟️ Free verification codes', '<div class="note">⏳ Loading…</div>');
+      openSheet('🎟️ Free verification codes', searchingHtml('Loading…'));
       const mySeq = sheetSeq;
       const { data, error } = await cloud.rpc('petfi_verify_codes_list');
       if (sheetSeq !== mySeq) return;
