@@ -6391,7 +6391,7 @@
           '<div class="link-row" onclick="startVerify()"><span class="li">🪪</span><div>ID verification<small>' +
           (state.verified ? 'Verified ✔︎ — your trust badge is live'
             : state.verifyWaitlist ? 'You\'re on the list — tap to check if it\'s open'
-            : 'One-time $3: trust badge, sell, offer services' + (isOrg ? '' : ', Mate Match') + (AVATAR.ready ? ', AI avatar' : '')) +
+            : 'One-time $3: trust badge, sell, offer services' + (isOrg && !iAmFarm() ? '' : ', Mate Match') + ', Spotlight ads' + (AVATAR.ready ? ', AI avatar' : '')) +
           '</small></div><span class="chev">›</span></div>' +
         '</div>';
       }
@@ -7239,7 +7239,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.31.4';
+    const APP_VERSION = '1.31.5';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -10765,17 +10765,19 @@
     function verifyPerks() {
       // Selling, services and Mate Match listings are owner-only (requireSeller), so a
       // pet account is told that up front instead of being promised them for its $3
-      const pet = state.accountType === 'pet', org = iAmOrg();
+      // Farms list farm animals and horses in Mate Match (1.31.4); other organizations don't
+      const pet = state.accountType === 'pet', org = iAmOrg(), farm = iAmFarm();
       return [
         org ? ['🏢', 'Your organization goes live', 'your profile, posts, messages and listings open as soon as the check passes'] : null,
         ['✔︎', 'Trust badge', 'on your profile and everything you post, sell or list'],
         pet ? null : ['🛒', 'Sell in the Pet Store', 'products, supplies and pets, to members near you and across the country'],
         pet ? null : ['🧑‍🔧', 'Offer pet services', 'dog walking, sitting, poop scooping, grooming, training, custom pet art'],
-        pet || org ? null : ['💘', 'List in Mate Match', 'find breeding partners for your dogs, cats, horses and farm animals'],
+        pet || (org && !farm) ? null : ['💘', 'List in Mate Match', farm ? 'find breeding partners for your goats, cattle, horses and other farm animals' : 'find breeding partners for your dogs, cats, horses and farm animals'],
+        pet ? null : ['📣', 'Spotlight ads', 'put a litter, product or service in front of pet owners near you, across your state or everywhere on Petfi (ads are paid separately)'],
         org ? null : ['🆘', 'Ask the Pledge for help', (assistOpen() ? 'with a vet bill, a cremation or pet food; we pay the provider directly.' : 'with a vet bill, a cremation or pet food, once the fund opens. Only verified members can ask.') + ' Not guaranteed: it depends on the funds available, how serious it is and how many requests we have'],
       ].concat(AVATAR.ready ? [['✨', 'AI avatar', 'a cartoon of your pet or you, drawn from a photo, ' + AVATAR.cap + ' tries']] : [])
        .concat([['🤝', 'Members know you\'re real', pet ? 'everyone can see a verified, accountable person is behind this pet' : org ? 'members can see a verified, accountable person stands behind this organization' : 'buyers, clients and breeders can see you\'re a verified, accountable person']])
-       .concat(pet ? [['ℹ️', 'Not included yet', 'selling, offering services and listing in Mate Match open once this account switches to a pet owner account']] : [])
+       .concat(pet ? [['ℹ️', 'Not included yet', 'selling, offering services, Spotlight ads and listing in Mate Match open once this account switches to a pet owner account']] : [])
        .filter(Boolean);
     }
     function verifyPerksHtml(title) {
