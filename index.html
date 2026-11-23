@@ -2,9 +2,15 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<script>/* petfi.org is the main address since 2026-11-20. Only this homepage moves:
-   petfi.pet/app/ stays for the Google Play app and members already signed in there. */
-if (/^(www\.)?petfi\.pet$/i.test(location.hostname)) location.replace('https://petfi.org' + location.pathname + location.search + location.hash);</script>
+<script>/* petfi.org is the main address since 2026-11-20. Only this homepage moves, and only for
+   visitors with no Petfi login here. Logins belong to one web address, so a member signed in
+   on petfi.pet stays on this page and its "app/" links keep their session.
+   petfi.pet/app/ itself never moves: the Google Play app runs there. */
+(function () {
+  if (!/^(www\.)?petfi\.pet$/i.test(location.hostname)) return;
+  try { if (localStorage.getItem('sb-zddvxvjxokxtgnwqjnzm-auth-token')) return; } catch (e) {}
+  location.replace('https://petfi.org' + location.pathname + location.search + location.hash);
+})();</script>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Petfi: Everything Your Pet Needs, in One Free App</title>
 <meta name="description" content="Everything your pet needs in one free app: friends, Lost &amp; Found, a free QR ID tag, care reminders, Mate Match, local services and a store. Half our profit goes back to animals.">
