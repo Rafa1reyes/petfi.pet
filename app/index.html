@@ -8087,7 +8087,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.5';
+    const APP_VERSION = '1.33.6';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -15485,7 +15485,7 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
     function notifStatusLine() {
       if (!('Notification' in window)) return '<div class="note">🔕 This browser doesn\'t support notifications — reminders will show inside the app only.</div>';
       if (Notification.permission === 'granted') return PUSH_ACTIVE
-        ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications on — reminders reach this device even when Petfi is closed.</div>'
+        ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications on — reminders reach this device even when Petfi is closed. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="pushTestNow()">Send a test alert</span></div>'
         : '<div class="note" style="background:#e7f6e9;color:#2e7d44;">🔔 Notifications on — reminders alert you while Petfi is open' + (pushSupported() && cloudUser ? '. <span style="color:var(--blue);cursor:pointer;font-weight:700;" onclick="turnOnClosedAlerts()">Get them with the app closed too</span>' : ' (this browser can\'t receive them closed; add Petfi to your home screen or use the Android app)') + '.</div>';
       if (Notification.permission === 'denied') return '<div class="note">🔕 Notifications are blocked in your browser settings — reminders will only appear while the app is open. Unblock them to get alerts.</div>';
       return '<div class="note">🔔 <b>Enable notifications</b> so we can alert you when a reminder is due — otherwise you won\'t get alerts. ' +
@@ -15673,9 +15673,33 @@ q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the 
         PUSH_ACTIVE = true;
         track('push_on');
         state.pushSyncedSig = ''; schedulePushSync(0);
-        if (sendTest) { try { await cloud.functions.invoke('petfi-push', { method: 'POST', body: { test: true } }); } catch (e) {} }
+        if (sendTest) setTimeout(() => pushTestSend(0), 5000);
         return true;
       } catch (e) { console.warn('push subscribe:', e && e.message); track('push_on', step); PUSH_ACTIVE = false; return false; }
+    }
+    // The "Notifications are on" test alert. It waits a few seconds after sign-up: a push service can
+    // answer "gone" for a registration it made a second ago, and the server drops a device that is gone
+    // (the first real phone, 2026-11-23). When the test could not be sent, the device is saved again
+    // (the server may have dropped it) and tried once more; a second miss is counted (fail-send).
+    async function pushTestCall() {
+      try { const { data } = await cloud.functions.invoke('petfi-push', { method: 'POST', body: { test: true } }); return Number(data && data.sent) || 0; } catch (e) { return 0; }
+    }
+    async function pushTestSend(attempt) {
+      if (!cloud || !cloudUser || !PUSH_ACTIVE) return false;
+      if (await pushTestCall()) return true;
+      if (attempt >= 1) { track('push_on', 'fail-send'); PUSH_ACTIVE = false; return false; } // reminders still show while Petfi is open
+      await ensurePushSubscription(false);
+      setTimeout(() => pushTestSend(attempt + 1), 12000);
+      return false;
+    }
+    // Notification settings: a member checks that alerts reach this device
+    async function pushTestNow() {
+      if (!cloud || !cloudUser) return;
+      toast('🔔 Sending a test alert…');
+      let sent = await pushTestCall();
+      if (!sent && await ensurePushSubscription(false)) { await new Promise(r => setTimeout(r, 4000)); sent = await pushTestCall(); }
+      if (!sent) track('push_on', 'fail-send');
+      toast(sent ? '🔔 Test alert sent. It should arrive in a few seconds.' : '⚠️ The test alert could not be sent. Close Petfi, open it again and try once more.');
     }
     // ---- Carer dose reminders (opt-in per team: state.careRemind[teamId]) ----
     // Derived every time from the owner's team card (card.meds[].sched, see
