@@ -1320,7 +1320,7 @@
       <label for="acct-pass">Password</label>
       <input type="password" id="acct-pass" placeholder="At least 6 characters" onkeydown="if(event.key==='Enter')createLogin()" />
       <label for="acct-pin">Login PIN <small style="color:var(--muted);font-weight:400;">(optional)</small></label>
-      <input type="text" id="acct-pin" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="off" spellcheck="false" placeholder="6 digits, or leave empty" style="-webkit-text-security:disc;" />
+      <input type="text" id="acct-pin" inputmode="numeric" pattern="[0-9]*" maxlength="8" autocomplete="off" spellcheck="false" placeholder="4 to 8 digits, or leave empty" style="-webkit-text-security:disc;" />
       <p class="sub" style="font-size:0.8rem;margin:0.3rem 0 0;">You can create a PIN if you would like to make logging in easier. It's optional: skip it and just use your password, or add one later in Settings.</p>
       <p id="acct-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>
       <label class="age-ok"><input type="checkbox" id="acct-age" aria-describedby="acct-age-err" onchange="if(this.checked)document.getElementById('acct-age-err').textContent=''" /><span>I am <span class="min-age">18</span> or older</span></label>
@@ -5234,13 +5234,99 @@
       const chips = recent.concat(SEARCH_SUGGESTIONS.filter(s => recent.indexOf(s) < 0)).slice(0, 6);
       openSheet('🔍 Pet search',
         '<div class="cmt-input-row" style="margin-top:0.2rem;">' +
-          '<input id="search-q" aria-label="Pet search" placeholder="Try: dog wash near me" value="' + esc(prefill || '') + '" onkeydown="if(event.key===\'Enter\')runSearch()">' +
+          '<input id="search-q" aria-label="Search or ask a question" placeholder="Search, or ask a question" maxlength="500" value="' + esc(prefill || '') + '" onkeydown="if(event.key===\'Enter\')runSearch()">' +
           '<button class="pill-btn" onclick="runSearch()">Search</button></div>' +
         '<div class="chips" style="margin:0.7rem -1.3rem 0.3rem;padding:0 1.3rem;">' +
           chips.map(s => '<div class="chip" onclick="document.getElementById(\'search-q\').value=\'' + esc(s).replace(/'/g, '') + '\';runSearch()">' + esc(s) + '</div>').join('') + '</div>' +
+        '<div id="assist-box"></div>' +
         '<div id="search-results"><p class="sub" style="font-size:0.82rem;margin-top:0.6rem;">Products, groomers, vets, parks, boarding, shelters — pet results only, zero ads.</p></div>');
       if (prefill) runSearch();
       else setTimeout(() => { const e = document.getElementById('search-q'); if (e) e.focus(); }, 250);
+      assistIntro();
+    }
+
+    // ---------- Petfi assistant: questions in the search box ----------
+    // A question typed into search ("what food is best for a pit bull?", "how do I
+    // add my pet?") gets a written answer above the results, with buttons that
+    // take the member there. Answers come from the petfi-assistant function; the
+    // assistant never does anything by itself, the member taps.
+    const ASSIST = { ready: null, history: [], busy: false, actions: [] };
+    const ASSIST_SCREENS = {
+      help: () => openHelp(), ask_developer: () => openAskDev(), add_pet: () => openAddPet(), my_care: () => setHomeTab('care'),
+      sell: () => openSell(), offer_service: () => openOfferService(), verify: () => startVerify(), login_pin: () => openPinSettings(),
+      notifications: () => openNotifSettings(), pledge: () => openDonate(), invite: () => inviteFriends(), messages: () => openChats(),
+      list_for_breeding: () => startMateListing(),
+    };
+    const ASSIST_TABS = ['home', 'mate', 'nearby', 'farm', 'store', 'profile', 'groups', 'lost'];
+    async function assistReady() {
+      if (!cloud || !cloudUser) return false;
+      if (ASSIST.ready == null) { const r = await fnCall('petfi-assistant', 'status'); ASSIST.ready = !!(r && r.ready === true); }
+      return ASSIST.ready;
+    }
+    // Reads like a question or a request for advice, not a product or place lookup
+    function assistIsQuestion(q) {
+      q = String(q || '').trim().toLowerCase();
+      if (q.length < 8) return false;
+      if (/\?$/.test(q)) return true;
+      return /^(how|what|what's|why|when|where|which|who|can|could|should|is|are|do|does|did|will|would|my|i |i'm|help|tell me|explain|c[oó]mo|qu[eé]|por qu[eé]|cu[aá]l|cu[aá]ndo|d[oó]nde|puedo|mi )\b/.test(q) || / (best|safe|okay|ok|good) for /.test(q);
+    }
+    function assistCtx() {
+      const geo = myGeo();
+      const pets = (state.pets || []).slice(0, 8).map(x => [x.species, x.breed].filter(Boolean).join(' ')).filter(Boolean);
+      return { account: state.accountType === 'org' ? (iAmFarm() ? 'farm' : 'organization') : 'pet owner', verified: !!state.verified, area: geo && geo.area ? geo.area : '', pets, lang: langIsEs() ? 'es' : 'en' };
+    }
+    async function assistIntro() {
+      const box = document.getElementById('assist-box');
+      if (!box || !(await assistReady())) return;
+      if (!document.getElementById('assist-box') || document.getElementById('assist-box').innerHTML) return;
+      box.innerHTML = '<p class="sub" style="font-size:0.82rem;margin:0.5rem 0 0;">✨ You can also ask a question, like “what should I feed a puppy?” or “how do I add my pet?”</p>';
+    }
+    // Called by every search: answer questions, offer to answer the rest
+    async function assistOnSearch(q) {
+      const box = document.getElementById('assist-box');
+      if (!box) return;
+      box.innerHTML = '';
+      if (!(await assistReady())) return;
+      if (assistIsQuestion(q)) { askAssistant(q); return; }
+      if (val('search-q') !== q) return;
+      box.innerHTML = '<div class="link" style="font-size:0.85rem;font-weight:700;margin:0.6rem 0 0.2rem;" role="button" tabindex="0" onclick="askAssistant(val(\'search-q\'))">✨ Ask the Petfi assistant about this</div>';
+    }
+    async function askAssistant(q) {
+      q = String(q || '').trim().slice(0, 500);
+      const box = document.getElementById('assist-box');
+      if (!box || q.length < 2 || ASSIST.busy) return;
+      ASSIST.busy = true;
+      box.innerHTML = '<div class="hx-card" style="margin:0.7rem 0 0.4rem;"><b>✨ Petfi assistant</b><p class="sub" style="margin:0.3rem 0 0;">Thinking…</p></div>';
+      track('assistant_ask');
+      const r = await fnCall('petfi-assistant', 'ask', { q, history: ASSIST.history.slice(-6), ctx: assistCtx() });
+      ASSIST.busy = false;
+      const now = document.getElementById('assist-box');
+      if (!now) return;
+      const card = inner => '<div class="hx-card" style="margin:0.7rem 0 0.4rem;text-align:left;"><b>✨ Petfi assistant</b>' + inner + '</div>';
+      if (r && r.ready === false) { ASSIST.ready = false; now.innerHTML = ''; return; }
+      if (!r || r.error || r.declined || !r.answer) {
+        now.innerHTML = card('<p class="sub" style="margin:0.3rem 0 0;">' + (r && r.error === 'daily_limit' ? 'You\'ve reached today\'s limit of questions. It resets tomorrow; the search results below still work.'
+          : r && r.declined ? 'I can only help with pets, animals and using Petfi. Try asking it another way.'
+          : 'I couldn\'t answer just now. Try again in a moment, or use the results below.') + '</p>');
+        return;
+      }
+      ASSIST.history.push({ role: 'user', text: q }, { role: 'assistant', text: r.answer });
+      ASSIST.history = ASSIST.history.slice(-6);
+      ASSIST.actions = (Array.isArray(r.actions) ? r.actions : []).filter(a => a &&
+        ((a.kind === 'open_tab' && ASSIST_TABS.indexOf(a.value) >= 0) || (a.kind === 'open_screen' && ASSIST_SCREENS[a.value]) || (a.kind === 'search' && String(a.value || '').trim().length > 1))).slice(0, 3);
+      now.innerHTML = card(
+        '<p style="white-space:pre-wrap;margin:0.4rem 0 0;font-size:0.95rem;line-height:1.45;">' + esc(r.answer) + '</p>' +
+        (ASSIST.actions.length ? '<div style="display:flex;flex-wrap:wrap;gap:0.4rem;margin-top:0.6rem;">' +
+          ASSIST.actions.map((a, i) => '<button class="pill-btn' + (i ? ' ghost' : '') + '" onclick="assistAct(' + i + ')">' + esc(String(a.label || 'Open').slice(0, 40)) + '</button>').join('') + '</div>' : '') +
+        '<p class="sub" style="font-size:0.72rem;margin:0.6rem 0 0;">Written by AI, so it can be wrong. For a sick or injured animal, call a vet.</p>');
+    }
+    function assistAct(i) {
+      const a = ASSIST.actions[i]; if (!a) return;
+      track('assistant_tap', a.kind);
+      if (a.kind === 'search') { const e = document.getElementById('search-q'); if (e) { e.value = String(a.value).slice(0, 80); runSearch(true); } else openSearch(String(a.value).slice(0, 80)); return; }
+      closeSheet();
+      if (a.kind === 'open_tab') openTab(a.value);
+      else if (ASSIST_SCREENS[a.value]) ASSIST_SCREENS[a.value]();
     }
 
     function searchTokens(q) {
@@ -5248,8 +5334,9 @@
         .split(/[^a-z0-9]+/).filter(w => w.length > 2);
     }
 
-    async function runSearch() {
+    async function runSearch(fromAssistant) {
       const q = val('search-q'); if (!q) return;
+      if (fromAssistant !== true) assistOnSearch(q); // a question gets a written answer above the results
       state.searches = [q].concat((state.searches || []).filter(s => s !== q)).slice(0, 5);
       saveState();
       const box = document.getElementById('search-results'); if (!box) return;
@@ -7563,7 +7650,7 @@
     }
 
     // ======================= SUPPORT, LEGAL & SAFETY =======================
-    const APP_VERSION = '1.33.0';
+    const APP_VERSION = '1.33.1';
     const SUPPORT_EMAIL = 'support@petfi.pet'; // forwards to the team inbox
     const LEGAL_UPDATED = 'October 5, 2026';
     // Minimum age for EVERY Petfi account, Pet or Owner. This is the one place
@@ -7677,13 +7764,14 @@
       const q = (s, a) => '<details><summary>' + s + '</summary><p>' + a + '</p></details>';
       return '<div class="sec" style="margin-top:0.2rem;"><h3>🧭 Common problems</h3></div><div class="faq">' +
         q('🏠 How do I get back to the main page?', 'Tap <b>🏠 Home</b> in the row of buttons at the bottom of the screen (on a computer it\'s on the left side). That row is always there: Home, Mate Match, Nearby, Farm Stuff, Store and Me. Your phone\'s Back button also takes you back to Home.') +
-        q('🔑 I can\'t log in or I forgot my password', '1. On the first screen tap <b>Log in</b>.<br>2. Check your email is spelled right, with no space at the end.<br>3. If you set a 6-digit PIN, tap <b>Log in with my PIN</b> and type your email and PIN.<br>4. Still stuck? Tap <b>Forgot your password?</b>. If no email arrives in a few minutes, write to <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a> from the email you signed up with and we\'ll get you back in.') +
-        q('🔢 What is the login PIN? Do I need one?', 'No, it\'s optional. A PIN is 6 digits you choose so you can log in without typing your password. To turn it on: tap <b>👤 Me</b>, scroll to <b>Account &amp; security</b>, then <b>Login PIN</b>. Keep your password too.') +
+        q('🔑 I can\'t log in or I forgot my password', '1. On the first screen tap <b>Log in</b>.<br>2. Check your email is spelled right, with no space at the end.<br>3. If you set a PIN, tap <b>Log in with my PIN</b> and type your email and PIN.<br>4. Still stuck? Tap <b>Forgot your password?</b>. If no email arrives in a few minutes, write to <a href="mailto:' + SUPPORT_EMAIL + '">' + SUPPORT_EMAIL + '</a> from the email you signed up with and we\'ll get you back in.') +
+        q('🔢 What is the login PIN? Do I need one?', 'No, it\'s optional. A PIN is 4 to 8 digits you choose so you can log in without typing your password. To turn it on: tap <b>👤 Me</b>, scroll to <b>Account &amp; security</b>, then <b>Login PIN</b>. Keep your password too.') +
         q('🐶 How do I add my pet?', 'Tap <b>👤 Me</b> at the bottom, then <b>＋ Add a pet</b>. Pick the kind of animal, type the name, and tap save. You can add as many pets as you have.') +
         q('📷 How do I post a photo?', '1. Tap <b>🏠 Home</b>.<br>2. Tap the box at the top that asks what\'s on your mind.<br>3. Tap <b>📷 Add photos</b> and choose a picture from your phone.<br>4. Tap <b>Post</b>.') +
         q('🖼️ How do I change my picture?', 'Tap <b>👤 Me</b>, then <b>📷 Use a photo</b> under your name, and choose a picture. To go back to the drawn icon, tap <b>↺ Back to my icon</b>.') +
         q('💬 How do I send someone a message?', 'Tap their name or picture to open their page, then tap <b>💬 Message</b>. Your conversations are under the <b>💬</b> button at the top of the screen.') +
         q('🔍 How do I find a groomer, vet or pet store near me?', 'Tap the <b>🔍</b> at the top and type what you need, like “dog groomer near me”. Or tap <b>📍 Nearby</b> at the bottom and enter your ZIP code to see parks, stores and vets around you.') +
+q('✨ Can I just ask a question?', 'Yes. Tap the <b>🔍</b> at the top of the screen and type your question the way you\'d say it, like “how do I add my pet?” or “what should I feed a puppy?”. The Petfi assistant writes an answer and shows buttons that take you to the right place.') +
         q('🚜 How do I find farms that sell milk, eggs or meat?', 'Tap <b>🚜 Farm Stuff</b> at the bottom, type your ZIP code and tap <b>Search</b>. Tap a farm\'s <b>Website</b> or <b>📍 Map</b> button for directions and hours.') +
         q('🔔 I\'m not getting notifications', 'Tap <b>👤 Me</b>, scroll to <b>Settings</b>, then tap <b>🔔 Notification settings</b> and turn them on. If your phone asks whether Petfi may send notifications, tap <b>Allow</b>. If you said no before, open your phone\'s Settings, find Petfi (or your browser) under Notifications, and switch it on.') +
         q('📱 How do I put Petfi on my phone\'s home screen?', '<b>Android:</b> get the Petfi app from Google Play. <b>iPhone:</b> open petfi.org in Safari, tap the Share button (the square with an arrow), then <b>Add to Home Screen</b>. After that Petfi opens like any other app.') +
@@ -15452,7 +15540,7 @@
       if (!/^\S+@\S+\.\S+$/.test(email)) { err.textContent = 'Please enter a valid email address.'; err.style.display = 'block'; return; }
       if (pass.length < 6) { err.textContent = 'Password needs at least 6 characters.'; err.style.display = 'block'; return; }
       const newPin = val('acct-pin'); // optional
-      if (newPin && !/^\d{6}$/.test(newPin)) { err.textContent = 'The PIN is optional, but if you want one it needs exactly 6 digits. Or leave it empty.'; err.style.display = 'block'; return; }
+      if (newPin && !/^\d{4,8}$/.test(newPin)) { err.textContent = 'The PIN is optional, but if you want one it needs 4 to 8 digits. Or leave it empty.'; err.style.display = 'block'; return; }
       if (!ageBox.checked) { ageErr.textContent = 'Please confirm you\'re ' + MIN_AGE + ' or older — Petfi accounts are for adults only.'; ageBox.focus(); return; }
       btn.disabled = true; btn.textContent = 'Creating your account…';
       const { data, error } = await cloud.auth.signUp({ email: email, password: pass });
@@ -15540,7 +15628,7 @@
     const LINK_STYLE = 'color:var(--muted);font-size:0.85rem;';
     // A PIN box is a text field with masked digits, not type=password: a password
     // field next to the email makes browsers offer to save the PIN as the password.
-    const PIN_FIELD = 'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" spellcheck="false" placeholder="6 digits" ' +
+    const PIN_FIELD = 'type="text" inputmode="numeric" pattern="[0-9]*" maxlength="8" spellcheck="false" placeholder="4 to 8 digits" ' +
       'style="letter-spacing:0.4em;font-size:1.3rem;text-align:center;-webkit-text-security:disc;"';
     // Log out from Settings: on a shared computer, the member can also make this device forget them
     function openLogOutChoice() {
@@ -15583,7 +15671,7 @@
       const name = last && email && last.email === email.toLowerCase() ? last.name : '';
       openSheet(name ? '👋 Welcome back' : '🔢 Log in with your PIN',
         (name ? '<p class="sub">Welcome back, <b>' + esc(name) + '</b>! Enter your PIN to continue.</p>'
-              : '<p class="sub">Use the 6-digit PIN you set up in Settings.</p>') +
+              : '<p class="sub">Use the PIN you set up in Settings.</p>') +
         '<label for="pl-email">Email</label><input id="pl-email" type="email" placeholder="you@example.com" autocomplete="username" value="' + esc(email) + '">' +
         '<label for="pl-pin">PIN</label><input id="pl-pin" ' + PIN_FIELD + ' autocomplete="off" onkeydown="if(event.key===\'Enter\')doPinLogin()">' +
         '<p id="pl-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
@@ -15603,7 +15691,7 @@
       const fail = m => { btn.disabled = false; btn.textContent = 'Log in'; err.textContent = m; err.style.display = 'block'; };
       err.style.display = 'none';
       if (!/^\S+@\S+\.\S+$/.test(email)) return fail('Enter the email you log in with.');
-      if (!/^\d{6}$/.test(pin)) return fail('Your PIN is 6 digits.');
+      if (!/^\d{4,8}$/.test(pin)) return fail('Your PIN is 4 to 8 digits.');
       btn.disabled = true; btn.textContent = 'Logging in…';
       let status = 0, body = {};
       try {
@@ -15708,8 +15796,8 @@
       }
       openSheet('🔢 Login PIN',
         '<p class="sub">' + (EMAIL_CODES_ON
-          ? 'A 6-digit PIN lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password or an emailed code instead. Changing your password turns the PIN off.'
-          : 'A 6-digit PIN lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password instead. Changing your password turns the PIN off.') + '</p>' +
+          ? 'A PIN (4 to 8 digits, your choice) lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password or an emailed code instead. Changing your password turns the PIN off.'
+          : 'A PIN (4 to 8 digits, your choice) lets you log in with your email and PIN instead of typing your password, on any device. After 5 wrong tries it locks for up to 30 days, and you log in with your password instead. Changing your password turns the PIN off.') + '</p>' +
         '<p class="sub" style="font-size:0.8rem;">Keep your password too: it\'s how you get back in if the PIN locks.</p>' +
         (st.set && st.locked ? '<div class="note">🔒 Your PIN is locked after too many wrong tries. Set a new one to turn it back on.</div>'
           : st.set ? '<div class="note" style="background:#e7f6e9;color:#2e7d44;">✅ Your PIN is on.</div>' : '') +
@@ -15722,7 +15810,7 @@
       openSheet('🔢 Set your PIN',
         '<label for="sp-pin">New PIN</label>' + pinInput('sp-pin') +
         '<label for="sp-pin2">Type the PIN again</label>' + pinInput('sp-pin2', ' onkeydown="if(event.key===\'Enter\')saveLoginPin()"') +
-        '<p class="sub" style="font-size:0.8rem;">Skip dates, repeats and runs like 123456, and don\'t reuse your bank card PIN.</p>' +
+        '<p class="sub" style="font-size:0.8rem;">Pick 4 to 8 digits. Skip birthdays, years, repeats and runs like 1234, and don\'t reuse your bank card PIN.</p>' +
         '<p id="sp-err" style="color:#d33;font-weight:600;font-size:0.9rem;display:none;"></p>' +
         '<button class="btn" id="sp-btn" onclick="saveLoginPin()">Save PIN</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Cancel</button>');
@@ -15733,7 +15821,7 @@
       const err = document.getElementById('sp-err'), btn = document.getElementById('sp-btn');
       const fail = m => { btn.disabled = false; btn.textContent = 'Save PIN'; err.textContent = m; err.style.display = 'block'; };
       err.style.display = 'none';
-      if (!/^\d{6}$/.test(p1)) return fail('Your PIN needs exactly 6 digits.');
+      if (!/^\d{4,8}$/.test(p1)) return fail('Your PIN needs 4 to 8 digits.');
       if (p1 !== p2) return fail('Those don\'t match — try again.');
       if (!cloud || !cloudUser) return fail('Log in first.');
       btn.disabled = true; btn.textContent = 'Saving…';
@@ -15743,7 +15831,7 @@
       if (error) {
         const m = String(error.message || '');
         return fail(/pin_weak/.test(m) ? 'That PIN is too easy to guess. Avoid dates, repeats and straight runs.'
-          : /pin_format/.test(m) ? 'Your PIN needs exactly 6 digits.'
+          : /pin_format/.test(m) ? 'Your PIN needs 4 to 8 digits.'
           : /fetch|network/i.test(m) ? 'No connection right now — try again.'
           : 'Couldn\'t save your PIN right now. Try again in a minute.');
       }
@@ -15771,7 +15859,7 @@
       if (!appActive() || document.body.classList.contains('sheet-open')) { setTimeout(pinOfferCheck, 60000); return; }
       state.pinOffered = true; saveState({ bg: true });
       openSheet('🔢 Want a login PIN?',
-        '<p class="sub">Optional: set a 6-digit PIN, and next time you can log in with your email and PIN instead of typing your password. On this device, Petfi will greet you and ask only for the PIN. Keep your password too: it\'s how you get back in if the PIN locks.</p>' +
+        '<p class="sub">Optional: set a PIN of 4 to 8 digits, and next time you can log in with your email and PIN instead of typing your password. On this device, Petfi will greet you and ask only for the PIN. Keep your password too: it\'s how you get back in if the PIN locks.</p>' +
         '<button class="btn" onclick="openSetPin()">Set up a PIN</button>' +
         '<button class="btn secondary" onclick="closeSheet()">Not now</button>' +
         '<p class="sub" style="font-size:0.78rem;text-align:center;">You can set one any time in Settings › Account.</p>');
